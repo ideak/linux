@@ -1578,6 +1578,50 @@ extern int drm_sg_alloc_ioctl(struct drm_device *dev, void *data,
 extern int drm_sg_alloc(struct drm_device *dev, struct drm_scatter_gather * request);
 extern int drm_sg_free(struct drm_device *dev, void *data,
 		       struct drm_file *file_priv);
+struct drm_sg_iter {
+	struct scatterlist *sg;
+	int sg_offset;
+	struct page *page;
+};
+
+static inline int
+__drm_sg_iter_seek(struct drm_sg_iter *iter)
+{
+	while (iter->sg && iter->sg_offset >= iter->sg->length) {
+		iter->sg_offset -= iter->sg->length;
+		iter->sg = sg_next(iter->sg);
+	}
+
+	return iter->sg ? 0 : -1;
+}
+
+static inline struct page *
+drm_sg_iter_next(struct drm_sg_iter *iter)
+{
+	struct page *page;
+
+	if (__drm_sg_iter_seek(iter))
+		return NULL;
+
+	page = nth_page(sg_page(iter->sg), iter->sg_offset >> PAGE_SHIFT);
+	iter->sg_offset = (iter->sg_offset + PAGE_SIZE) & PAGE_MASK;
+
+	return page;
+}
+
+static inline struct page *
+drm_sg_iter_start(struct drm_sg_iter *iter, struct scatterlist *sg,
+		   unsigned long offset)
+{
+	iter->sg = sg;
+	iter->sg_offset = offset;
+
+	return drm_sg_iter_next(iter);
+}
+
+#define drm_for_each_sg_page(iter, sg, pgoffset)			\
+	for ((iter)->page = drm_sg_iter_start((iter), (sg), (pgoffset));\
+	     (iter)->page; (iter)->page = drm_sg_iter_next(iter))
 
 			       /* ATI PCIGART support (ati_pcigart.h) */
 extern int drm_ati_pcigart_init(struct drm_device *dev,
