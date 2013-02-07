@@ -411,8 +411,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 	int obj_do_bit17_swizzling, page_do_bit17_swizzling;
 	int prefaulted = 0;
 	int needs_clflush = 0;
-	struct scatterlist *sg;
-	int i;
+	struct drm_sg_iter sg_iter;
 
 	user_data = (char __user *) (uintptr_t) args->data_ptr;
 	remain = args->size;
@@ -441,11 +440,8 @@ i915_gem_shmem_pread(struct drm_device *dev,
 
 	offset = args->offset;
 
-	for_each_sg(obj->pages->sgl, sg, obj->pages->nents, i) {
-		struct page *page;
-
-		if (i < offset >> PAGE_SHIFT)
-			continue;
+	drm_for_each_sg_page(&sg_iter, obj->pages->sgl, offset) {
+		struct page *page = sg_iter.page;
 
 		if (remain <= 0)
 			break;
@@ -460,7 +456,6 @@ i915_gem_shmem_pread(struct drm_device *dev,
 		if ((shmem_page_offset + page_length) > PAGE_SIZE)
 			page_length = PAGE_SIZE - shmem_page_offset;
 
-		page = sg_page(sg);
 		page_do_bit17_swizzling = obj_do_bit17_swizzling &&
 			(page_to_phys(page) & (1 << 17)) != 0;
 
@@ -732,8 +727,7 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 	int hit_slowpath = 0;
 	int needs_clflush_after = 0;
 	int needs_clflush_before = 0;
-	int i;
-	struct scatterlist *sg;
+	struct drm_sg_iter sg_iter;
 
 	user_data = (char __user *) (uintptr_t) args->data_ptr;
 	remain = args->size;
@@ -768,12 +762,9 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 	offset = args->offset;
 	obj->dirty = 1;
 
-	for_each_sg(obj->pages->sgl, sg, obj->pages->nents, i) {
-		struct page *page;
+	drm_for_each_sg_page(&sg_iter, obj->pages->sgl, offset) {
+		struct page *page = sg_iter.page;
 		int partial_cacheline_write;
-
-		if (i < offset >> PAGE_SHIFT)
-			continue;
 
 		if (remain <= 0)
 			break;
@@ -796,7 +787,6 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 			((shmem_page_offset | page_length)
 				& (boot_cpu_data.x86_clflush_size - 1));
 
-		page = sg_page(sg);
 		page_do_bit17_swizzling = obj_do_bit17_swizzling &&
 			(page_to_phys(page) & (1 << 17)) != 0;
 
