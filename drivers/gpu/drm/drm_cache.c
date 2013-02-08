@@ -105,12 +105,11 @@ drm_clflush_sg(struct sg_table *st)
 {
 #if defined(CONFIG_X86)
 	if (cpu_has_clflush) {
-		struct scatterlist *sg;
-		int i;
+		struct drm_sg_iter sg_iter;
 
 		mb();
-		for_each_sg(st->sgl, sg, st->nents, i)
-			drm_clflush_page(sg_page(sg));
+		drm_for_each_sg_page(&sg_iter, st->sgl, 0)
+			drm_clflush_page(sg_iter.page);
 		mb();
 
 		return;
