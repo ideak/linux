@@ -3145,29 +3145,9 @@ i915_gem_object_flush_cpu_write_domain(struct drm_i915_gem_object *obj)
 					    old_write_domain);
 }
 
-/**
- * Moves a single object to the GTT read, and possibly write domain.
- *
- * This function returns when the move is complete, including waiting on
- * flushes to occur.
- */
-int
-i915_gem_object_set_to_gtt_domain(struct drm_i915_gem_object *obj, bool write)
+static void set_gtt_domain(struct drm_i915_gem_object *obj, bool write)
 {
-	drm_i915_private_t *dev_priv = obj->base.dev->dev_private;
 	uint32_t old_write_domain, old_read_domains;
-	int ret;
-
-	/* Not valid to be called on unbound objects. */
-	if (obj->gtt_space == NULL)
-		return -EINVAL;
-
-	if (obj->base.write_domain == I915_GEM_DOMAIN_GTT)
-		return 0;
-
-	ret = i915_gem_object_wait_rendering(obj, !write);
-	if (ret)
-		return ret;
 
 	i915_gem_object_flush_cpu_write_domain(obj);
 
@@ -3195,6 +3175,32 @@ i915_gem_object_set_to_gtt_domain(struct drm_i915_gem_object *obj, bool write)
 	trace_i915_gem_object_change_domain(obj,
 					    old_read_domains,
 					    old_write_domain);
+}
+
+/**
+ * Moves a single object to the GTT read, and possibly write domain.
+ *
+ * This function returns when the move is complete, including waiting on
+ * flushes to occur.
+ */
+int
+i915_gem_object_set_to_gtt_domain(struct drm_i915_gem_object *obj, bool write)
+{
+	drm_i915_private_t *dev_priv = obj->base.dev->dev_private;
+	int ret;
+
+	/* Not valid to be called on unbound objects. */
+	if (obj->gtt_space == NULL)
+		return -EINVAL;
+
+	if (obj->base.write_domain == I915_GEM_DOMAIN_GTT)
+		return 0;
+
+	ret = i915_gem_object_wait_rendering(obj, !write);
+	if (ret)
+		return ret;
+
+	set_gtt_domain(obj, write);
 
 	/* And bump the LRU for this access */
 	if (i915_gem_object_is_inactive(obj))
@@ -3350,7 +3356,6 @@ i915_gem_object_pin_to_display_plane(struct drm_i915_gem_object *obj,
 				     u32 alignment,
 				     struct intel_ring_buffer *pipelined)
 {
-	u32 old_read_domains, old_write_domain;
 	int ret;
 
 	if (pipelined != obj->ring) {
@@ -3380,20 +3385,8 @@ i915_gem_object_pin_to_display_plane(struct drm_i915_gem_object *obj,
 	if (ret)
 		return ret;
 
-	i915_gem_object_flush_cpu_write_domain(obj);
-
-	old_write_domain = obj->base.write_domain;
-	old_read_domains = obj->base.read_domains;
-
-	/* It should now be out of any other write domains, and we can update
-	 * the domain values for our changes.
-	 */
-	obj->base.write_domain = 0;
-	obj->base.read_domains |= I915_GEM_DOMAIN_GTT;
-
-	trace_i915_gem_object_change_domain(obj,
-					    old_read_domains,
-					    old_write_domain);
+	set_gtt_domain(obj, obj->is_dumb);
+	WARN_ON_ONCE(obj->base.write_domain);
 
 	return 0;
 }
