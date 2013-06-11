@@ -202,7 +202,7 @@ void i915_gem_object_free(struct drm_i915_gem_object *obj)
 static int
 i915_gem_create(struct drm_file *file,
 		struct drm_device *dev,
-		uint64_t size,
+		uint64_t size, bool is_dumb,
 		uint32_t *handle_p)
 {
 	struct drm_i915_gem_object *obj;
@@ -226,6 +226,8 @@ i915_gem_create(struct drm_file *file,
 		return ret;
 	}
 
+	obj->is_dumb = is_dumb;
+
 	/* drop reference from allocate - handle holds it now */
 	drm_gem_object_unreference(&obj->base);
 	trace_i915_gem_object_create(obj);
@@ -243,7 +245,7 @@ i915_gem_dumb_create(struct drm_file *file,
 	args->pitch = ALIGN(args->width * ((args->bpp + 7) / 8), 64);
 	args->size = args->pitch * args->height;
 	return i915_gem_create(file, dev,
-			       args->size, &args->handle);
+			       args->size, true, &args->handle);
 }
 
 int i915_gem_dumb_destroy(struct drm_file *file,
@@ -263,7 +265,7 @@ i915_gem_create_ioctl(struct drm_device *dev, void *data,
 	struct drm_i915_gem_create *args = data;
 
 	return i915_gem_create(file, dev,
-			       args->size, &args->handle);
+			       args->size, false, &args->handle);
 }
 
 static inline int

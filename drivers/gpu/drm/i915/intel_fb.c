@@ -94,6 +94,8 @@ static int intelfb_create(struct drm_fb_helper *helper,
 		goto out;
 	}
 
+	obj->is_dumb = 1;
+
 	mutex_lock(&dev->struct_mutex);
 
 	/* Flush everything out, we'll be doing GTT only from now on */
