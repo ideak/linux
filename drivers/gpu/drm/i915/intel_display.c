@@ -7074,6 +7074,7 @@ void intel_mark_fb_busy(struct drm_i915_gem_object *obj)
 {
 	struct drm_device *dev = obj->base.dev;
 	struct drm_crtc *crtc;
+	bool disable_fbc;
 
 	if (!i915_powersave)
 		return;
@@ -7081,13 +7082,17 @@ void intel_mark_fb_busy(struct drm_i915_gem_object *obj)
 	if (!obj->pin_count)
 		return;
 
+	disable_fbc = false;
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
-		if (!crtc->fb)
+		if (!crtc->fb || to_intel_framebuffer(crtc->fb)->obj != obj)
 			continue;
 
-		if (to_intel_framebuffer(crtc->fb)->obj == obj)
-			intel_increase_pllclock(crtc);
+		intel_increase_pllclock(crtc);
+		disable_fbc = true;
 	}
+
+	if (disable_fbc)
+		intel_disable_fbc(dev);
 }
 
 static void intel_crtc_destroy(struct drm_crtc *crtc)
@@ -7535,7 +7540,6 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	if (ret)
 		goto cleanup_pending;
 
-	intel_disable_fbc(dev);
 	intel_mark_fb_busy(obj);
 	mutex_unlock(&dev->struct_mutex);
 
