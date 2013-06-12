@@ -3200,6 +3200,9 @@ i915_gem_object_set_to_gtt_domain(struct drm_i915_gem_object *obj, bool write)
 	if (ret)
 		return ret;
 
+	if (write)
+		intel_mark_fb_busy(obj);
+
 	set_gtt_domain(obj, write);
 
 	/* And bump the LRU for this access */

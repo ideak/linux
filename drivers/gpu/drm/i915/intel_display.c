@@ -7078,6 +7078,9 @@ void intel_mark_fb_busy(struct drm_i915_gem_object *obj)
 	if (!i915_powersave)
 		return;
 
+	if (!obj->pin_count)
+		return;
+
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		if (!crtc->fb)
 			continue;
