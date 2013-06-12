@@ -534,6 +534,10 @@ void intel_update_fbc(struct drm_device *dev)
 	if (in_dbg_master())
 		goto out_disable;
 
+	WARN_ON_ONCE(obj->base.write_domain & ~I915_GEM_DOMAIN_GTT);
+	if (obj->base.write_domain)
+		goto out_disable;
+
 	if (i915_gem_stolen_setup_compression(dev, intel_fb->obj->base.size)) {
 		DRM_DEBUG_KMS("framebuffer too large, disabling compression\n");
 		dev_priv->no_fbc_reason = FBC_STOLEN_TOO_SMALL;
