@@ -154,6 +154,8 @@ enum intel_display_power_domain {
 	BIT(POWER_DOMAIN_OUTPUT_PORT_D) |	\
 	BIT(POWER_DOMAIN_OUTPUT_ANALOG))
 
+#define VLV_ALWAYS_ON_POWER_DOMAINS	0
+
 enum hpd_pin {
 	HPD_NONE = 0,
 	HPD_PORT_A = HPD_NONE, /* PORT_A is internal */
@@ -2506,6 +2508,7 @@ static inline void intel_unregister_dsm_handler(void) { return; }
 
 /* modesetting */
 extern void intel_modeset_init_hw(struct drm_device *dev);
+extern void intel_reset_dpio(struct drm_device *dev);
 extern void intel_modeset_suspend_hw(struct drm_device *dev);
 extern void intel_modeset_init(struct drm_device *dev);
 extern void intel_modeset_gem_init(struct drm_device *dev);

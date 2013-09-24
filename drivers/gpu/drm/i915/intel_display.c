@@ -1400,7 +1400,7 @@ static void intel_init_dpio(struct drm_device *dev)
 	DPIO_PHY_IOSF_PORT(DPIO_PHY0) = IOSF_PORT_DPIO;
 }
 
-static void intel_reset_dpio(struct drm_device *dev)
+void intel_reset_dpio(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
@@ -4221,6 +4221,7 @@ static void valleyview_modeset_global_resources(struct drm_device *dev)
 
 	if (req_cdclk != cur_cdclk)
 		valleyview_set_cdclk(dev, req_cdclk);
+	modeset_update_power_wells(dev);
 }
 
 static void valleyview_crtc_enable(struct drm_crtc *crtc)

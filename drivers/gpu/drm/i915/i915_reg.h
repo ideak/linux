@@ -380,12 +380,20 @@
 #define   DSPFREQGUAR_MASK			(0x3 << DSPFREQGUAR_SHIFT)
 #define PUNIT_REG_PWRGT_CTRL			0x60
 #define PUNIT_REG_PWRGT_STATUS			0x61
+#define   PUNIT_PWR_ON				0
 #define	  PUNIT_CLK_GATE			1
 #define	  PUNIT_PWR_RESET			2
 #define	  PUNIT_PWR_GATE			3
+#define   PUNIT_PWR_MASK			3
 #define	  RENDER_PWRGT				(PUNIT_PWR_GATE << 0)
+#define	  RENDER_PWR_ON				(PUNIT_PWR_ON << 0)
+#define	  RENDER_PWR_MASK			(PUNIT_PWR_MASK << 0)
 #define	  MEDIA_PWRGT				(PUNIT_PWR_GATE << 2)
+#define	  MEDIA_PWR_ON				(PUNIT_PWR_ON << 2)
+#define	  MEDIA_PWR_MASK			(PUNIT_PWR_MASK << 2)
 #define	  DISP2D_PWRGT				(PUNIT_PWR_GATE << 6)
+#define	  DISP2D_PWR_ON				(PUNIT_PWR_ON << 6)
+#define	  DISP2D_PWR_MASK			(PUNIT_PWR_MASK << 6)
 
 #define PUNIT_REG_GPU_LFM			0xd3
 #define PUNIT_REG_GPU_FREQ_REQ			0xd4

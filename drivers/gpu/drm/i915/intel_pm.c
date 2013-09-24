@@ -5134,6 +5134,34 @@ bool intel_display_power_enabled_sw(struct drm_device *dev,
 	return power_domains->domain_use_count[domain];
 }
 
+static bool vlv_power_well_enabled(struct drm_device *dev,
+				   struct i915_power_well *power_well)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	bool enabled = false;
+	u32 val;
+	u32 mask;
+	u32 gating_val;
+
+	mask = DISP2D_PWR_MASK;
+	gating_val = DISP2D_PWR_ON;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+
+	val = vlv_punit_read(dev_priv, PUNIT_REG_PWRGT_CTRL);
+	if ((val & mask) != gating_val)
+		goto out;
+
+	val = vlv_punit_read(dev_priv, PUNIT_REG_PWRGT_STATUS);
+	if ((val & mask) == gating_val)
+		enabled = true;
+
+out:
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	return enabled;
+}
+
 bool intel_display_power_enabled(struct drm_device *dev,
 				 enum intel_display_power_domain domain)
 {
@@ -5259,6 +5287,52 @@ static void hsw_set_power_well(struct drm_device *dev,
 			hsw_power_well_post_disable(dev_priv);
 		}
 	}
+}
+
+void vlv_set_power_well(struct drm_device *dev,
+			struct i915_power_well *power_well, bool enable)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	u32 gating_val;
+	enum pipe pipe;
+	bool state_changed = false;
+
+	gating_val = enable ? DISP2D_PWR_ON : DISP2D_PWRGT;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+
+#define COND ((vlv_punit_read(dev_priv, PUNIT_REG_PWRGT_STATUS) & \
+		DISP2D_PWR_MASK) == gating_val)
+
+	if (!COND) {
+		u32 val;
+
+		state_changed = true;
+
+		val = vlv_punit_read(dev_priv, PUNIT_REG_PWRGT_CTRL);
+		val &= ~DISP2D_PWR_MASK;
+		val |= gating_val;
+		vlv_punit_write(dev_priv, PUNIT_REG_PWRGT_CTRL, val);
+
+		if (wait_for(COND, 100))
+			DRM_ERROR("timout waiting for power well %s\n",
+				  enable ? "on" : "off");
+	}
+#undef COND
+
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	if (state_changed) {
+		if (enable) {
+			intel_init_clock_gating(dev);
+			intel_reset_dpio(dev);
+			i915_redisable_vga(dev);
+		} else {
+			for_each_pipe(pipe)
+				reset_vblank_counter(dev, pipe);
+		}
+	}
+
 }
 
 static void __intel_power_well_get(struct drm_device *dev,
@@ -5393,6 +5467,20 @@ static struct i915_power_well bdw_power_wells[] = {
 	},
 };
 
+static struct i915_power_well vlv_power_wells[] = {
+	{
+		.name = "always-on",
+		.always_on = 1,
+		.domains = VLV_ALWAYS_ON_POWER_DOMAINS,
+	},
+	{
+		.name = "display",
+		.domains = POWER_DOMAIN_MASK & ~VLV_ALWAYS_ON_POWER_DOMAINS,
+		.is_enabled = vlv_power_well_enabled,
+		.set = vlv_set_power_well,
+	}
+};
+
 #define set_power_wells(power_domains, __power_wells) ({		\
 	(power_domains)->power_wells = (__power_wells);			\
 	(power_domains)->power_well_count = ARRAY_SIZE(__power_wells);	\
@@ -5415,6 +5503,8 @@ int intel_power_domains_init(struct drm_device *dev)
 	} else if (IS_BROADWELL(dev)) {
 		set_power_wells(power_domains, bdw_power_wells);
 		hsw_pwr = power_domains;
+	} else if (IS_VALLEYVIEW(dev)) {
+		set_power_wells(power_domains, vlv_power_wells);
 	} else {
 		set_power_wells(power_domains, i9xx_always_on_power_well);
 	}
