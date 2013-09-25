@@ -5198,11 +5198,19 @@ static void hsw_power_well_post_enable(struct drm_i915_private *dev_priv)
 	}
 }
 
+static void reset_vblank_counter(struct drm_device *dev, enum pipe p)
+{
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&dev->vbl_lock, irqflags);
+	dev->vblank[p].last = 0;
+	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
+}
+
 static void hsw_power_well_post_disable(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = dev_priv->dev;
 	enum pipe p;
-	unsigned long irqflags;
 
 	/*
 	 * After this, the registers on the pipes that are part of the power
@@ -5211,11 +5219,9 @@ static void hsw_power_well_post_disable(struct drm_i915_private *dev_priv)
 	 *
 	 * FIXME: Should we do this in general in drm_vblank_post_modeset?
 	 */
-	spin_lock_irqsave(&dev->vbl_lock, irqflags);
 	for_each_pipe(p)
 		if (p != PIPE_A)
-			dev->vblank[p].last = 0;
-	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
+			reset_vblank_counter(dev, p);
 }
 
 static void hsw_set_power_well(struct drm_device *dev,
