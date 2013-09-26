@@ -4433,7 +4433,7 @@ static void intel_connector_check_state(struct intel_connector *connector)
 		WARN(!encoder->connectors_active,
 		     "encoder->connectors_active not set\n");
 
-		encoder_enabled = encoder->get_hw_state(encoder, &pipe);
+		encoder_enabled = intel_encoder_get_hw_state(encoder, &pipe);
 		WARN(!encoder_enabled, "encoder not enabled\n");
 		if (WARN_ON(!encoder->base.crtc))
 			return;
@@ -4475,7 +4475,7 @@ bool intel_connector_get_hw_state(struct intel_connector *connector)
 	enum pipe pipe = 0;
 	struct intel_encoder *encoder = connector->encoder;
 
-	return encoder->get_hw_state(encoder, &pipe);
+	return intel_encoder_get_hw_state(encoder, &pipe);
 }
 
 static bool ironlake_check_fdi_lanes(struct drm_device *dev, enum pipe pipe,
@@ -9456,6 +9456,20 @@ check_connector_state(struct drm_device *dev)
 	}
 }
 
+bool intel_encoder_get_hw_state(struct intel_encoder *intel_encoder,
+				enum pipe *pipe)
+{
+	struct drm_encoder *encoder = &intel_encoder->base;
+	struct drm_device *dev = encoder->dev;
+	enum intel_display_power_domain domain;
+
+	if (intel_display_output_power_domain(encoder, &domain) == 0 &&
+	    !intel_display_power_enabled(dev, domain))
+			return false;
+
+	return intel_encoder->get_hw_state(intel_encoder, pipe);
+}
+
 static void
 check_encoder_state(struct drm_device *dev)
 {
@@ -9496,7 +9510,7 @@ check_encoder_state(struct drm_device *dev)
 		     "encoder's computed active state doesn't match tracked active state "
 		     "(expected %i, found %i)\n", active, encoder->connectors_active);
 
-		active = encoder->get_hw_state(encoder, &pipe);
+		active = intel_encoder_get_hw_state(encoder, &pipe);
 		WARN(active != encoder->connectors_active,
 		     "encoder's hw state doesn't match sw tracking "
 		     "(expected %i, found %i)\n",
@@ -9563,7 +9577,7 @@ check_crtc_state(struct drm_device *dev)
 			enum pipe pipe;
 			if (encoder->base.crtc != &crtc->base)
 				continue;
-			if (encoder->get_hw_state(encoder, &pipe))
+			if (intel_encoder_get_hw_state(encoder, &pipe))
 				encoder->get_config(encoder, &pipe_config);
 		}
 
@@ -11350,7 +11364,7 @@ static void intel_modeset_readout_hw_state(struct drm_device *dev)
 			    base.head) {
 		pipe = 0;
 
-		if (encoder->get_hw_state(encoder, &pipe)) {
+		if (intel_encoder_get_hw_state(encoder, &pipe)) {
 			crtc = to_intel_crtc(dev_priv->pipe_to_crtc_mapping[pipe]);
 			encoder->base.crtc = &crtc->base;
 			encoder->get_config(encoder, &crtc->config);

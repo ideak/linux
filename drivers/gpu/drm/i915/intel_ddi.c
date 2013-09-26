@@ -1019,7 +1019,7 @@ bool intel_ddi_connector_get_hw_state(struct intel_connector *intel_connector)
 	enum transcoder cpu_transcoder;
 	uint32_t tmp;
 
-	if (!intel_encoder->get_hw_state(intel_encoder, &pipe))
+	if (!intel_encoder_get_hw_state(intel_encoder, &pipe))
 		return false;
 
 	if (port == PORT_A)
