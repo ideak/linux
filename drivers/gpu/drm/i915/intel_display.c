@@ -825,6 +825,39 @@ static bool pipe_dsl_stopped(struct drm_device *dev, enum pipe pipe)
 	return line1 == line2;
 }
 
+int intel_display_output_power_domain(struct drm_encoder *encoder,
+				      enum intel_display_power_domain *domain)
+{
+	struct drm_device *dev = encoder->dev;
+	struct intel_encoder *intel_encoder;
+	struct intel_digital_port *intel_dig_port;
+	enum port port;
+
+	intel_encoder = to_intel_encoder(encoder);
+	switch (intel_encoder->type) {
+	case INTEL_OUTPUT_UNKNOWN:
+		/* Only DDI platforms should ever use this output type */
+		WARN_ON(!HAS_DDI(dev));
+	case INTEL_OUTPUT_DISPLAYPORT:
+	case INTEL_OUTPUT_HDMI:
+	case INTEL_OUTPUT_EDP:
+		intel_dig_port = enc_to_dig_port(encoder);
+		port = intel_dig_port->port;
+		WARN_ON(port > PORT_D);
+		*domain = POWER_DOMAIN_OUTPUT_PORT(port);
+
+		break;
+	case INTEL_OUTPUT_ANALOG:
+		*domain = POWER_DOMAIN_OUTPUT_ANALOG;
+		break;
+	default:
+		/* No power well needed for this output type */
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * intel_wait_for_pipe_off - wait for pipe to turn off
  * @dev: drm device
@@ -6836,9 +6869,13 @@ static void hsw_package_c8_gpu_busy(struct drm_i915_private *dev_priv)
 	for ((domain) = 0; (domain) < POWER_DOMAIN_NUM; (domain)++)	\
 		if ((1 << (domain)) & (mask))
 
-static unsigned long get_pipe_power_domains(struct drm_device *dev,
-					    enum pipe pipe, bool pfit_enabled)
+static unsigned long get_crtc_power_domains(struct drm_crtc *crtc)
 {
+	struct drm_device *dev = crtc->dev;
+	struct intel_encoder *intel_encoder;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	enum pipe pipe = intel_crtc->pipe;
+	bool pfit_enabled = intel_crtc->config.pch_pfit.enabled;
 	unsigned long mask;
 	enum transcoder transcoder;
 
@@ -6848,6 +6885,14 @@ static unsigned long get_pipe_power_domains(struct drm_device *dev,
 	mask |= BIT(POWER_DOMAIN_TRANSCODER(transcoder));
 	if (pfit_enabled)
 		mask |= BIT(POWER_DOMAIN_PIPE_PANEL_FITTER(pipe));
+
+	for_each_encoder_on_crtc(dev, crtc, intel_encoder) {
+		enum intel_display_power_domain domain;
+
+		if (intel_display_output_power_domain(&intel_encoder->base,
+						      &domain) == 0)
+			mask |= BIT(domain);
+	}
 
 	return mask;
 }
@@ -6882,9 +6927,7 @@ static void modeset_update_power_wells(struct drm_device *dev)
 		if (!crtc->base.enabled)
 			continue;
 
-		pipe_domains[crtc->pipe] = get_pipe_power_domains(dev,
-						crtc->pipe,
-						crtc->config.pch_pfit.enabled);
+		pipe_domains[crtc->pipe] = get_crtc_power_domains(&crtc->base);
 
 		for_each_power_domain(domain, pipe_domains[crtc->pipe])
 			intel_display_power_get(dev, domain);

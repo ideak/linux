@@ -1989,6 +1989,16 @@ static const char *power_domain_str(enum intel_display_power_domain domain)
 		return "TRANSCODER_C";
 	case POWER_DOMAIN_TRANSCODER_EDP:
 		return "TRANSCODER_EDP";
+	case POWER_DOMAIN_OUTPUT_PORT_A:
+		return "OUTPUT_PORT_A";
+	case POWER_DOMAIN_OUTPUT_PORT_B:
+		return "OUTPUT_PORT_B";
+	case POWER_DOMAIN_OUTPUT_PORT_C:
+		return "OUTPUT_PORT_C";
+	case POWER_DOMAIN_OUTPUT_PORT_D:
+		return "OUTPUT_PORT_D";
+	case POWER_DOMAIN_OUTPUT_ANALOG:
+		return "OUTPUT_ANALOG";
 	case POWER_DOMAIN_VGA:
 		return "VGA";
 	case POWER_DOMAIN_AUDIO:
