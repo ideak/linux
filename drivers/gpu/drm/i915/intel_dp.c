@@ -3116,6 +3116,8 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	enum drm_connector_status status;
 	struct edid *edid = NULL;
+	enum intel_display_power_domain power_domain;
+	bool has_power_domain = false;
 
 	intel_runtime_pm_get(dev_priv);
 
@@ -3123,6 +3125,11 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 		      connector->base.id, drm_get_connector_name(connector));
 
 	intel_dp->has_audio = false;
+
+	has_power_domain = intel_display_output_power_domain(&intel_encoder->base,
+							     &power_domain) == 0;
+	if (has_power_domain)
+		intel_display_power_get(dev, power_domain);
 
 	if (HAS_PCH_SPLIT(dev))
 		status = ironlake_dp_detect(intel_dp);
@@ -3147,9 +3154,11 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 	if (intel_encoder->type != INTEL_OUTPUT_EDP)
 		intel_encoder->type = INTEL_OUTPUT_DISPLAYPORT;
 	status = connector_status_connected;
-
 out:
 	intel_runtime_pm_put(dev_priv);
+	if (has_power_domain)
+		intel_display_power_put(dev, power_domain);
+
 	return status;
 }
 

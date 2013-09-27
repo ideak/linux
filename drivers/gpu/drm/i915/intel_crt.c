@@ -631,12 +631,22 @@ intel_crt_detect(struct drm_connector *connector, bool force)
 {
 	struct drm_device *dev = connector->dev;
 	struct intel_crt *crt = intel_attached_crt(connector);
+	struct intel_encoder *intel_encoder = &crt->base;
 	enum drm_connector_status status;
 	struct intel_load_detect_pipe tmp;
+	enum intel_display_power_domain power_domain;
+	bool has_power_domain = false;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s] force=%d\n",
 		      connector->base.id, drm_get_connector_name(connector),
 		      force);
+
+	has_power_domain = intel_display_output_power_domain(&intel_encoder->base,
+							     &power_domain) == 0;
+	if (has_power_domain)
+		intel_display_power_get(dev, power_domain);
+
+	status = connector_status_connected;
 
 	if (I915_HAS_HOTPLUG(dev)) {
 		/* We can not rely on the HPD pin always being correctly wired
@@ -645,23 +655,27 @@ intel_crt_detect(struct drm_connector *connector, bool force)
 		 */
 		if (intel_crt_detect_hotplug(connector)) {
 			DRM_DEBUG_KMS("CRT detected via hotplug\n");
-			return connector_status_connected;
+			goto out;
 		} else
 			DRM_DEBUG_KMS("CRT not detected via hotplug\n");
 	}
 
 	if (intel_crt_detect_ddc(connector))
-		return connector_status_connected;
+		goto out;
 
 	/* Load detection is broken on HPD capable machines. Whoever wants a
 	 * broken monitor (without edid) to work behind a broken kvm (that fails
 	 * to have the right resistors for HP detection) needs to fix this up.
 	 * For now just bail out. */
-	if (I915_HAS_HOTPLUG(dev))
-		return connector_status_disconnected;
+	if (I915_HAS_HOTPLUG(dev)) {
+		status = connector_status_disconnected;
+		goto out;
+	}
 
-	if (!force)
-		return connector->status;
+	if (!force) {
+		status = connector->status;
+		goto out;
+	}
 
 	/* for pre-945g platforms use load detect */
 	if (intel_get_load_detect_pipe(connector, NULL, &tmp)) {
@@ -672,6 +686,10 @@ intel_crt_detect(struct drm_connector *connector, bool force)
 		intel_release_load_detect_pipe(connector, &tmp);
 	} else
 		status = connector_status_unknown;
+
+out:
+	if (has_power_domain)
+		intel_display_power_put(dev, power_domain);
 
 	return status;
 }
@@ -686,17 +704,32 @@ static int intel_crt_get_modes(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crt *crt = intel_attached_crt(connector);
+	struct intel_encoder *intel_encoder = &crt->base;
 	int ret;
 	struct i2c_adapter *i2c;
+	enum intel_display_power_domain power_domain;
+	bool has_power_domain = false;
+
+	has_power_domain = intel_display_output_power_domain(&intel_encoder->base,
+							     &power_domain) == 0;
+	if (has_power_domain)
+		intel_display_power_get(dev, power_domain);
 
 	i2c = intel_gmbus_get_adapter(dev_priv, dev_priv->vbt.crt_ddc_pin);
 	ret = intel_crt_ddc_get_modes(connector, i2c);
 	if (ret || !IS_G4X(dev))
-		return ret;
+		goto out;
 
 	/* Try to probe digital port for output in DVI-I -> VGA mode. */
 	i2c = intel_gmbus_get_adapter(dev_priv, GMBUS_PORT_DPB);
-	return intel_crt_ddc_get_modes(connector, i2c);
+	ret = intel_crt_ddc_get_modes(connector, i2c);
+
+out:
+	if (has_power_domain)
+		intel_display_power_put(dev, power_domain);
+
+	return ret;
 }
 
 static int intel_crt_set_property(struct drm_connector *connector,
