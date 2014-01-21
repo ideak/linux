@@ -449,7 +449,6 @@ static int imx_drm_driver_load(struct drm_device *drm, unsigned long flags)
 	}
 
 	platform_set_drvdata(drm->platformdev, drm);
-
 	mutex_unlock(&imxdrm->mutex);
 	return 0;
 
