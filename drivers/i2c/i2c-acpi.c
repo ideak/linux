@@ -253,6 +253,7 @@ int i2c_acpi_install_space_handler(struct i2c_adapter *adapter)
 		return -EFAULT;
 	}
 
+	acpi_walk_dep_device_list();
 	return 0;
 }
 
