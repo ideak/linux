@@ -2337,6 +2337,30 @@ s32 i2c_smbus_write_word_data(const struct i2c_client *client, u8 command,
 EXPORT_SYMBOL(i2c_smbus_write_word_data);
 
 /**
+ * i2c_smbus_word_proc_call - SMBus "word proc call" protocol
+ * @client: Handle to slave device
+ * @command: Byte interpreted by slave
+ * @value: 16-bit "word" being written
+ *
+ * This executes the SMBus "word proc all" protocol, returning negative errno
+ * else a 16-bit unsigned "word" received from the device.
+ */
+s32 i2c_smbus_word_proc_call(const struct i2c_client *client, u8 command,
+			      u16 value)
+{
+	union i2c_smbus_data data;
+	int status;
+
+	data.word = value;
+	status = i2c_smbus_xfer(client->adapter, client->addr, client->flags,
+			      I2C_SMBUS_READ, command,
+			      I2C_SMBUS_PROC_CALL, &data);
+
+	return (status < 0) ? status : data.word;
+}
+EXPORT_SYMBOL(i2c_smbus_word_proc_call);
+
+/**
  * i2c_smbus_read_block_data - SMBus "block read" protocol
  * @client: Handle to slave device
  * @command: Byte interpreted by slave
@@ -2392,6 +2416,38 @@ s32 i2c_smbus_write_block_data(const struct i2c_client *client, u8 command,
 			      I2C_SMBUS_BLOCK_DATA, &data);
 }
 EXPORT_SYMBOL(i2c_smbus_write_block_data);
+
+/**
+ * i2c_smbus_block_proc_call - SMBus "block write" protocol
+ * @client: Handle to slave device
+ * @command: Byte interpreted by slave
+ * @length: Size of data block; SMBus allows at most 32 bytes
+ * @values: Byte array which will be written.
+ *
+ * This executes the SMBus "block proc call" protocol, returning negative errno
+ * else zero on success.
+ */
+s32 i2c_smbus_block_proc_call(const struct i2c_client *client, u8 command,
+			       u8 length, u8 *values)
+{
+	union i2c_smbus_data data;
+	int status;
+
+	if (length > I2C_SMBUS_BLOCK_MAX)
+		length = I2C_SMBUS_BLOCK_MAX;
+	data.block[0] = length;
+	memcpy(&data.block[1], values, length);
+	status = i2c_smbus_xfer(client->adapter, client->addr, client->flags,
+			      I2C_SMBUS_READ, command,
+			      I2C_SMBUS_BLOCK_PROC_CALL, &data);
+
+	if (status < 0)
+		return status;
+
+	memcpy(values, &data.block[1], data.block[0]);
+	return data.block[0];
+}
+EXPORT_SYMBOL(i2c_smbus_block_proc_call);
 
 /* Returns the number of read bytes */
 s32 i2c_smbus_read_i2c_block_data(const struct i2c_client *client, u8 command,

@@ -94,6 +94,10 @@ extern s32 i2c_smbus_read_word_data(const struct i2c_client *client,
 				    u8 command);
 extern s32 i2c_smbus_write_word_data(const struct i2c_client *client,
 				     u8 command, u16 value);
+extern s32 i2c_smbus_word_proc_call(const struct i2c_client *client,
+				    u8 command, u16 value);
+extern s32 i2c_smbus_block_proc_call(const struct i2c_client *client,
+				u8 command, u8 length, u8 *values);
 
 static inline s32
 i2c_smbus_read_word_swapped(const struct i2c_client *client, u8 command)
