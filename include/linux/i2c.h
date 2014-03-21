@@ -616,4 +616,14 @@ static inline struct i2c_adapter *of_find_i2c_adapter_by_node(struct device_node
 }
 #endif /* CONFIG_OF */
 
+#ifdef CONFIG_ACPI
+int i2c_acpi_install_space_handler(struct i2c_adapter *adapter);
+void i2c_acpi_remove_space_handler(struct i2c_adapter *adapter);
+#else
+static inline void i2c_acpi_remove_space_handler(struct i2c_adapter *adapter)
+{ }
+static inline int i2c_acpi_install_space_handler(struct i2c_adapter *adapter)
+{ return 0; }
+#endif
+
 #endif /* _LINUX_I2C_H */
