@@ -919,9 +919,8 @@ static int acpi_thermal_register_thermal_zone(struct acpi_thermal *tz)
 	if (result)
 		return result;
 
-	status = acpi_attach_data(tz->device->handle,
-				  acpi_bus_private_data_handler,
-				  tz->thermal_zone);
+	status =  acpi_bus_attach_private_data(tz->device->handle,
+					       tz->thermal_zone);
 	if (ACPI_FAILURE(status)) {
 		pr_err(PREFIX "Error attaching device data\n");
 		return -ENODEV;
