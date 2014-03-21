@@ -2420,6 +2420,10 @@ config IOSF_MBI
 	  Fabric (IOSF) Sideband MailBox Interface (MBI). For MBI platforms
 	  enumerable by PCI.
 
+config PMC_ATOM
+	def_bool y
+        depends on PCI
+
 source "net/Kconfig"
 
 source "drivers/Kconfig"
