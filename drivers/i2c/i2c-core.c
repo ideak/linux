@@ -2193,6 +2193,36 @@ static int i2c_smbus_check_pec(u8 cpec, struct i2c_msg *msg)
 }
 
 /**
+ * i2c_smbus_quick_write - SMBus "quick write" protocol
+ * @client: Handle to slave device
+ *
+ * This executes the SMBus "quick write" protocol, returning negative errno
+ * else zero on success.
+ */
+s32 i2c_smbus_quick_write(const struct i2c_client *client)
+{
+	return i2c_smbus_xfer(client->adapter, client->addr, client->flags,
+				I2C_SMBUS_WRITE, 0,
+				I2C_SMBUS_QUICK, NULL);
+}
+EXPORT_SYMBOL_GPL(i2c_smbus_quick_write);
+
+/**
+ * i2c_smbus_read_byte - SMBus "quick read" protocol
+ * @client: Handle to slave device
+ *
+ * This executes the SMBus "quick read" protocol, returning negative errno
+ * else zero on success.
+ */
+s32 i2c_smbus_quick_read(const struct i2c_client *client)
+{
+	return i2c_smbus_xfer(client->adapter, client->addr, client->flags,
+				I2C_SMBUS_READ, 0,
+				I2C_SMBUS_QUICK, NULL);
+}
+EXPORT_SYMBOL_GPL(i2c_smbus_quick_read);
+
+/**
  * i2c_smbus_read_byte - SMBus "receive byte" protocol
  * @client: Handle to slave device
  *
