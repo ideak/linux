@@ -2413,7 +2413,7 @@ config X86_DMA_REMAP
 	depends on STA2X11
 
 config IOSF_MBI
-	bool
+	def_bool y
 	depends on PCI
 	---help---
 	  To be selected by modules requiring access to the Intel OnChip System
