@@ -898,6 +898,11 @@ struct i915_suspend_saved_registers {
 	u32 savePIPEB_LINK_N1;
 	u32 saveMCHBAR_RENDER_STANDBY;
 	u32 savePCH_PORT_HOTPLUG;
+	u32 saveGUNIT_Control;
+	u32 saveGUNIT_Control2;
+	u32 saveGUNIT_CZClockGatingDisable1;
+	u32 saveGUNIT_CZClockGatingDisable2;
+	u32 saveDPIO_CFG_DATA;
 };
 
 struct intel_gen6_power_mgmt {
