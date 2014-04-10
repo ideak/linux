@@ -90,6 +90,21 @@ void vlv_punit_write(struct drm_i915_private *dev_priv, u8 addr, u32 val)
 	mutex_unlock(&dev_priv->dpio_lock);
 }
 
+/* write with mask */
+void vlv_punit_write_bits(struct drm_i915_private *dev_priv,
+				u8 addr, u32 val, u32 mask)
+{
+	u32 tmp;
+
+	tmp = vlv_punit_read(dev_priv, addr);
+
+	tmp = tmp & ~mask;
+	val = val & mask;
+	tmp = val | tmp;
+
+	vlv_punit_write(dev_priv, addr, tmp);
+}
+
 u32 vlv_bunit_read(struct drm_i915_private *dev_priv, u32 reg)
 {
 	u32 val = 0;

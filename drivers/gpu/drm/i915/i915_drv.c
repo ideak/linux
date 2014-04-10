@@ -517,6 +517,74 @@ void vlv_restore_gunit_regs(struct drm_i915_private *dev_priv)
 
 #define TIMEOUT 100
 
+/* Follow the sequence to powergate/ungate display for valleyview */
+static void vlv_power_gate_disp(struct drm_i915_private *dev_priv)
+{
+	/* 1. Power Gate Display Controller */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			VLV_PW_DISP_MASK, VLV_PW_DISP_MASK);
+	if (wait_for_atomic(((VLV_PW_DISP_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) != 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power gate DISP Controller timed out, suspend might fail\n");
+	}
+
+
+	/* 2. Power Gate DPIO - RX/TX Lanes */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			VLV_PW_DPIO_RX_TX_MASK, VLV_PW_DPIO_RX_TX_MASK);
+	if (wait_for_atomic(((VLV_PW_DPIO_RX_TX_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) != 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power gate DPIO RX_TX timed out, suspend might fail\n");
+	}
+
+	/* 3. Power Gate DPIO Common Lanes */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			VLV_PW_DPIO_CMN_MASK, VLV_PW_DPIO_CMN_MASK);
+	if (wait_for_atomic(((VLV_PW_DPIO_CMN_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) != 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power gate DPIO CMN timed out, suspend might fail\n");
+	}
+}
+
+static void vlv_power_ungate_disp(struct drm_i915_private *dev_priv)
+{
+	/* 1. Power UnGate DPIO TX Lanes */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			0, VLV_PW_DPIO_TX_MASK);
+	if (wait_for_atomic(((VLV_PW_DPIO_TX_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) == 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power ungate DPIO TX timed out, resume might fail\n");
+	}
+
+	/* 2. Power UnGate DPIO Common Lanes */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			0, VLV_PW_DPIO_CMN_MASK);
+	if (wait_for_atomic(((VLV_PW_DPIO_CMN_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) == 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power ungate DPIO CMN timed out, resume might fail\n");
+	}
+
+	/* 3. Power ungate display controller */
+	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
+			0, VLV_PW_DISP_MASK);
+	if (wait_for_atomic(((VLV_PW_DISP_MASK &
+			vlv_punit_read(dev_priv, VLV_IOSFSB_PW_STS)) == 0),
+			TIMEOUT)) {
+		dev_err(&dev_priv->bridge_dev->dev,
+			"Power ungate DISP Controller timed out, resume might fail\n");
+	}
+}
+
 /* follow the sequence below for VLV suspend*/
 /* ===========================================================================
  * D0 - Dx Power Transition
@@ -650,7 +718,7 @@ static int i915_drm_freeze(struct drm_device *dev)
 
 
 	/* vii)  Power Gate Power Wells */
-	/* TBD */
+	vlv_power_gate_disp(dev_priv);
 
 	/* viii) Release graphics clocks */
 	reg = I915_READ(VLV_GTLC_SURVIVABILITY_REG);
@@ -753,7 +821,7 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 		}
 
 		/* ii)  Power ungate Power Wells */
-		/* TBD */
+		vlv_power_ungate_disp(dev_priv);
 
 		/* iii)  Set Allow Wake Bit in GTLC Wake control */
 		reg = I915_READ(VLV_GTLC_WAKE_CTRL);
