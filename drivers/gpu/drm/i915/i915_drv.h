@@ -1191,7 +1191,10 @@ struct intel_vbt_data {
 	} backlight;
 
 	/* MIPI DSI */
+	int is_mipi;
 	struct {
+		u16 is_mipi;
+		u16 port;
 		u16 panel_id;
 		struct mipi_config *config;
 		struct mipi_pps_data *pps;
