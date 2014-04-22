@@ -10380,7 +10380,9 @@ static void intel_setup_outputs(struct drm_device *dev)
 				intel_dp_init(dev, VLV_DISPLAY_BASE + DP_C, PORT_C);
 		}
 
-		intel_dsi_init(dev);
+		/* There is no detection method for MIPI so rely on VBT */
+		if (dev_priv->vbt.is_mipi)
+			intel_dsi_init(dev);
 	} else if (SUPPORTS_DIGITAL_OUTPUTS(dev)) {
 		bool found = false;
 

@@ -987,6 +987,24 @@ parse_device_mapping(struct drm_i915_private *dev_priv,
 			/* skip the device block if device type is invalid */
 			continue;
 		}
+
+#define MIPI_PORT_A	0x15
+#define MIPI_PORT_B	0x16
+#define MIPI_PORT_C	0x17
+#define MIPI_PORT_D	0x18
+		if (p_child->common.dvo_port >= MIPI_PORT_A &&
+				p_child->common.dvo_port <= MIPI_PORT_D) {
+			/* check the device type and confirm its MIPI */
+			if (p_child->common.device_type &
+						DEVICE_TYPE_MIPI_OUTPUT) {
+				DRM_DEBUG_KMS("Found MIPI as LFP\n");
+				/* Found MIPI device */
+				dev_priv->vbt.is_mipi = 1;
+				dev_priv->vbt.dsi.port =
+						p_child->common.dvo_port;
+			}
+		}
+
 		child_dev_ptr = dev_priv->vbt.child_dev + count;
 		count++;
 		memcpy((void *)child_dev_ptr, (void *)p_child,
@@ -1126,7 +1144,11 @@ intel_parse_bios(struct drm_device *dev)
 	parse_device_mapping(dev_priv, bdb);
 	parse_driver_features(dev_priv, bdb);
 	parse_edp(dev_priv, bdb);
-	parse_mipi(dev_priv, bdb);
+
+	/* parse MIPI blocks only if LFP type is MIPI */
+	if (dev_priv->vbt.is_mipi)
+		parse_mipi(dev_priv, bdb);
+
 	parse_ddi_ports(dev_priv, bdb);
 
 	if (bios)
