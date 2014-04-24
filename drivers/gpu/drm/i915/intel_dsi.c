@@ -100,37 +100,6 @@ static bool intel_dsi_compute_config(struct intel_encoder *encoder,
 	return true;
 }
 
-static void intel_dsi_pre_pll_enable(struct intel_encoder *encoder)
-{
-	struct drm_device *dev = encoder->base.dev;
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_crtc *intel_crtc = to_intel_crtc(encoder->base.crtc);
-	int pipe = intel_crtc->pipe;
-	u32 tmp;
-
-	DRM_DEBUG_KMS("\n");
-
-	mutex_lock(&dev_priv->dpio_lock);
-	/* program rcomp for compliance, reduce from 50 ohms to 45 ohms
-	 * needed everytime after power gate */
-	vlv_flisdsi_write(dev_priv, 0x04, 0x0004);
-	mutex_unlock(&dev_priv->dpio_lock);
-
-	/* bandgap reset is needed after everytime we do power gate */
-	band_gap_reset(dev_priv);
-
-	/* Disable DPOunit clock gating, can stall pipe */
-	tmp = I915_READ(DPLL(pipe));
-	tmp |= DPLL_REFA_CLK_ENABLE_VLV;
-	I915_WRITE(DPLL(pipe), tmp);
-
-	tmp = I915_READ(DSPCLK_GATE_D);
-	tmp |= VSUNIT_CLOCK_GATE_DISABLE;
-	I915_WRITE(DSPCLK_GATE_D, tmp);
-
-	vlv_enable_dsi_pll(encoder);
-}
-
 static void intel_dsi_device_ready(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = encoder->base.dev->dev_private;
@@ -224,6 +193,12 @@ static void intel_dsi_enable_nop(struct intel_encoder *encoder)
 	 * and plane enable, so port enable is done in
 	 * pre_enable phase itself unlike other encoders
 	 */
+}
+
+static void intel_dsi_mode_set_nop(struct intel_encoder *encoder)
+{
+	DRM_DEBUG_KMS("\n");
+	/* DSI modeset is now part of crtc enabling. */
 }
 
 static void intel_dsi_disable(struct intel_encoder *encoder)
@@ -469,7 +444,7 @@ static void set_dsi_timings(struct drm_encoder *encoder,
 	I915_WRITE(MIPI_VBP_COUNT(pipe), vbp);
 }
 
-static void intel_dsi_mode_set(struct intel_encoder *intel_encoder)
+static void intel_dsi_prepare(struct intel_encoder *intel_encoder)
 {
 	struct drm_encoder *encoder = &intel_encoder->base;
 	struct drm_device *dev = encoder->dev;
@@ -606,6 +581,39 @@ static void intel_dsi_mode_set(struct intel_encoder *intel_encoder)
 				RANDOM_DPI_DISPLAY_RESOLUTION);
 }
 
+static void intel_dsi_pre_pll_enable(struct intel_encoder *encoder)
+{
+	struct drm_device *dev = encoder->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crtc *intel_crtc = to_intel_crtc(encoder->base.crtc);
+	int pipe = intel_crtc->pipe;
+	u32 tmp;
+
+	DRM_DEBUG_KMS("\n");
+
+	intel_dsi_prepare(encoder);
+
+	mutex_lock(&dev_priv->dpio_lock);
+	/* program rcomp for compliance, reduce from 50 ohms to 45 ohms
+	 * needed everytime after power gate */
+	vlv_flisdsi_write(dev_priv, 0x04, 0x0004);
+	mutex_unlock(&dev_priv->dpio_lock);
+
+	/* bandgap reset is needed after everytime we do power gate */
+	band_gap_reset(dev_priv);
+
+	/* Disable DPOunit clock gating, can stall pipe */
+	tmp = I915_READ(DPLL(pipe));
+	tmp |= DPLL_REFA_CLK_ENABLE_VLV;
+	I915_WRITE(DPLL(pipe), tmp);
+
+	tmp = I915_READ(DSPCLK_GATE_D);
+	tmp |= VSUNIT_CLOCK_GATE_DISABLE;
+	I915_WRITE(DSPCLK_GATE_D, tmp);
+
+	vlv_enable_dsi_pll(encoder);
+}
+
 static enum drm_connector_status
 intel_dsi_detect(struct drm_connector *connector, bool force)
 {
@@ -701,7 +709,7 @@ bool intel_dsi_init(struct drm_device *dev)
 	intel_encoder->pre_pll_enable = intel_dsi_pre_pll_enable;
 	intel_encoder->pre_enable = intel_dsi_pre_enable;
 	intel_encoder->enable = intel_dsi_enable_nop;
-	intel_encoder->mode_set = intel_dsi_mode_set;
+	intel_encoder->mode_set = intel_dsi_mode_set_nop;
 	intel_encoder->disable = intel_dsi_disable;
 	intel_encoder->post_disable = intel_dsi_post_disable;
 	intel_encoder->get_hw_state = intel_dsi_get_hw_state;
