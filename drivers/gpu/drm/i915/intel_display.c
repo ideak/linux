@@ -4163,10 +4163,11 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 
 	intel_update_watermarks(crtc);
 	intel_enable_pipe(dev_priv, pipe, false, is_dsi);
-	intel_crtc_enable_planes(crtc);
 
 	for_each_encoder_on_crtc(dev, crtc, encoder)
 		encoder->enable(encoder);
+
+	intel_crtc_enable_planes(crtc);
 }
 
 static void i9xx_crtc_enable(struct drm_crtc *crtc)
@@ -4196,10 +4197,11 @@ static void i9xx_crtc_enable(struct drm_crtc *crtc)
 
 	intel_update_watermarks(crtc);
 	intel_enable_pipe(dev_priv, pipe, false, false);
-	intel_crtc_enable_planes(crtc);
 
 	for_each_encoder_on_crtc(dev, crtc, encoder)
 		encoder->enable(encoder);
+
+	intel_crtc_enable_planes(crtc);
 }
 
 static void i9xx_pfit_disable(struct intel_crtc *crtc)
@@ -4228,10 +4230,10 @@ static void i9xx_crtc_disable(struct drm_crtc *crtc)
 	if (!intel_crtc->active)
 		return;
 
+	intel_crtc_disable_planes(crtc);
+
 	for_each_encoder_on_crtc(dev, crtc, encoder)
 		encoder->disable(encoder);
-
-	intel_crtc_disable_planes(crtc);
 
 	intel_disable_pipe(dev_priv, pipe);
 
