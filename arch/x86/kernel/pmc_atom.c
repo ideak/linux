@@ -77,8 +77,8 @@ static const struct pmc_dev_map dev_map[] = {
 	{"30 - LPSS2_F6_I2C6",		BIT_LPSS2_F6_I2C6},
 	{"31 - LPSS2_F7_I2C7",		BIT_LPSS2_F7_I2C7},
 	{"32 - SMB",			BIT_SMB},
-	{"33 - USH_SS_PHY",		BIT_OTG_SS_PHY},
-	{"34 - OTG_SS_PHY",		BIT_USH_SS_PHY},
+	{"33 - OTG_SS_PHY",		BIT_OTG_SS_PHY},
+	{"34 - USH_SS_PHY",		BIT_USH_SS_PHY},
 	{"35 - DFX",			BIT_DFX},
 };
 

@@ -75,8 +75,8 @@
 
 #define	PMC_D3_STS_1		0xA4
 #define	BIT_SMB			BIT(0)
-#define	BIT_USH_SS_PHY		BIT(1)
-#define	BIT_OTG_SS_PHY		BIT(2)
+#define	BIT_OTG_SS_PHY		BIT(1)
+#define	BIT_USH_SS_PHY		BIT(2)
 #define	BIT_DFX			BIT(3)
 
 /* PMC I/O Registers */
