@@ -810,10 +810,60 @@ int i915_reset(struct drm_device *dev)
 	return 0;
 }
 
+static struct pci_dev *i915_pdev;
+
+struct nc_device {
+	char *name;
+	int reg;
+	int sss_pos;
+};
+
+const struct nc_device nc_devices_byt[] = {
+	{ "GFX RENDER", PUNIT_REG_PWRGT_STATUS,  RENDER_POS},
+	{ "GFX MEDIA", PUNIT_REG_PWRGT_STATUS, MEDIA_POS},
+	{ "DISPLAY", PUNIT_REG_PWRGT_STATUS,  DISP2D_POS},
+	{ "VED", VED_SS_PM0, SSS_SHIFT},
+	{ "ISP", ISP_SS_PM0, SSS_SHIFT},
+	{ "MIO", MIO_SS_PM, SSS_SHIFT},
+};
+#define	NC_NUM_DEVICES	6
+#define	D0I3_MASK	3
+
+static void punit_read_device_power_state(void *seq_file)
+{
+	struct drm_device *drm_dev = pci_get_drvdata(i915_pdev);
+	struct drm_i915_private *dev_priv = drm_dev->dev_private;
+	struct seq_file *debugfs_s = (struct seq_file *)seq_file;
+	int i;
+	u32 val, reg, nc_pwr_sts;
+	static char *dstates[] = {"D0", "D0i1", "D0i2", "D0i3"};
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+	if (debugfs_s) {
+		seq_printf(debugfs_s, "North Complex devices power state:\n");
+	} else {
+		pr_info("North Complex devices power state:\n");
+	}
+	for (i = 0; i < NC_NUM_DEVICES; i++) {
+		reg = nc_devices_byt[i].reg;
+		nc_pwr_sts = vlv_punit_read(dev_priv, reg);
+		nc_pwr_sts >>= nc_devices_byt[i].sss_pos;
+		val = nc_pwr_sts & D0I3_MASK;
+		if (debugfs_s) {
+			seq_printf(debugfs_s, "%16s:\t%s\n", nc_devices_byt[i].name, dstates[val]);
+		} else {
+			pr_info("%16s:\t%s\n", nc_devices_byt[i].name, dstates[val]);
+		}
+	}
+	mutex_unlock(&dev_priv->rps.hw_lock);
+}
+
 static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct intel_device_info *intel_info =
 		(struct intel_device_info *) ent->driver_data;
+
+	extern void (*nc_dev_state)(void *);
 
 	if (IS_PRELIMINARY_HW(intel_info) && !i915_preliminary_hw_support) {
 		DRM_INFO("This hardware requires preliminary hardware support.\n"
@@ -829,6 +879,8 @@ static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (PCI_FUNC(pdev->devfn))
 		return -ENODEV;
 
+	i915_pdev = pdev;
+	nc_dev_state = punit_read_device_power_state;
 	driver.driver_features &= ~(DRIVER_USE_AGP);
 
 	return drm_get_pci_dev(pdev, ent, &driver);

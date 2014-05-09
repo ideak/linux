@@ -386,6 +386,14 @@
 #define	  MEDIA_PWRGT				(PUNIT_PWR_GATE << 2)
 #define	  DISP2D_PWRGT				(PUNIT_PWR_GATE << 6)
 
+#define	  RENDER_POS				0
+#define	  MEDIA_POS				2
+#define	  DISP2D_POS				6
+#define	  VED_SS_PM0				0x32
+#define	  ISP_SS_PM0				0x39
+#define	  MIO_SS_PM				0x3B
+#define	  SSS_SHIFT				24
+
 #define PUNIT_REG_GPU_LFM			0xd3
 #define PUNIT_REG_GPU_FREQ_REQ			0xd4
 #define PUNIT_REG_GPU_FREQ_STS			0xd8
