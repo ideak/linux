@@ -88,6 +88,11 @@ static inline u32 pmc_reg_read(struct pmc_dev *pmc, int reg_offset)
 	return readl(pmc->regmap + reg_offset);
 }
 
+static inline void pmc_reg_write(struct pmc_dev *pmc, int reg_offset, u32 val)
+{
+	writel(val, pmc->regmap + reg_offset);
+}
+
 static void pmc_power_off(void)
 {
 	u16	pm1_cnt_port;
@@ -103,6 +108,32 @@ static void pmc_power_off(void)
 	pm1_cnt_value |= SLEEP_ENABLE;
 
 	outl(pm1_cnt_value, pm1_cnt_port);
+}
+
+static void pmc_dev_quirk(struct pmc_dev *pmc)
+{
+	u32 func_dis, func_dis_2;
+
+	func_dis = pmc_reg_read(pmc, PMC_FUNC_DIS);
+	func_dis_2 = pmc_reg_read(pmc, PMC_FUNC_DIS_2);
+
+	/*
+	 * FIXME: Disable GBE, SATA, SMB, DFX here for S0ix
+	 */
+	func_dis |= BIT_GBE | BIT_SATA;
+	pmc_reg_write(pmc, PMC_FUNC_DIS, func_dis);
+	func_dis_2 |= BIT_SMB | BIT_DFX;
+	pmc_reg_write(pmc, PMC_FUNC_DIS_2, func_dis_2);
+
+	/*
+	 * FIXME: Disable PMC SOIX_WAKE_EN events coming from:
+	 * - LPC clock run
+	 * - GPIO_SUS ored dedicated IRQs
+	 * - GPIO_SCORE ored dedicated IRQs
+	 * - GPIO_SUS shared IRQ
+	 * - GPIO_SCORE shared IRQ
+	 */
+	pmc_reg_write(pmc, PMC_S0IX_WAKE_EN, (u32)PMC_WAKE_EN_SETTING);
 }
 
 static void pmc_dev_state(void *seq_file)
@@ -283,6 +314,9 @@ static int pmc_probe(struct pci_dev *pdev,
 	acpi_base_addr &= ACPI_BASE_ADDR_MASK;
 	if (acpi_base_addr != 0 && pm_power_off == NULL)
 		pm_power_off = pmc_power_off;
+
+	/* FIXME: PMC quirk need more verification */
+	pmc_dev_quirk(pmc);
 	return 0;
 err_devm_ioremap:
 	pci_dev_put(pdev);

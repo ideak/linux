@@ -28,6 +28,22 @@
 /* BIOS uses FUNC_DIS to disable specific function */
 #define	PMC_FUNC_DIS		0x34
 #define	PMC_FUNC_DIS_2		0x38
+
+/* S0ix wake event control */
+#define PMC_S0IX_WAKE_EN       0x3C
+
+#define BIT_LPC_CLOCK_RUN		BIT(4)
+#define	BIT_SHARED_IRQ_GPSC		BIT(5)
+#define	BIT_ORED_DEDICATED_IRQ_GPSS	BIT(18)
+#define	BIT_ORED_DEDICATED_IRQ_GPSC	BIT(19)
+#define	BIT_SHARED_IRQ_GPSS		BIT(20)
+
+#define PMC_WAKE_EN_SETTING	~(BIT_LPC_CLOCK_RUN | \
+				BIT_SHARED_IRQ_GPSC | \
+				BIT_ORED_DEDICATED_IRQ_GPSS | \
+				BIT_ORED_DEDICATED_IRQ_GPSC | \
+				BIT_SHARED_IRQ_GPSS)
+
 /* The timers acumulate time spent in sleep state */
 #define	PMC_S0IR_TMR		0x80
 #define	PMC_S0I1_TMR		0x84
