@@ -36,6 +36,7 @@ struct pmc_dev {
 #endif /* CONFIG_DEBUG_FS */
 };
 
+struct pmc_dev *pmc_ptr;
 static u32 acpi_base_addr;
 
 struct pmc_dev_map {
@@ -104,10 +105,10 @@ static void pmc_power_off(void)
 	outl(pm1_cnt_value, pm1_cnt_port);
 }
 
-#ifdef CONFIG_DEBUG_FS
-static int pmc_dev_state_show(struct seq_file *s, void *unused)
+static void pmc_dev_state(void *seq_file)
 {
-	struct pmc_dev *pmc = (struct pmc_dev *)s->private;
+	struct seq_file *s = (struct seq_file *)seq_file;
+	struct pmc_dev *pmc = pmc_ptr;
 	u32 func_dis, func_dis_2, func_dis_index;
 	u32 d3_sts_0, d3_sts_1, d3_sts_index;
 	int dev_num, dev_index, reg_index;
@@ -129,13 +130,26 @@ static int pmc_dev_state_show(struct seq_file *s, void *unused)
 			d3_sts_index = d3_sts_0;
 		}
 
-		seq_printf(s, "Dev: %-32s\tState: %s [%s]\n",
-			dev_map[dev_index].name,
-			dev_map[dev_index].bit_mask & func_dis_index ?
-			"Disabled" : "Enabled ",
-			dev_map[dev_index].bit_mask & d3_sts_index ?
-			"D3" : "D0");
+		if (s)
+			seq_printf(s, "Dev: %-32s\tState: %s [%s]\n",
+				dev_map[dev_index].name,
+				dev_map[dev_index].bit_mask & func_dis_index ?
+				"Disabled" : "Enabled ",
+				dev_map[dev_index].bit_mask & d3_sts_index ?
+				"D3" : "D0");
+		else
+			pr_info("Dev: %-32s\tState: %s [%s]\n",
+				dev_map[dev_index].name,
+				dev_map[dev_index].bit_mask & func_dis_index ?
+				"Disabled" : "Enabled ",
+				dev_map[dev_index].bit_mask & d3_sts_index ?
+				"D3" : "D0");
 	}
+}
+#ifdef CONFIG_DEBUG_FS
+static int pmc_dev_state_show(struct seq_file *s, void *unused)
+{
+	pmc_dev_state(s);
 	return 0;
 }
 
@@ -224,6 +238,7 @@ static int pmc_probe(struct pci_dev *pdev,
 {
 	struct pmc_dev *pmc;
 	int ret;
+	extern void (*sc_dev_state)(void *);
 
 	ret = pci_enable_device(pdev);
 	if (ret < 0) {
@@ -243,6 +258,7 @@ static int pmc_probe(struct pci_dev *pdev,
 		goto err_devm_kzalloc;
 	}
 
+	pmc_ptr = pmc;
 	pmc->pdev = pci_dev_get(pdev);
 
 	pci_read_config_dword(pdev, PMC_BASE_ADDR_OFFSET, &pmc->base_addr);
@@ -259,6 +275,8 @@ static int pmc_probe(struct pci_dev *pdev,
 #ifdef CONFIG_DEBUG_FS
 	pmc_dbgfs_register(pmc);
 #endif /* CONFIG_DEBUG_FS */
+
+	sc_dev_state = pmc_dev_state;
 
 	/* Install power off function */
 	pci_read_config_dword(pdev, ACPI_BASE_ADDR_OFFSET, &acpi_base_addr);
