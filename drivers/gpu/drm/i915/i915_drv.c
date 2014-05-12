@@ -520,6 +520,7 @@ void vlv_restore_gunit_regs(struct drm_i915_private *dev_priv)
 /* Follow the sequence to powergate/ungate display for valleyview */
 static void vlv_power_gate_disp(struct drm_i915_private *dev_priv)
 {
+	mutex_lock(&dev_priv->rps.hw_lock);
 	/* 1. Power Gate Display Controller */
 	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
 			VLV_PW_DISP_MASK, VLV_PW_DISP_MASK);
@@ -550,10 +551,12 @@ static void vlv_power_gate_disp(struct drm_i915_private *dev_priv)
 		dev_err(&dev_priv->bridge_dev->dev,
 			"Power gate DPIO CMN timed out, suspend might fail\n");
 	}
+	mutex_unlock(&dev_priv->rps.hw_lock);
 }
 
 static void vlv_power_ungate_disp(struct drm_i915_private *dev_priv)
 {
+	mutex_lock(&dev_priv->rps.hw_lock);
 	/* 1. Power UnGate DPIO TX Lanes */
 	vlv_punit_write_bits(dev_priv, VLV_IOSFSB_PW_CNTL,
 			0, VLV_PW_DPIO_TX_MASK);
@@ -583,6 +586,7 @@ static void vlv_power_ungate_disp(struct drm_i915_private *dev_priv)
 		dev_err(&dev_priv->bridge_dev->dev,
 			"Power ungate DISP Controller timed out, resume might fail\n");
 	}
+	mutex_unlock(&dev_priv->rps.hw_lock);
 }
 
 /* follow the sequence below for VLV suspend*/
