@@ -525,7 +525,14 @@ static void dpm_resume_noirq(pm_message_t state)
 		list_move_tail(&dev->power.entry, &dpm_late_early_list);
 		mutex_unlock(&dpm_list_mtx);
 
+		pm_suspend_dbg("PM: device[%s] driver[%s] resume noirq enter\n",
+			dev_name(dev), dev_driver_string(dev));
+
 		error = device_resume_noirq(dev, state);
+
+		pm_suspend_dbg("PM: device[%s] driver[%s] resume noirq exit\n",
+			dev_name(dev), dev_driver_string(dev));
+
 		if (error) {
 			suspend_stats.failed_resume_noirq++;
 			dpm_save_failed_step(SUSPEND_RESUME_NOIRQ);
@@ -606,7 +613,14 @@ static void dpm_resume_early(pm_message_t state)
 		list_move_tail(&dev->power.entry, &dpm_suspended_list);
 		mutex_unlock(&dpm_list_mtx);
 
+		pm_suspend_dbg("PM: device[%s] driver[%s] resume early enter\n",
+			dev_name(dev), dev_driver_string(dev));
+
 		error = device_resume_early(dev, state);
+
+		pm_suspend_dbg("PM: device[%s] driver[%s] resume early exit\n",
+			dev_name(dev), dev_driver_string(dev));
+
 		if (error) {
 			suspend_stats.failed_resume_early++;
 			dpm_save_failed_step(SUSPEND_RESUME_EARLY);
@@ -726,7 +740,14 @@ static void async_resume(void *data, async_cookie_t cookie)
 	struct device *dev = (struct device *)data;
 	int error;
 
+	pm_suspend_dbg("PM: device[%s] driver[%s] resume async enter\n",
+		dev_name(dev), dev_driver_string(dev));
+
 	error = device_resume(dev, pm_transition, true);
+
+	pm_suspend_dbg("PM: device[%s] driver[%s] resume async exit\n",
+		dev_name(dev), dev_driver_string(dev));
+
 	if (error)
 		pm_dev_err(dev, pm_transition, " async", error);
 	put_device(dev);
@@ -772,7 +793,14 @@ void dpm_resume(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
+			pm_suspend_dbg("PM: device[%s] driver[%s] resume enter\n",
+				dev_name(dev), dev_driver_string(dev));
+
 			error = device_resume(dev, state, false);
+
+			pm_suspend_dbg("PM: device[%s] driver[%s] resume exit\n",
+				dev_name(dev), dev_driver_string(dev));
+
 			if (error) {
 				suspend_stats.failed_resume++;
 				dpm_save_failed_step(SUSPEND_RESUME);
