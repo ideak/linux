@@ -32,6 +32,7 @@
 #include "btcoex.h"
 #include "wl_cfg80211.h"
 #include "fwil.h"
+#include "dhd_sdio.h"
 
 #define BRCMF_SCAN_IE_LEN_MAX		2048
 #define BRCMF_PNO_VERSION		2
@@ -88,6 +89,8 @@
 
 #define BRCMF_ASSOC_PARAMS_FIXED_SIZE \
 	(sizeof(struct brcmf_assoc_params_le) - sizeof(u16))
+
+extern void brcmf_set_bus_idletime(struct brcmf_if *ifp, int idletime);
 
 static bool check_vif_up(struct brcmf_cfg80211_vif *vif)
 {
@@ -588,6 +591,9 @@ s32 brcmf_notify_escan_complete(struct brcmf_cfg80211_info *cfg,
 	if (!test_and_clear_bit(BRCMF_SCAN_STATUS_BUSY, &cfg->scan_status))
 		brcmf_dbg(SCAN, "Scan complete, probably P2P scan\n");
 
+	/* Restore original idle interval threshold */
+	brcmf_set_bus_idletime(ifp, BRCMF_IDLE_INTERVAL);
+
 	return err;
 }
 
@@ -898,6 +904,9 @@ brcmf_cfg80211_escan(struct wiphy *wiphy, struct brcmf_cfg80211_vif *vif,
 		brcmf_err("Connecting: status (%lu)\n", ifp->vif->sme_state);
 		return -EAGAIN;
 	}
+
+	/* Increase idle interval threshold from the interference to scanning */
+	brcmf_set_bus_idletime(ifp, BRCMF_IDLE_INTERVAL_LARGE);
 
 	/* If scan req comes for p2p0, send it over primary I/F */
 	if (vif == cfg->p2p.bss_idx[P2PAPI_BSSCFG_DEVICE].vif)

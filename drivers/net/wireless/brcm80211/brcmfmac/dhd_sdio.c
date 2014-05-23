@@ -42,6 +42,8 @@
 #include "sdio_host.h"
 #include "sdio_chip.h"
 #include "nvram.h"
+#include "dhd.h"
+#include "dhd_sdio.h"
 
 #define DCMD_RESP_TIMEOUT  2000	/* In milli second */
 
@@ -280,8 +282,6 @@ struct rte_console {
 #define BRCMF_IDLE_ACTIVE	0	/* Do not request any SD clock change
 					 * when idle
 					 */
-#define BRCMF_IDLE_INTERVAL	1
-
 #define KSO_WAIT_US 50
 #define MAX_KSO_ATTEMPTS (PMU_MAX_TRANSITION_DLY/KSO_WAIT_US)
 
@@ -4094,4 +4094,9 @@ void brcmf_sdio_wd_timer(struct brcmf_sdio *bus, uint wdtick)
 		bus->wd_timer_valid = true;
 		bus->save_ms = wdtick;
 	}
+}
+
+void brcmf_set_bus_idletime(struct brcmf_if *ifp, int idletime)
+{
+       ifp->drvr->bus_if->bus_priv.sdio->bus->idletime = idletime;
 }
