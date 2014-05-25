@@ -301,7 +301,7 @@ static void intel_dsi_post_disable(struct intel_encoder *encoder)
 	intel_dsi_clear_device_ready(encoder);
 
 	val = I915_READ(DSPCLK_GATE_D);
-	val &= ~DPOUNIT_CLOCK_GATE_DISABLE;
+	val &= ~(DPOUNIT_CLOCK_GATE_DISABLE | VSUNIT_CLOCK_GATE_DISABLE);
 	I915_WRITE(DSPCLK_GATE_D, val);
 
 	if (intel_dsi->dev.dev_ops->disable_panel_power)
@@ -608,7 +608,7 @@ static void intel_dsi_pre_pll_enable(struct intel_encoder *encoder)
 	I915_WRITE(DPLL(pipe), tmp);
 
 	tmp = I915_READ(DSPCLK_GATE_D);
-	tmp |= VSUNIT_CLOCK_GATE_DISABLE;
+	tmp |= DPOUNIT_CLOCK_GATE_DISABLE | VSUNIT_CLOCK_GATE_DISABLE;
 	I915_WRITE(DSPCLK_GATE_D, tmp);
 
 	vlv_enable_dsi_pll(encoder);
