@@ -4230,6 +4230,15 @@ static void i9xx_crtc_disable(struct drm_crtc *crtc)
 	if (!intel_crtc->active)
 		return;
 
+	/*
+	 * Having the SR WMs enabled when disabling the primary plane may
+	 * leave the primary plane in a stuck state, where it wouldn't
+	 * start fetching pixels after a subsequent crtc enable.
+	 * The WMs will be set to their proper values again when calling
+	 * intel_update_watermarks() next.
+	 */
+	if (IS_VALLEYVIEW(dev))
+		valleyview_disable_sr_watermarks(dev_priv);
 	intel_crtc_disable_planes(crtc);
 
 	for_each_encoder_on_crtc(dev, crtc, encoder)

@@ -1300,6 +1300,13 @@ static void vlv_update_drain_latency(struct drm_device *dev)
 	}
 }
 
+void valleyview_disable_sr_watermarks(struct drm_i915_private *dev_priv)
+{
+	I915_WRITE(FW_BLC_SELF_VLV,
+		   I915_READ(FW_BLC_SELF_VLV) & ~FW_CSPWRDWNEN);
+	POSTING_READ(FW_BLC_SELF_VLV);
+}
+
 #define single_plane_enabled(mask) is_power_of_2(mask)
 
 static void valleyview_update_wm(struct drm_crtc *crtc)
