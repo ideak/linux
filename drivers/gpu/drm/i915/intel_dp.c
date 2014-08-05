@@ -1291,8 +1291,6 @@ static void edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
 	if (!is_edp(intel_dp))
 		return;
 
-	WARN(!intel_dp->want_panel_vdd, "eDP VDD not forced on");
-
 	intel_dp->want_panel_vdd = false;
 
 	if (sync)
@@ -4480,6 +4478,26 @@ void intel_edp_panel_vdd_sanitize(struct intel_encoder *intel_encoder)
 	intel_display_power_get(dev_priv, power_domain);
 
 	edp_panel_vdd_schedule_off(intel_dp);
+}
+
+void intel_edp_panel_vdd_suspend(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = dev_priv->dev;
+	struct intel_encoder *intel_encoder;
+
+	drm_modeset_lock_all(dev);
+
+	for_each_intel_encoder(dev, intel_encoder) {
+		struct intel_dp *intel_dp;
+
+		if (intel_encoder->type != INTEL_OUTPUT_EDP)
+			continue;
+
+		intel_dp = enc_to_intel_dp(&intel_encoder->base);
+		edp_panel_vdd_off(intel_dp, true);
+	}
+
+	drm_modeset_unlock_all(dev);
 }
 
 static bool intel_edp_init_connector(struct intel_dp *intel_dp,

@@ -547,6 +547,8 @@ static int i915_drm_freeze(struct drm_device *dev)
 		intel_runtime_pm_disable_interrupts(dev);
 		intel_hpd_cancel_work(dev_priv);
 
+		intel_edp_panel_vdd_suspend(dev_priv);
+
 		intel_suspend_gt_powersave(dev);
 
 		intel_modeset_suspend_hw(dev);
