@@ -3551,6 +3551,9 @@ intel_dp_check_link_status(struct intel_dp *intel_dp)
 	if (WARN_ON(!intel_encoder->base.crtc))
 		return;
 
+	if (!to_intel_crtc(intel_encoder->base.crtc)->active)
+		return;
+
 	/* Try to read receiver status if the link appears to be up */
 	if (!intel_dp_get_link_status(intel_dp, link_status)) {
 		return;
@@ -4069,9 +4072,9 @@ intel_dp_hpd_pulse(struct intel_digital_port *intel_dig_port, bool long_hpd)
 			 * we'll check the link status via the normal hot plug path later -
 			 * but for short hpds we should check it now
 			 */
-			drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
+			drm_modeset_lock_all(dev);
 			intel_dp_check_link_status(intel_dp);
-			drm_modeset_unlock(&dev->mode_config.connection_mutex);
+			drm_modeset_unlock_all(dev);
 		}
 	}
 	return false;
