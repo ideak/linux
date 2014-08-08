@@ -2196,6 +2196,7 @@ extern void i915_update_gfx_val(struct drm_i915_private *dev_priv);
 int vlv_force_gfx_clock(struct drm_i915_private *dev_priv, bool on);
 
 extern void intel_console_resume(struct work_struct *work);
+void intel_hpd_cancel_work(struct drm_i915_private *dev_priv);
 
 /* i915_irq.c */
 void i915_queue_hangcheck(struct drm_device *dev);
