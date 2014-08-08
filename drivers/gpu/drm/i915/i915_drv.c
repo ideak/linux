@@ -497,6 +497,7 @@ bool i915_semaphore_is_enabled(struct drm_device *dev)
 void intel_hpd_cancel_work(struct drm_i915_private *dev_priv)
 {
 	cancel_work_sync(&dev_priv->hotplug_work);
+	cancel_work_sync(&dev_priv->dig_port_work);
 	cancel_delayed_work(&dev_priv->hotplug_reenable_work);
 }
 
