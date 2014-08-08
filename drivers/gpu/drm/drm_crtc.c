@@ -515,9 +515,6 @@ int drm_framebuffer_init(struct drm_device *dev, struct drm_framebuffer *fb,
 	if (ret)
 		goto out;
 
-	/* Grab the idr reference. */
-	drm_framebuffer_reference(fb);
-
 	dev->mode_config.num_fb++;
 	list_add(&fb->head, &dev->mode_config.fb_list);
 out:
@@ -527,10 +524,34 @@ out:
 }
 EXPORT_SYMBOL(drm_framebuffer_init);
 
+/* dev->mode_config.fb_lock must be held! */
+static void __drm_framebuffer_unregister(struct drm_device *dev,
+					 struct drm_framebuffer *fb)
+{
+	mutex_lock(&dev->mode_config.idr_mutex);
+	idr_remove(&dev->mode_config.crtc_idr, fb->base.id);
+	mutex_unlock(&dev->mode_config.idr_mutex);
+
+	fb->base.id = 0;
+}
+
 static void drm_framebuffer_free(struct kref *kref)
 {
 	struct drm_framebuffer *fb =
 			container_of(kref, struct drm_framebuffer, refcount);
+	struct drm_device *dev = fb->dev;
+
+	/*
+	 * The lookup idr holds a weak reference, which has not necessarily been
+	 * removed at this point. Check for that.
+	 */
+	mutex_lock(&dev->mode_config.fb_lock);
+	if (fb->base.id) {
+		/* Mark fb as reaped and drop idr ref. */
+		__drm_framebuffer_unregister(dev, fb);
+	}
+	mutex_unlock(&dev->mode_config.fb_lock);
+
 	fb->funcs->destroy(fb);
 }
 
@@ -567,8 +588,10 @@ struct drm_framebuffer *drm_framebuffer_lookup(struct drm_device *dev,
 
 	mutex_lock(&dev->mode_config.fb_lock);
 	fb = __drm_framebuffer_lookup(dev, id);
-	if (fb)
-		drm_framebuffer_reference(fb);
+	if (fb) {
+		if (!kref_get_unless_zero(&fb->refcount))
+			fb = NULL;
+	}
 	mutex_unlock(&dev->mode_config.fb_lock);
 
 	return fb;
@@ -610,19 +633,6 @@ static void __drm_framebuffer_unreference(struct drm_framebuffer *fb)
 {
 	DRM_DEBUG("%p: FB ID: %d (%d)\n", fb, fb->base.id, atomic_read(&fb->refcount.refcount));
 	kref_put(&fb->refcount, drm_framebuffer_free_bug);
-}
-
-/* dev->mode_config.fb_lock must be held! */
-static void __drm_framebuffer_unregister(struct drm_device *dev,
-					 struct drm_framebuffer *fb)
-{
-	mutex_lock(&dev->mode_config.idr_mutex);
-	idr_remove(&dev->mode_config.crtc_idr, fb->base.id);
-	mutex_unlock(&dev->mode_config.idr_mutex);
-
-	fb->base.id = 0;
-
-	__drm_framebuffer_unreference(fb);
 }
 
 /**
@@ -853,6 +863,59 @@ static void drm_mode_remove(struct drm_connector *connector,
 }
 
 /**
+ * drm_connector_get_cmdline_mode - reads the user's cmdline mode
+ * @connector: connector to quwery
+ * @mode: returned mode
+ *
+ * The kernel supports per-connector configration of its consoles through
+ * use of the video= parameter. This function parses that option and
+ * extracts the user's specified mode (or enable/disable status) for a
+ * particular connector. This is typically only used during the early fbdev
+ * setup.
+ */
+static void drm_connector_get_cmdline_mode(struct drm_connector *connector)
+{
+	struct drm_cmdline_mode *mode = &connector->cmdline_mode;
+	char *option = NULL;
+
+	if (fb_get_options(connector->name, &option))
+		return;
+
+	if (!drm_mode_parse_command_line_for_connector(option,
+						       connector,
+						       mode))
+		return;
+
+	if (mode->force) {
+		const char *s;
+
+		switch (mode->force) {
+		case DRM_FORCE_OFF:
+			s = "OFF";
+			break;
+		case DRM_FORCE_ON_DIGITAL:
+			s = "ON - dig";
+			break;
+		default:
+		case DRM_FORCE_ON:
+			s = "ON";
+			break;
+		}
+
+		DRM_INFO("forcing %s connector %s\n", connector->name, s);
+		connector->force = mode->force;
+	}
+
+	DRM_DEBUG_KMS("cmdline mode for connector %s %dx%d@%dHz%s%s%s\n",
+		      connector->name,
+		      mode->xres, mode->yres,
+		      mode->refresh_specified ? mode->refresh : 60,
+		      mode->rb ? " reduced blanking" : "",
+		      mode->margins ? " with margins" : "",
+		      mode->interlace ?  " interlaced" : "");
+}
+
+/**
  * drm_connector_init - Init a preallocated connector
  * @dev: DRM device
  * @connector: the connector to init
@@ -903,6 +966,8 @@ int drm_connector_init(struct drm_device *dev,
 	INIT_LIST_HEAD(&connector->modes);
 	connector->edid_blob_ptr = NULL;
 	connector->status = connector_status_unknown;
+
+	drm_connector_get_cmdline_mode(connector);
 
 	list_add_tail(&connector->head, &dev->mode_config.connector_list);
 	dev->mode_config.num_connector++;
