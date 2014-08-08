@@ -1,0 +1,16 @@
+origin/drm-intel-next-queued 9de1683a0fa8ce9dc569bafd04f7487c8b9080ac
+	drm/i915: Add sprite watermark programming for VLV and CHV
+origin/drm-intel-fixes 838ec9b1916c8e455c391fe69bb5018638562b79
+	drm/i915: Make the physical object coherent with GTT
+drm-upstream/drm-next 7963e9db1b1f842fdc53309baa8714d38e9f5681
+	Revert "drm: drop redundant drm_file->is_master"
+drm-upstream/drm-fixes 1b2c4869d8247f9e202fa8a73777c34adc62d409
+	drm/radeon: fix cut and paste issue for hawaii.
+origin/topic/core-stuff e6ae8687a87b1fe5c25e824c8ad300f5587eb622
+	drm: idiot-proof vblank
+origin/topic/vblank-rework 80b36f4386660ce59ee09e34f07c8a98857e2f38
+	arm: Use vblank_disable_and_save in drm_vblank_cleanup()
+sound-upstream/for-next 68a9edd18c62953db476142c06cb65326aeb0b31
+	sound: oss: Remove typedefs wanc_info and wavnc_port_info
+driver-core-upstream/driver-core-next 0542ad88fbdd81bbd53f48bff981a9867e0f0659
+	firmware loader: Fix _request_firmware_load() return val for fw load abort
