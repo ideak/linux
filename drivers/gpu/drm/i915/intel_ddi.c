@@ -491,33 +491,6 @@ intel_ddi_get_crtc_encoder(struct drm_crtc *crtc)
 	return ret;
 }
 
-static struct intel_encoder *
-intel_ddi_get_crtc_new_encoder(struct intel_crtc_state *crtc_state)
-{
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
-	struct intel_encoder *ret = NULL;
-	struct drm_atomic_state *state;
-	int num_encoders = 0;
-	int i;
-
-	state = crtc_state->base.state;
-
-	for (i = 0; i < state->num_connector; i++) {
-		if (!state->connectors[i] ||
-		    state->connector_states[i]->crtc != crtc_state->base.crtc)
-			continue;
-
-		ret = to_intel_encoder(state->connector_states[i]->best_encoder);
-		num_encoders++;
-	}
-
-	WARN(num_encoders != 1, "%d encoders on crtc for pipe %c\n", num_encoders,
-	     pipe_name(crtc->pipe));
-
-	BUG_ON(ret == NULL);
-	return ret;
-}
-
 #define LC_FREQ 2700
 #define LC_FREQ_2K U64_C(LC_FREQ * 2000)
 

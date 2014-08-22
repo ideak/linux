@@ -4189,6 +4189,33 @@ void intel_put_shared_dpll(struct intel_crtc *crtc)
 	crtc->config->shared_dpll = DPLL_ID_PRIVATE;
 }
 
+struct intel_encoder *
+intel_ddi_get_crtc_new_encoder(struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_encoder *ret = NULL;
+	struct drm_atomic_state *state;
+	int num_encoders = 0;
+	int i;
+
+	state = crtc_state->base.state;
+
+	for (i = 0; i < state->num_connector; i++) {
+		if (!state->connectors[i] ||
+		    state->connector_states[i]->crtc != crtc_state->base.crtc)
+			continue;
+
+		ret = to_intel_encoder(state->connector_states[i]->best_encoder);
+		num_encoders++;
+	}
+
+	WARN(num_encoders != 1, "%d encoders on crtc for pipe %c\n", num_encoders,
+	     pipe_name(crtc->pipe));
+
+	BUG_ON(ret == NULL);
+	return ret;
+}
+
 struct intel_shared_dpll *intel_get_shared_dpll(struct intel_crtc *crtc,
 						struct intel_crtc_state *crtc_state)
 {
@@ -4204,6 +4231,26 @@ struct intel_shared_dpll *intel_get_shared_dpll(struct intel_crtc *crtc,
 		DRM_DEBUG_KMS("CRTC:%d using pre-allocated %s\n",
 			      crtc->base.base.id, pll->name);
 
+		WARN_ON(pll->new_config->crtc_mask);
+
+		goto found;
+	}
+
+	if (IS_BROXTON(dev_priv->dev)) {
+		/* PLL is attached to port in bxt */
+		struct intel_encoder *encoder;
+		struct intel_digital_port *intel_dig_port;
+
+		encoder = intel_ddi_get_crtc_new_encoder(crtc_state);
+		if (WARN_ON(!encoder))
+			return NULL;
+
+		intel_dig_port = enc_to_dig_port(&encoder->base);
+		/* 1:1 mapping between ports and PLLs */
+		i = (enum intel_dpll_id)intel_dig_port->port;
+		pll = &dev_priv->shared_dplls[i];
+		DRM_DEBUG_KMS("CRTC:%d using pre-allocated %s\n",
+			crtc->base.base.id, pll->name);
 		WARN_ON(pll->new_config->crtc_mask);
 
 		goto found;
