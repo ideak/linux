@@ -1503,10 +1503,24 @@ static int intel_resume_prepare(struct drm_i915_private *dev_priv,
 }
 
 static const struct dev_pm_ops i915_pm_ops = {
+	/* S0ix, S3 event handlers */
 	.suspend = i915_pm_suspend,
 	.suspend_late = i915_pm_suspend_late,
 	.resume_early = i915_pm_resume_early,
 	.resume = i915_pm_resume,
+
+	/*
+	 * S4 event handlers
+	 * @freeze, @freeze_late    : called (1) before creating hibernation
+	 *                            image and (2) after rebooting, before
+	 *                            restoring the image
+	 * @thaw, @thaw_early       : called after creating hibernation image,
+	 *                            before writing it
+	 * @poweroff, @poweroff_late: called after writing hibernation image,
+	 *                            before rebooting
+	 * @restore, @restore_early : called after rebooting and restoring the
+	 *                            image
+	 */
 	.freeze = i915_pm_suspend,
 	.freeze_late = i915_pm_suspend_late,
 	.thaw_early = i915_pm_resume_early,
@@ -1515,6 +1529,8 @@ static const struct dev_pm_ops i915_pm_ops = {
 	.poweroff_late = i915_pm_suspend_late,
 	.restore_early = i915_pm_resume_early,
 	.restore = i915_pm_resume,
+
+	/* D0<->D3 (runtime PM) event handlers */
 	.runtime_suspend = intel_runtime_suspend,
 	.runtime_resume = intel_runtime_resume,
 };
