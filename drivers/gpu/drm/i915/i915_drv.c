@@ -648,11 +648,7 @@ int i915_suspend(struct drm_device *dev, pm_message_t state)
 	if (error)
 		return error;
 
-	/* Shut down the device */
-	pci_disable_device(dev->pdev);
-	pci_set_power_state(dev->pdev, PCI_D3hot);
-
-	return 0;
+	return i915_drm_suspend_late(dev);
 }
 
 static int i915_drm_thaw_early(struct drm_device *dev)
@@ -768,7 +764,7 @@ static int i915_resume_early(struct drm_device *dev)
 	return i915_drm_thaw_early(dev);
 }
 
-int i915_resume(struct drm_device *dev)
+static int i915_drm_resume(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
@@ -794,7 +790,12 @@ static int i915_resume_legacy(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-	return i915_resume(dev);
+	return i915_drm_resume(dev);
+}
+
+int i915_resume(struct drm_device *dev)
+{
+	return i915_resume_legacy(dev);
 }
 
 /**
@@ -979,7 +980,7 @@ static int i915_pm_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct drm_device *drm_dev = pci_get_drvdata(pdev);
 
-	return i915_resume(drm_dev);
+	return i915_drm_resume(drm_dev);
 }
 
 static int i915_pm_freeze(struct device *dev)
