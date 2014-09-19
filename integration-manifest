@@ -1,0 +1,12 @@
+origin/drm-intel-next-queued 5cb13c07dae73380d8b3ddc792740487b8742938
+	drm/i915/vlv: Remove check for Old Ack during forcewake
+origin/drm-intel-fixes 8c875fca1a8d76665c60fa141c220cee65f44f5e
+	drm/i915: Add limited color range readout for HDMI/DP ports on g4x/vlv/chv
+drm-upstream/drm-next 8337486a8fda53e5f46b3cb2b4eb3272608348cb
+	Merge branch 'drm/next/du' of git://linuxtv.org/pinchartl/fbdev into drm-next
+drm-upstream/drm-fixes 235e6def762557fb209a7853864444653809451b
+	Merge tag 'drm-intel-fixes-2014-09-18' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff 72d31999a3ebcfa4d0590fd5e4e34b13ef6f92ed
+	drm/udl: use container_of to resolve udl_fbdev from drm_fb_helper
+sound-upstream/for-next 8bb1ffdf76276c040a065c4df173dfce98b5ffa3
+	ALSA: hda - Replace strnicmp with strncasecmp
