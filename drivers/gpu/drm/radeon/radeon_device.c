@@ -1396,7 +1396,7 @@ int radeon_device_init(struct radeon_device *rdev,
 
 	r = radeon_init(rdev);
 	if (r)
-		return r;
+		goto failed;
 
 	r = radeon_gem_debugfs_init(rdev);
 	if (r) {
@@ -1412,7 +1412,7 @@ int radeon_device_init(struct radeon_device *rdev,
 		radeon_agp_disable(rdev);
 		r = radeon_init(rdev);
 		if (r)
-			return r;
+			goto failed;
 	}
 
 	r = radeon_ib_ring_tests(rdev);
@@ -1438,6 +1438,11 @@ int radeon_device_init(struct radeon_device *rdev,
 			DRM_INFO("radeon: acceleration disabled, skipping benchmarks\n");
 	}
 	return 0;
+
+failed:
+	if (runtime)
+		vga_switcheroo_fini_domain_pm_ops(rdev->dev);
+	return r;
 }
 
 static void radeon_debugfs_remove_files(struct radeon_device *rdev);
@@ -1458,6 +1463,8 @@ void radeon_device_fini(struct radeon_device *rdev)
 	radeon_bo_evict_vram(rdev);
 	radeon_fini(rdev);
 	vga_switcheroo_unregister_client(rdev->pdev);
+	if (rdev->flags & RADEON_IS_PX)
+		vga_switcheroo_fini_domain_pm_ops(rdev->dev);
 	vga_client_register(rdev->pdev, NULL, NULL, NULL);
 	if (rdev->rio_mem)
 		pci_iounmap(rdev->pdev, rdev->rio_mem);
