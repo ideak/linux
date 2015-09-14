@@ -1026,6 +1026,17 @@ static int intel_lr_context_do_pin(struct intel_engine_cs *ring,
 	if (ret)
 		return ret;
 
+	if (IS_BROXTON(dev_priv) && INTEL_REVID(dev_priv) < BXT_REVID_B0) {
+		struct page *page;
+
+		drm_clflush_sg(ctx_obj->pages);
+		page = i915_gem_object_get_page(ctx_obj, LRC_STATE_PN);
+		ret = set_pages_uc(page, 1);
+		if (ret)
+			goto unpin_ctx_obj;
+	}
+
+
 	ret = intel_pin_and_map_ringbuffer_obj(ring->dev, ringbuf);
 	if (ret)
 		goto unpin_ctx_obj;
@@ -1066,12 +1077,21 @@ reset_pin_count:
 void intel_lr_context_unpin(struct drm_i915_gem_request *rq)
 {
 	struct intel_engine_cs *ring = rq->ring;
+	struct drm_i915_private *dev_priv = rq->i915;
 	struct drm_i915_gem_object *ctx_obj = rq->ctx->engine[ring->id].state;
 	struct intel_ringbuffer *ringbuf = rq->ringbuf;
 
 	if (ctx_obj) {
 		WARN_ON(!mutex_is_locked(&ring->dev->struct_mutex));
 		if (--rq->ctx->engine[ring->id].pin_count == 0) {
+			if (IS_BROXTON(dev_priv) &&
+			    INTEL_REVID(dev_priv) < BXT_REVID_B0) {
+				struct page *page;
+
+				page = i915_gem_object_get_page(ctx_obj,
+								LRC_STATE_PN);
+				WARN_ON_ONCE(set_pages_wb(page, 1));
+			}
 			intel_unpin_ringbuffer_obj(ringbuf);
 			i915_gem_object_ggtt_unpin(ctx_obj);
 		}
