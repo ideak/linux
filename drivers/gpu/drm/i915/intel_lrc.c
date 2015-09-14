@@ -1096,6 +1096,14 @@ static int intel_lr_context_do_pin(struct intel_context *ctx,
 		goto unpin_ctx_obj;
 	}
 
+	if (IS_BROXTON(dev_priv) && INTEL_REVID(dev_priv) < BXT_REVID_B0) {
+		drm_clflush_sg(ctx_obj->pages);
+		ret = set_pages_uc(lrc_state_page, 1);
+		if (ret)
+			goto unpin_ctx_obj;
+	}
+
+
 	ret = intel_pin_and_map_ringbuffer_obj(ring->dev, ringbuf);
 	if (ret)
 		goto unpin_ctx_obj;
@@ -1149,7 +1157,18 @@ void intel_lr_context_unpin(struct intel_context *ctx,
 		return;
 
 	if (--ctx->engine[engine->id].pin_count == 0) {
+		struct drm_i915_private *dev_priv = ctx->i915;
 		kunmap(kmap_to_page(ctx->engine[engine->id].lrc_reg_state));
+
+		if (IS_BROXTON(dev_priv) &&
+		    INTEL_REVID(dev_priv) < BXT_REVID_B0) {
+			struct page *page;
+
+			page = i915_gem_object_get_page(ctx_obj,
+							LRC_STATE_PN);
+			WARN_ON_ONCE(set_pages_wb(page, 1));
+		}
+
 		intel_unpin_ringbuffer_obj(ctx->engine[engine->id].ringbuf);
 		i915_gem_object_ggtt_unpin(ctx_obj);
 		ctx->engine[engine->id].lrc_vma = NULL;
