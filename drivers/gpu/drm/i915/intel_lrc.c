@@ -2459,7 +2459,10 @@ int intel_lr_context_deferred_alloc(struct intel_context *ctx,
 	/* One extra page as the sharing data between driver and GuC */
 	context_size += PAGE_SIZE * LRC_PPHWSP_PN;
 
-	ctx_obj = i915_gem_alloc_object(dev, context_size);
+	if (IS_BROXTON(dev) && INTEL_REVID(dev) < BXT_REVID_B0)
+		ctx_obj = i915_gem_alloc_object_no_highmem(dev, context_size);
+	else
+		ctx_obj = i915_gem_alloc_object(dev, context_size);
 	if (!ctx_obj) {
 		DRM_DEBUG_DRIVER("Alloc LRC backing obj failed.\n");
 		return -ENOMEM;

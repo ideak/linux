@@ -4372,8 +4372,8 @@ static const struct drm_i915_gem_object_ops i915_gem_object_ops = {
 	.put_pages = i915_gem_object_put_pages_gtt,
 };
 
-struct drm_i915_gem_object *i915_gem_alloc_object(struct drm_device *dev,
-						  size_t size)
+static struct drm_i915_gem_object *
+__i915_gem_alloc_object(struct drm_device *dev, size_t size, bool highmem)
 {
 	struct drm_i915_gem_object *obj;
 	struct address_space *mapping;
@@ -4391,9 +4391,12 @@ struct drm_i915_gem_object *i915_gem_alloc_object(struct drm_device *dev,
 	mask = GFP_HIGHUSER | __GFP_RECLAIMABLE;
 	if (IS_CRESTLINE(dev) || IS_BROADWATER(dev)) {
 		/* 965gm cannot relocate objects above 4GiB. */
-		mask &= ~__GFP_HIGHMEM;
+		highmem = false;
 		mask |= __GFP_DMA32;
 	}
+
+	if (!highmem)
+		mask &= ~__GFP_HIGHMEM;
 
 	mapping = file_inode(obj->base.filp)->i_mapping;
 	mapping_set_gfp_mask(mapping, mask);
@@ -4423,6 +4426,18 @@ struct drm_i915_gem_object *i915_gem_alloc_object(struct drm_device *dev,
 	trace_i915_gem_object_create(obj);
 
 	return obj;
+}
+
+struct drm_i915_gem_object *
+i915_gem_alloc_object(struct drm_device *dev, size_t size)
+{
+	return __i915_gem_alloc_object(dev, size, true);
+}
+
+struct drm_i915_gem_object *
+i915_gem_alloc_object_no_highmem(struct drm_device *dev, size_t size)
+{
+	return __i915_gem_alloc_object(dev, size, false);
 }
 
 static bool discard_backing_storage(struct drm_i915_gem_object *obj)
