@@ -2067,9 +2067,11 @@ static int intel_alloc_ringbuffer_obj(struct drm_device *dev,
 				      struct intel_ringbuffer *ringbuf)
 {
 	struct drm_i915_gem_object *obj;
+	bool bxt_a;
 
 	obj = NULL;
-	if (!HAS_LLC(dev))
+	bxt_a = IS_BROXTON(dev) && INTEL_REVID(dev) < BXT_REVID_B0;
+	if (!HAS_LLC(dev) && !bxt_a)
 		obj = i915_gem_object_create_stolen(dev, ringbuf->size);
 	if (obj == NULL)
 		obj = i915_gem_alloc_object(dev, ringbuf->size);
