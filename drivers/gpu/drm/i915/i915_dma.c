@@ -1130,6 +1130,8 @@ int i915_driver_unload(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
 
+	intel_fbdev_fini(dev);
+
 	i915_audio_component_cleanup(dev_priv);
 
 	ret = i915_gem_suspend(dev);
@@ -1151,8 +1153,6 @@ int i915_driver_unload(struct drm_device *dev)
 	arch_phys_wc_del(dev_priv->gtt.mtrr);
 
 	acpi_video_unregister();
-
-	intel_fbdev_fini(dev);
 
 	drm_vblank_cleanup(dev);
 
