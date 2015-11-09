@@ -2358,6 +2358,8 @@ static void gen8_ggtt_insert_entries(struct i915_address_space *vm,
 	struct sg_page_iter sg_iter;
 	dma_addr_t addr = 0; /* shut up gcc */
 
+	assert_in_rpm_critical_section(dev_priv);
+
 	for_each_sg_page(st->sgl, &sg_iter, st->nents, 0) {
 		addr = sg_dma_address(sg_iter.sg) +
 			(sg_iter.sg_pgoffset << PAGE_SHIFT);
@@ -2404,6 +2406,8 @@ static void gen6_ggtt_insert_entries(struct i915_address_space *vm,
 	struct sg_page_iter sg_iter;
 	dma_addr_t addr = 0;
 
+	assert_in_rpm_critical_section(dev_priv);
+
 	for_each_sg_page(st->sgl, &sg_iter, st->nents, 0) {
 		addr = sg_page_iter_dma_address(&sg_iter);
 		iowrite32(vm->pte_encode(addr, level, true, flags), &gtt_entries[i]);
@@ -2442,6 +2446,8 @@ static void gen8_ggtt_clear_range(struct i915_address_space *vm,
 	const int max_entries = gtt_total_entries(dev_priv->gtt) - first_entry;
 	int i;
 
+	assert_in_rpm_critical_section(dev_priv);
+
 	if (WARN(num_entries > max_entries,
 		 "First entry = %d; Num entries = %d (max=%d)\n",
 		 first_entry, num_entries, max_entries))
@@ -2468,6 +2474,8 @@ static void gen6_ggtt_clear_range(struct i915_address_space *vm,
 	const int max_entries = gtt_total_entries(dev_priv->gtt) - first_entry;
 	int i;
 
+	assert_in_rpm_critical_section(dev_priv);
+
 	if (WARN(num_entries > max_entries,
 		 "First entry = %d; Num entries = %d (max=%d)\n",
 		 first_entry, num_entries, max_entries))
@@ -2489,6 +2497,7 @@ static void i915_ggtt_insert_entries(struct i915_address_space *vm,
 	unsigned int flags = (cache_level == I915_CACHE_NONE) ?
 		AGP_USER_MEMORY : AGP_USER_CACHED_MEMORY;
 
+	assert_in_rpm_critical_section(vm->dev->dev_private);
 	intel_gtt_insert_sg_entries(pages, start >> PAGE_SHIFT, flags);
 
 }
@@ -2500,6 +2509,8 @@ static void i915_ggtt_clear_range(struct i915_address_space *vm,
 {
 	unsigned first_entry = start >> PAGE_SHIFT;
 	unsigned num_entries = length >> PAGE_SHIFT;
+
+	assert_in_rpm_critical_section(vm->dev->dev_private);
 	intel_gtt_clear_range(first_entry, num_entries);
 }
 
