@@ -621,6 +621,7 @@ enum punit_power_well {
 	PUNIT_POWER_WELL_DPIO_RX1		= 11,
 	PUNIT_POWER_WELL_DPIO_CMN_D		= 12,
 
+	/* Not actual bit groups. Used as IDs for lookup_power_well() */
 	PUNIT_POWER_WELL_ALWAYS_ON,
 };
 
@@ -633,6 +634,7 @@ enum skl_disp_power_wells {
 	SKL_DISP_PW_1 = 14,
 	SKL_DISP_PW_2,
 
+	/* Not actual bit groups. Used as IDs for lookup_power_well() */
 	SKL_DISP_PW_ALWAYS_ON,
 };
 
