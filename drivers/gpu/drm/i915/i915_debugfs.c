@@ -5289,7 +5289,7 @@ static int i915_forcewake_open(struct inode *inode, struct file *file)
 	if (INTEL_INFO(dev)->gen < 6)
 		return 0;
 
-	intel_runtime_pm_get(dev_priv);
+	intel_runtime_pm_get_prolonged(dev_priv);
 	intel_uncore_forcewake_get(dev_priv, FORCEWAKE_ALL);
 
 	return 0;
@@ -5304,7 +5304,7 @@ static int i915_forcewake_release(struct inode *inode, struct file *file)
 		return 0;
 
 	intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
-	intel_runtime_pm_put(dev_priv);
+	intel_runtime_pm_put_prolonged(dev_priv);
 
 	return 0;
 }

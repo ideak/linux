@@ -1383,7 +1383,7 @@ void intel_display_power_get(struct drm_i915_private *dev_priv,
 	struct i915_power_well *power_well;
 	int i;
 
-	intel_runtime_pm_get(dev_priv);
+	intel_runtime_pm_get_prolonged(dev_priv);
 
 	power_domains = &dev_priv->power_domains;
 
@@ -1431,7 +1431,7 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
 
 	mutex_unlock(&power_domains->lock);
 
-	intel_runtime_pm_put(dev_priv);
+	intel_runtime_pm_put_prolonged(dev_priv);
 }
 
 #define HSW_ALWAYS_ON_POWER_DOMAINS (			\
@@ -2152,16 +2152,21 @@ void enable_rpm_asserts(struct drm_i915_private *dev_priv)
 }
 
 /**
- * intel_runtime_pm_get - grab a runtime pm reference
+ * intel_runtime_pm_get_prolonged - grab a prolonged runtime pm reference
  * @dev_priv: i915 device instance
  *
- * This function grabs a device-level runtime pm reference (mostly used for GEM
- * code to ensure the GTT or GT is on) and ensures that it is powered up.
+ * This function grabs a device-level runtime pm reference for an
+ * indeterminate duration and ensures that the device is powered up. Used for
+ * example in GEM code to ensure the GTT or GT is on while there are active
+ * requests and the display power domain framework while there are active
+ * display outputs.
  *
  * Any runtime pm reference obtained by this function must have a symmetric
- * call to intel_runtime_pm_put() to release the reference again.
+ * call to intel_runtime_pm_put_prolonged() to release the reference again.
+ * Calling of the get and the corresponding put function can happen from
+ * separate threads.
  */
-void intel_runtime_pm_get(struct drm_i915_private *dev_priv)
+void intel_runtime_pm_get_prolonged(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = dev_priv->dev;
 	struct device *device = &dev->pdev->dev;
@@ -2172,23 +2177,41 @@ void intel_runtime_pm_get(struct drm_i915_private *dev_priv)
 }
 
 /**
- * intel_runtime_pm_get_noresume - grab a runtime pm reference
+ * intel_runtime_pm_get - grab a runtime pm reference
  * @dev_priv: i915 device instance
  *
  * This function grabs a device-level runtime pm reference (mostly used for GEM
- * code to ensure the GTT or GT is on).
+ * code to ensure the GTT or GT is on) and ensures that it is powered up.
+ *
+ * Any runtime pm reference obtained by this function must have a symmetric
+ * call to intel_runtime_pm_put() to release the reference again.
+ * Calling of the get and the corresponding put function must happen from the
+ * same thread.
+ */
+void intel_runtime_pm_get(struct drm_i915_private *dev_priv)
+{
+	intel_runtime_pm_get_prolonged(dev_priv);
+}
+
+/**
+ * intel_runtime_pm_get_noresume_prolonged - grab a prolonged runtime pm reference
+ * @dev_priv: i915 device instance
+ *
+ * This function grabs a device-level runtime pm reference for indeterminate
+ * duration (mostly used for GEM code to ensure the GTT or GT is on).
  *
  * It will _not_ power up the device but instead only check that it's powered
  * on.  Therefore it is only valid to call this functions from contexts where
  * the device is known to be powered up and where trying to power it up would
- * result in hilarity and deadlocks. That pretty much means only the system
- * suspend/resume code where this is used to grab runtime pm references for
- * delayed setup down in work items.
+ * result in hilarity and deadlocks. Currently the only user of this is the GT
+ * powersave enabling logic.
  *
  * Any runtime pm reference obtained by this function must have a symmetric
- * call to intel_runtime_pm_put() to release the reference again.
+ * call to intel_runtime_pm_put_prolonged() to release the reference again.
+ * Calling of the get and the corresponding put function can happen from
+ * separate threads.
  */
-void intel_runtime_pm_get_noresume(struct drm_i915_private *dev_priv)
+void intel_runtime_pm_get_noresume_prolonged(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = dev_priv->dev;
 	struct device *device = &dev->pdev->dev;
@@ -2200,14 +2223,16 @@ void intel_runtime_pm_get_noresume(struct drm_i915_private *dev_priv)
 }
 
 /**
- * intel_runtime_pm_put - release a runtime pm reference
+ * intel_runtime_pm_put_prolonged - release a prolonged runtime pm reference
  * @dev_priv: i915 device instance
  *
  * This function drops the device-level runtime pm reference obtained by
- * intel_runtime_pm_get() and might power down the corresponding
- * hardware block right away if this is the last reference.
+ * intel_runtime_pm_get_prolonged() or intel_runtime_pm_get_noresume_prolonged()
+ * and might power down the corresponding hardware block right away if this is
+ * the last reference. Calling of the get and corresponding put function can
+ * happen from separate threads.
  */
-void intel_runtime_pm_put(struct drm_i915_private *dev_priv)
+void intel_runtime_pm_put_prolonged(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = dev_priv->dev;
 	struct device *device = &dev->pdev->dev;
@@ -2217,6 +2242,21 @@ void intel_runtime_pm_put(struct drm_i915_private *dev_priv)
 
 	pm_runtime_mark_last_busy(device);
 	pm_runtime_put_autosuspend(device);
+}
+
+/**
+ * intel_runtime_pm_put - release a runtime pm reference
+ * @dev_priv: i915 device instance
+ *
+ * This function drops the device-level runtime pm reference obtained by
+ * intel_runtime_pm_get() and might power down the corresponding
+ * hardware block right away if this is the last reference.
+ * Calling of the get and corresponding put function must happen from the same
+ * thread.
+ */
+void intel_runtime_pm_put(struct drm_i915_private *dev_priv)
+{
+	intel_runtime_pm_put_prolonged(dev_priv);
 }
 
 /**

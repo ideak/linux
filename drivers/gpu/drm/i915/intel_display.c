@@ -10702,7 +10702,7 @@ void intel_mark_busy(struct drm_device *dev)
 	if (dev_priv->mm.busy)
 		return;
 
-	intel_runtime_pm_get(dev_priv);
+	intel_runtime_pm_get_prolonged(dev_priv);
 	i915_update_gfx_val(dev_priv);
 	if (INTEL_INFO(dev)->gen >= 6)
 		gen6_rps_busy(dev_priv);
@@ -10721,7 +10721,7 @@ void intel_mark_idle(struct drm_device *dev)
 	if (INTEL_INFO(dev)->gen >= 6)
 		gen6_rps_idle(dev->dev_private);
 
-	intel_runtime_pm_put(dev_priv);
+	intel_runtime_pm_put_prolonged(dev_priv);
 }
 
 static void intel_crtc_destroy(struct drm_crtc *crtc)

@@ -6109,7 +6109,7 @@ static void intel_gen6_powersave_work(struct work_struct *work)
 
 	mutex_unlock(&dev_priv->rps.hw_lock);
 
-	intel_runtime_pm_put(dev_priv);
+	intel_runtime_pm_put_prolonged(dev_priv);
 }
 
 void intel_enable_gt_powersave(struct drm_device *dev)
@@ -6140,7 +6140,7 @@ void intel_enable_gt_powersave(struct drm_device *dev)
 		 */
 		if (schedule_delayed_work(&dev_priv->rps.delayed_resume_work,
 					   round_jiffies_up_relative(HZ)))
-			intel_runtime_pm_get_noresume(dev_priv);
+			intel_runtime_pm_get_noresume_prolonged(dev_priv);
 	}
 }
 
