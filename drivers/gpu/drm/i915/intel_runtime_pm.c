@@ -2139,6 +2139,8 @@ void intel_runtime_pm_get(struct drm_i915_private *dev_priv)
 	struct device *device = &dev->pdev->dev;
 
 	pm_runtime_get_sync(device);
+
+	atomic_inc(&dev_priv->pm.wakelock_count);
 	assert_rpm_wakelock_held(dev_priv);
 }
 
@@ -2166,6 +2168,8 @@ void intel_runtime_pm_get_noresume(struct drm_i915_private *dev_priv)
 
 	assert_rpm_wakelock_held(dev_priv);
 	pm_runtime_get_noresume(device);
+
+	atomic_inc(&dev_priv->pm.wakelock_count);
 }
 
 /**
@@ -2180,6 +2184,8 @@ void intel_runtime_pm_put(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = dev_priv->dev;
 	struct device *device = &dev->pdev->dev;
+
+	atomic_dec(&dev_priv->pm.wakelock_count);
 
 	pm_runtime_mark_last_busy(device);
 	pm_runtime_put_autosuspend(device);

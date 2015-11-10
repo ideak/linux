@@ -1439,6 +1439,45 @@ static inline void
 assert_rpm_wakelock_held(struct drm_i915_private *dev_priv)
 {
 	assert_rpm_device_not_suspended(dev_priv);
+	WARN_ONCE(!atomic_read(&dev_priv->pm.wakelock_count),
+		  "RPM wakelock not held during HW access");
+}
+
+/**
+ * disable_rpm_asserts - disable the RPM assert checks
+ * @dev_priv: i915 device instance
+ *
+ * This function disables all the RPM assert checks. It's meant to be used
+ * only in special circumstances where our rule about the RPM refcount wrt.
+ * the device power state doesn't hold. According to this rule at any point
+ * where we access the HW or want to keep the HW in an active state we must
+ * hold an RPM reference acquired via one of the intel_runtime_pm_get()
+ * helpers. Currently there are a few special spots where this rule doesn't
+ * hold: the suspend/resume handlers, the forcewake release timer, and the
+ * GPU hangcheck work. All other users should avoid using this function.
+ *
+ * Any calls to this function must have a symmetric call to
+ * enable_rpm_asserts().
+ */
+static inline void disable_rpm_asserts(struct drm_i915_private *dev_priv)
+{
+	atomic_inc(&dev_priv->pm.wakelock_count);
+}
+
+/**
+ * enable_rpm_asserts - re-enable the RPM assert checks
+ * @dev_priv: i915 device instance
+ *
+ * This function re-enables the RPM assert checks after disabling them with
+ * disable_rpm_asserts. It's meant to be used only in special circumstances
+ * otherwise its use should be avoided.
+ *
+ * Any calls to this function must have a symmetric call to
+ * disable_rpm_asserts().
+ */
+static inline void enable_rpm_asserts(struct drm_i915_private *dev_priv)
+{
+	atomic_dec(&dev_priv->pm.wakelock_count);
 }
 
 void intel_runtime_pm_get(struct drm_i915_private *dev_priv);
