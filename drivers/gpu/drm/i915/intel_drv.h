@@ -1439,7 +1439,12 @@ static inline void
 assert_rpm_wakelock_held(struct drm_i915_private *dev_priv)
 {
 	assert_rpm_device_not_suspended(dev_priv);
+	WARN_ONCE(!atomic_read(&dev_priv->pm.wakelock_count),
+		  "RPM wakelock not held during HW access");
 }
+
+void disable_rpm_asserts(struct drm_i915_private *dev_priv);
+void enable_rpm_asserts(struct drm_i915_private *dev_priv);
 
 void intel_runtime_pm_get(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get_noresume(struct drm_i915_private *dev_priv);

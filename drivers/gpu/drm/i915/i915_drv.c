@@ -629,12 +629,14 @@ static int i915_drm_suspend(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	pci_power_t opregion_target_state;
-	int error;
+	int error = 0;
 
 	/* ignore lid events during suspend */
 	mutex_lock(&dev_priv->modeset_restore_lock);
 	dev_priv->modeset_restore = MODESET_SUSPENDED;
 	mutex_unlock(&dev_priv->modeset_restore_lock);
+
+	disable_rpm_asserts(dev_priv);
 
 	/* We do a lot of poking in a lot of registers, make sure they work
 	 * properly. */
@@ -648,7 +650,7 @@ static int i915_drm_suspend(struct drm_device *dev)
 	if (error) {
 		dev_err(&dev->pdev->dev,
 			"GEM idle failed, resume might fail\n");
-		return error;
+		goto out;
 	}
 
 	intel_guc_suspend(dev);
@@ -695,13 +697,18 @@ static int i915_drm_suspend(struct drm_device *dev)
 	if (HAS_CSR(dev_priv))
 		flush_work(&dev_priv->csr.work);
 
-	return 0;
+out:
+	enable_rpm_asserts(dev_priv);
+
+	return error;
 }
 
 static int i915_drm_suspend_late(struct drm_device *drm_dev, bool hibernation)
 {
 	struct drm_i915_private *dev_priv = drm_dev->dev_private;
-	int ret;
+	int ret = 0;
+
+	disable_rpm_asserts(dev_priv);
 
 	intel_power_domains_suspend(dev_priv);
 
@@ -710,7 +717,7 @@ static int i915_drm_suspend_late(struct drm_device *drm_dev, bool hibernation)
 	if (ret) {
 		DRM_ERROR("Suspend complete failed: %d\n", ret);
 
-		return ret;
+		goto out;
 	}
 
 	pci_disable_device(drm_dev->pdev);
@@ -729,7 +736,10 @@ static int i915_drm_suspend_late(struct drm_device *drm_dev, bool hibernation)
 	if (!(hibernation && INTEL_INFO(dev_priv)->gen < 6))
 		pci_set_power_state(drm_dev->pdev, PCI_D3hot);
 
-	return 0;
+out:
+	enable_rpm_asserts(dev_priv);
+
+	return ret;
 }
 
 int i915_suspend_switcheroo(struct drm_device *dev, pm_message_t state)
@@ -759,6 +769,8 @@ int i915_suspend_switcheroo(struct drm_device *dev, pm_message_t state)
 static int i915_drm_resume(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	disable_rpm_asserts(dev_priv);
 
 	mutex_lock(&dev->struct_mutex);
 	i915_gem_restore_gtt_mappings(dev);
@@ -824,6 +836,8 @@ static int i915_drm_resume(struct drm_device *dev)
 
 	drm_kms_helper_poll_enable(dev);
 
+	enable_rpm_asserts(dev_priv);
+
 	return 0;
 }
 
@@ -846,6 +860,8 @@ static int i915_drm_resume_early(struct drm_device *dev)
 
 	pci_set_master(dev->pdev);
 
+	disable_rpm_asserts(dev_priv);
+
 	if (IS_VALLEYVIEW(dev_priv))
 		ret = vlv_resume_prepare(dev_priv, false);
 	if (ret)
@@ -861,6 +877,8 @@ static int i915_drm_resume_early(struct drm_device *dev)
 
 	intel_uncore_sanitize(dev);
 	intel_power_domains_init_hw(dev_priv, true);
+
+	enable_rpm_asserts(dev_priv);
 
 	return ret;
 }
@@ -1494,6 +1512,9 @@ static int intel_runtime_suspend(struct device *device)
 
 		return -EAGAIN;
 	}
+
+	disable_rpm_asserts(dev_priv);
+
 	/*
 	 * We are safe here against re-faults, since the fault handler takes
 	 * an RPM reference.
@@ -1511,11 +1532,16 @@ static int intel_runtime_suspend(struct device *device)
 		DRM_ERROR("Runtime suspend failed, disabling it (%d)\n", ret);
 		intel_runtime_pm_enable_interrupts(dev_priv);
 
+		enable_rpm_asserts(dev_priv);
+
 		return ret;
 	}
 
 	cancel_delayed_work_sync(&dev_priv->gpu_error.hangcheck_work);
 	intel_uncore_forcewake_reset(dev, false);
+
+	enable_rpm_asserts(dev_priv);
+	WARN_ON_ONCE(atomic_read(&dev_priv->pm.wakelock_count));
 	dev_priv->pm.suspended = true;
 
 	/*
@@ -1559,6 +1585,9 @@ static int intel_runtime_resume(struct device *device)
 
 	DRM_DEBUG_KMS("Resuming device\n");
 
+	WARN_ON_ONCE(atomic_read(&dev_priv->pm.wakelock_count));
+	disable_rpm_asserts(dev_priv);
+
 	intel_opregion_notify_adapter(dev, PCI_D0);
 	dev_priv->pm.suspended = false;
 
@@ -1592,6 +1621,8 @@ static int intel_runtime_resume(struct device *device)
 		intel_hpd_init(dev_priv);
 
 	intel_enable_gt_powersave(dev);
+
+	enable_rpm_asserts(dev_priv);
 
 	if (ret)
 		DRM_ERROR("Runtime resume failed, disabling it (%d)\n", ret);
