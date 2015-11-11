@@ -1600,6 +1600,7 @@ struct skl_wm_level {
  */
 struct i915_runtime_pm {
 	atomic_t wakelock_count;
+	struct lockdep_map critical_section_map;
 	bool suspended;
 	bool irqs_enabled;
 };

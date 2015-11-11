@@ -7212,7 +7212,4 @@ void intel_pm_setup(struct drm_device *dev)
 	INIT_LIST_HEAD(&dev_priv->rps.clients);
 	INIT_LIST_HEAD(&dev_priv->rps.semaphores.link);
 	INIT_LIST_HEAD(&dev_priv->rps.mmioflips.link);
-
-	dev_priv->pm.suspended = false;
-	atomic_set(&dev_priv->pm.wakelock_count, 0);
 }

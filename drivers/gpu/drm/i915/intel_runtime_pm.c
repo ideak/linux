@@ -2114,6 +2114,19 @@ void intel_power_domains_suspend(struct drm_i915_private *dev_priv)
 		skl_display_core_uninit(dev_priv);
 }
 
+static struct lock_class_key i915_rpm_critical_section_key;
+
+static void rpm_critical_section_acquire(struct drm_i915_private *dev_priv)
+{
+	lock_acquire(&dev_priv->pm.critical_section_map, 0, 0, 2, 0, NULL,
+		     _THIS_IP_);
+}
+
+static void rpm_critical_section_release(struct drm_i915_private *dev_priv)
+{
+	lock_release(&dev_priv->pm.critical_section_map, 0, _THIS_IP_);
+}
+
 /**
  * disable_rpm_asserts - disable the RPM assert checks
  * @dev_priv: i915 device instance
@@ -2133,6 +2146,7 @@ void intel_power_domains_suspend(struct drm_i915_private *dev_priv)
 void disable_rpm_asserts(struct drm_i915_private *dev_priv)
 {
 	atomic_inc(&dev_priv->pm.wakelock_count);
+	rpm_critical_section_acquire(dev_priv);
 }
 
 /**
@@ -2148,7 +2162,24 @@ void disable_rpm_asserts(struct drm_i915_private *dev_priv)
  */
 void enable_rpm_asserts(struct drm_i915_private *dev_priv)
 {
+	rpm_critical_section_release(dev_priv);
 	atomic_dec(&dev_priv->pm.wakelock_count);
+}
+
+/**
+ * intel_runtime_pm_init - initialize the i915 runtime pm framework
+ * @dev_priv: i915 device instance
+ *
+ * Initialize the software state of the i915 runtime pm framework.
+ */
+void intel_runtime_pm_init(struct drm_i915_private *dev_priv)
+{
+	struct i915_runtime_pm *pm = &dev_priv->pm;
+
+	pm->suspended = false;
+	atomic_set(&pm->wakelock_count, 0);
+	lockdep_init_map(&pm->critical_section_map, "i915_rpm_critical_section",
+			 &i915_rpm_critical_section_key, 0);
 }
 
 /**
@@ -2191,6 +2222,7 @@ void intel_runtime_pm_get_prolonged(struct drm_i915_private *dev_priv)
 void intel_runtime_pm_get(struct drm_i915_private *dev_priv)
 {
 	intel_runtime_pm_get_prolonged(dev_priv);
+	rpm_critical_section_acquire(dev_priv);
 }
 
 /**
@@ -2256,6 +2288,7 @@ void intel_runtime_pm_put_prolonged(struct drm_i915_private *dev_priv)
  */
 void intel_runtime_pm_put(struct drm_i915_private *dev_priv)
 {
+	rpm_critical_section_release(dev_priv);
 	intel_runtime_pm_put_prolonged(dev_priv);
 }
 

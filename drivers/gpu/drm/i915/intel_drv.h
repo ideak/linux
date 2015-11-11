@@ -1443,9 +1443,18 @@ assert_rpm_wakelock_held(struct drm_i915_private *dev_priv)
 		  "RPM wakelock not held during HW access");
 }
 
+static inline void
+assert_in_rpm_critical_section(struct drm_i915_private *dev_priv)
+{
+	assert_rpm_wakelock_held(dev_priv);
+	WARN_ONCE(!lock_is_held(&dev_priv->pm.critical_section_map),
+		  "RPM critical section is not held during HW access\n");
+}
+
 void disable_rpm_asserts(struct drm_i915_private *dev_priv);
 void enable_rpm_asserts(struct drm_i915_private *dev_priv);
 
+void intel_runtime_pm_init(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get_prolonged(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get_noresume_prolonged(struct drm_i915_private *dev_priv);
