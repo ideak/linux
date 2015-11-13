@@ -307,6 +307,7 @@ static void hsw_set_power_well(struct drm_i915_private *dev_priv,
 	BIT(POWER_DOMAIN_PORT_DDI_D_LANES) |		\
 	BIT(POWER_DOMAIN_INIT))
 #define SKL_DISPLAY_DC_OFF_POWER_DOMAINS (		\
+	SKL_DISPLAY_POWERWELL_2_POWER_DOMAINS |		\
 	BIT(POWER_DOMAIN_MODESET) |			\
 	BIT(POWER_DOMAIN_AUX_A) |			\
 	BIT(POWER_DOMAIN_INIT))
@@ -342,6 +343,7 @@ static void hsw_set_power_well(struct drm_i915_private *dev_priv,
 	BIT(POWER_DOMAIN_PLLS) |			\
 	BIT(POWER_DOMAIN_INIT))
 #define BXT_DISPLAY_DC_OFF_POWER_DOMAINS (		\
+	BXT_DISPLAY_POWERWELL_2_POWER_DOMAINS |		\
 	BIT(POWER_DOMAIN_MODESET) |			\
 	BIT(POWER_DOMAIN_AUX_A) |			\
 	BIT(POWER_DOMAIN_INIT))
@@ -1730,16 +1732,16 @@ static struct i915_power_well skl_power_wells[] = {
 		.data = SKL_DISP_PW_MISC_IO,
 	},
 	{
-		.name = "power well 2",
-		.domains = SKL_DISPLAY_POWERWELL_2_POWER_DOMAINS,
-		.ops = &skl_power_well_ops,
-		.data = SKL_DISP_PW_2,
-	},
-	{
 		.name = "DC off",
 		.domains = SKL_DISPLAY_DC_OFF_POWER_DOMAINS,
 		.ops = &gen9_dc_off_power_well_ops,
 		.data = SKL_DISP_PW_DC_OFF,
+	},
+	{
+		.name = "power well 2",
+		.domains = SKL_DISPLAY_POWERWELL_2_POWER_DOMAINS,
+		.ops = &skl_power_well_ops,
+		.data = SKL_DISP_PW_2,
 	},
 	{
 		.name = "DDI A/E power well",
@@ -1810,16 +1812,16 @@ static struct i915_power_well bxt_power_wells[] = {
 		.data = SKL_DISP_PW_1,
 	},
 	{
-		.name = "power well 2",
-		.domains = BXT_DISPLAY_POWERWELL_2_POWER_DOMAINS,
-		.ops = &skl_power_well_ops,
-		.data = SKL_DISP_PW_2,
-	},
-	{
 		.name = "DC off",
 		.domains = BXT_DISPLAY_DC_OFF_POWER_DOMAINS,
 		.ops = &gen9_dc_off_power_well_ops,
 		.data = SKL_DISP_PW_DC_OFF,
+	},
+	{
+		.name = "power well 2",
+		.domains = BXT_DISPLAY_POWERWELL_2_POWER_DOMAINS,
+		.ops = &skl_power_well_ops,
+		.data = SKL_DISP_PW_2,
 	},
 
 };
