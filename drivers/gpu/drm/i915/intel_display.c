@@ -13271,6 +13271,11 @@ static void calc_watermark_data(struct drm_atomic_state *state)
 	}
 }
 
+void intel_disable_fastboot(void)
+{
+	i915.fastboot = 0;
+}
+
 /**
  * intel_atomic_check - validate state object
  * @dev: drm device

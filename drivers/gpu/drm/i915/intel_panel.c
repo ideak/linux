@@ -1647,6 +1647,13 @@ bxt_setup_backlight(struct intel_connector *connector, enum pipe unused)
 	panel->backlight.active_low_pwm = pwm_ctl & BXT_BLC_PWM_POLARITY;
 	panel->backlight.max =
 		I915_READ(BXT_BLC_PWM_FREQ(panel->backlight.controller));
+	if (panel->backlight.hz_to_pwm &&
+	    panel->backlight.max > panel->backlight.hz_to_pwm(connector, 100)) {
+		DRM_INFO("Correcting innvalid BIOS backlight PWM frequency (%d), disabling fastboot\n",
+			 panel->backlight.max);
+		intel_disable_fastboot();
+		panel->backlight.max = 0;
+	}
 
 	if (!panel->backlight.max)
 		panel->backlight.max = get_backlight_max_vbt(connector);
