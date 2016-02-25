@@ -123,7 +123,7 @@ struct dma_buf_attachment;
  * drm.debug=0x2 will enable DRIVER messages
  * drm.debug=0x3 will enable CORE and DRIVER messages
  * ...
- * drm.debug=0x3f will enable all messages
+ * drm.debug=0xff will enable all messages
  *
  * An interesting feature is that it's possible to enable verbose logging at
  * run-time by echoing the debug value in its sysfs node:
@@ -137,6 +137,7 @@ struct dma_buf_attachment;
 #define DRM_UT_ATOMIC		0x10
 #define DRM_UT_VBL		0x20
 #define DRM_UT_STATE		0x40
+#define DRM_UT_AUX		0x80
 
 /***********************************************************************/
 /** \name DRM template customization defaults */
@@ -250,6 +251,9 @@ struct dma_buf_attachment;
 		       ##args)
 #define DRM_DEBUG_VBL(fmt, ...)					\
 	drm_printk(KERN_DEBUG, DRM_UT_VBL, fmt, ##__VA_ARGS__)
+
+#define DRM_DEBUG_AUX(fmt, ...)					\
+	drm_printk(KERN_DEBUG, DRM_UT_AUX, fmt, ##__VA_ARGS__)
 
 #define _DRM_DEV_DEFINE_DEBUG_RATELIMITED(dev, level, fmt, args...)	\
 ({									\
