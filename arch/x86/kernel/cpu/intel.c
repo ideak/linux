@@ -472,6 +472,11 @@ static void init_intel(struct cpuinfo_x86 *c)
 	    (c->x86_model == 29 || c->x86_model == 46 || c->x86_model == 47))
 		set_cpu_bug(c, X86_BUG_CLFLUSH_MONITOR);
 
+	if (c->x86 == 6 && cpu_has_mwait &&
+		((c->x86_model == 0x5f) || (c->x86_model == 0x5c)))
+		set_cpu_bug(c, X86_BUG_MONITOR);
+
+
 #ifdef CONFIG_X86_64
 	if (c->x86 == 15)
 		c->x86_cache_alignment = c->x86_clflush_size * 2;
