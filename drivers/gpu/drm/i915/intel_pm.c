@@ -4857,14 +4857,6 @@ static bool bxt_check_bios_rc6_setup(struct drm_i915_private *dev_priv)
 		enable_rc6 = false;
 	}
 
-	if (!(I915_READ(GEN6_RC_CONTROL) & (GEN6_RC_CTL_RC6_ENABLE |
-					    GEN6_RC_CTL_HW_ENABLE)) &&
-	    ((I915_READ(GEN6_RC_CONTROL) & GEN6_RC_CTL_HW_ENABLE) ||
-	     !(I915_READ(GEN6_RC_STATE) & RC6_STATE))) {
-		DRM_DEBUG_KMS("HW/SW RC6 is not enabled by BIOS.\n");
-		enable_rc6 = false;
-	}
-
 	return enable_rc6;
 }
 
