@@ -1767,6 +1767,9 @@ static void broxton_phy_wait_grc_done(struct drm_i915_private *dev_priv,
 		DRM_ERROR("timeout waiting for PHY1 GRC\n");
 }
 
+static bool broxton_phy_verify_state(struct drm_i915_private *dev_priv,
+				     enum dpio_phy phy);
+
 static void broxton_phy_init(struct drm_i915_private *dev_priv,
 			     enum dpio_phy phy)
 {
@@ -1774,16 +1777,23 @@ static void broxton_phy_init(struct drm_i915_private *dev_priv,
 	u32 ports, val;
 
 	if (broxton_phy_is_enabled(dev_priv, phy)) {
-		DRM_DEBUG_DRIVER("DDI PHY %d already enabled, "
-				 "won't reprogram it\n", phy);
 		/* Still read out the GRC value for state verification */
 		if (phy == DPIO_PHY0)
 			dev_priv->bxt_phy_grc = broxton_get_grc(dev_priv, phy);
 
-		return;
-	}
 
-	DRM_DEBUG_DRIVER("DDI PHY %d not enabled, enabling it\n", phy);
+		if (broxton_phy_verify_state(dev_priv, phy)) {
+			DRM_DEBUG_DRIVER("DDI PHY %d already enabled, "
+					 "won't reprogram it\n", phy);
+
+			return;
+		}
+
+		DRM_DEBUG_DRIVER("DDI PHY %d enabled with invalid state, "
+				 "force reprogramming it\n", phy);
+	} else {
+		DRM_DEBUG_DRIVER("DDI PHY %d not enabled, enabling it\n", phy);
+	}
 
 	val = I915_READ(BXT_P_CR_GT_DISP_PWRON);
 	val |= GT_DISPLAY_POWER_ON(phy);
