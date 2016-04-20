@@ -3067,8 +3067,8 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	enum pipe pipe = intel_crtc->pipe;
 	struct skl_ddb_entry *alloc = &ddb->pipe[pipe];
 	uint16_t alloc_size, start, cursor_blocks;
-	uint16_t minimum[I915_MAX_PLANES];
-	uint16_t y_minimum[I915_MAX_PLANES];
+	uint16_t *minimum = cstate->wm.skl.minimum_blocks;
+	uint16_t *y_minimum = cstate->wm.skl.minimum_y_blocks;
 	unsigned int total_data_rate;
 
 	skl_ddb_get_pipe_allocation_limits(dev, cstate, config, alloc);
@@ -3088,6 +3088,8 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	alloc->end -= cursor_blocks;
 
 	/* 1. Allocate the mininum required blocks for each active plane */
+	memset(minimum, 0, sizeof(uint16_t) * I915_MAX_PLANES);
+	memset(y_minimum, 0, sizeof(uint16_t) * I915_MAX_PLANES);
 	for_each_intel_plane_on_crtc(dev, intel_crtc, intel_plane) {
 		struct drm_plane *plane = &intel_plane->base;
 		struct drm_framebuffer *fb = plane->state->fb;
