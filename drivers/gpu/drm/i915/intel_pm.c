@@ -3309,7 +3309,17 @@ static int skl_compute_plane_wm(const struct drm_i915_private *dev_priv,
 
 	if (res_blocks >= ddb_allocation || res_lines > 31) {
 		*enabled = false;
-		return 0;
+
+		/*
+		 * If there are no valid level 0 watermarks, then we can't
+		 * support this display configuration.
+		 */
+		if (level) {
+			return 0;
+		} else {
+			DRM_DEBUG_KMS("Requested display configuration exceeds system watermark limitations\n");
+			return -EINVAL;
+		}
 	}
 
 	*out_blocks = res_blocks;
