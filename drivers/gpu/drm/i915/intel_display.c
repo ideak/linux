@@ -5411,11 +5411,56 @@ static void broxton_set_cdclk(struct drm_i915_private *dev_priv, int cdclk)
 	intel_update_cdclk(dev_priv->dev);
 }
 
-void broxton_init_cdclk(struct drm_i915_private *dev_priv)
+static void bxt_sanitize_cdclk(struct drm_i915_private *dev_priv)
 {
+	u32 cdctl, expected;
+
 	intel_update_cdclk(dev_priv->dev);
 
-	if (dev_priv->cdclk_pll.vco != 0)
+	if (!dev_priv->cdclk_pll.vco ||
+	    dev_priv->cdclk_freq == dev_priv->cdclk_pll.ref)
+		goto sanitize;
+
+	/* DPLL okay; verify the cdclock
+	 *
+	 * Some BIOS versions leave an incorrect decimal frequency value and
+	 * set reserved MBZ bits in CDCLK_CTL at least during exiting from S4.
+	 */
+	cdctl = I915_READ(CDCLK_CTL);
+	/*
+	 * The pipe field is a don't care at this point, as CDCLK enabling
+	 * could've happened with any value in this field.
+	 */
+	cdctl &= ~BXT_CDCLK_CD2X_PIPE_NONE;
+
+	expected = (cdctl & BXT_CDCLK_CD2X_DIV_SEL_MASK) |
+		   skl_cdclk_decimal(dev_priv->cdclk_freq);
+	/*
+	 * Disable SSA Precharge when CD clock frequency < 500 MHz,
+	 * enable otherwise.
+	 */
+	if (dev_priv->cdclk_freq >= 500000)
+		expected |= BXT_CDCLK_SSA_PRECHARGE_ENABLE;
+
+	if (cdctl == expected)
+		/* All well; nothing to sanitize */
+		return;
+
+sanitize:
+	DRM_DEBUG_KMS("Sanitizing cdclk programmed by pre-os\n");
+
+	/* force cdclk programming */
+	dev_priv->cdclk_freq = 0;
+
+	/* force full PLL disable + enable */
+	dev_priv->cdclk_pll.vco = -1;
+}
+
+void broxton_init_cdclk(struct drm_i915_private *dev_priv)
+{
+	bxt_sanitize_cdclk(dev_priv);
+
+	if (dev_priv->cdclk_freq > 0 && dev_priv->cdclk_pll.vco > 0)
 		return;
 
 	/*
