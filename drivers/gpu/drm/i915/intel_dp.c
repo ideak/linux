@@ -5312,6 +5312,7 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 	struct drm_display_mode *scan;
 	struct edid *edid;
 	enum pipe pipe = INVALID_PIPE;
+	bool lvds_pps_sharing = false;
 
 	if (!is_edp(intel_dp))
 		return true;
@@ -5326,6 +5327,12 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 		if (lvds_encoder->type == INTEL_OUTPUT_LVDS) {
 			WARN_ON(!(HAS_PCH_IBX(dev_priv) ||
 				  HAS_PCH_CPT(dev_priv)));
+
+			if (!intel_lvds_pps_is_active(lvds_encoder)) {
+				lvds_pps_sharing = true;
+				intel_lvds_save_pps_state(lvds_encoder);
+				break;
+			}
 
 			DRM_INFO("LVDS was detected, not registering eDP\n");
 			return false;
@@ -5348,6 +5355,10 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 	} else {
 		/* if this fails, presume the device is a ghost */
 		DRM_INFO("failed to retrieve link info, disabling eDP\n");
+
+		if (lvds_pps_sharing)
+			intel_lvds_restore_pps_state(lvds_encoder);
+
 		return false;
 	}
 

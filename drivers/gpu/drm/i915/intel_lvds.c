@@ -57,6 +57,13 @@ struct lvds_registers {
 	i915_reg_t pp_div;
 };
 
+struct lvds_pps_state {
+	u32 pp_ctrl;
+	u32 pp_on;
+	u32 pp_off;
+	u32 pp_div;
+};
+
 struct intel_lvds_encoder {
 	struct intel_encoder base;
 
@@ -65,6 +72,7 @@ struct intel_lvds_encoder {
 	u32 a3_power;
 
 	struct lvds_registers regs;
+	struct lvds_pps_state pps_state;
 
 	struct intel_lvds_connector *attached_connector;
 };
@@ -145,6 +153,50 @@ static void intel_lvds_get_config(struct intel_encoder *encoder,
 	}
 
 	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->port_clock;
+}
+
+bool intel_lvds_pps_is_active(struct intel_encoder *encoder)
+{
+	struct drm_device *dev = encoder->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_lvds_encoder *lvds_encoder =
+					to_lvds_encoder(&encoder->base);
+	struct lvds_registers *regs = &lvds_encoder->regs;
+
+	return (I915_READ(regs->pp_stat) & PP_ON) &&
+	       (I915_READ(regs->pp_on) & PANEL_PORT_SELECT_MASK) ==
+	        PANEL_PORT_SELECT_LVDS &&
+	       (I915_READ(regs->lvds) & LVDS_PORT_EN);
+}
+
+void intel_lvds_save_pps_state(struct intel_encoder *encoder)
+{
+	struct drm_device *dev = encoder->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_lvds_encoder *lvds_encoder =
+					to_lvds_encoder(&encoder->base);
+	struct lvds_registers *regs = &lvds_encoder->regs;
+	struct lvds_pps_state *pps_state = &lvds_encoder->pps_state;
+
+	pps_state->pp_ctrl = I915_READ(regs->pp_ctrl);
+	pps_state->pp_on = I915_READ(regs->pp_on);
+	pps_state->pp_off = I915_READ(regs->pp_off);
+	pps_state->pp_div = I915_READ(regs->pp_div);
+}
+
+void intel_lvds_restore_pps_state(struct intel_encoder *encoder)
+{
+	struct drm_device *dev = encoder->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_lvds_encoder *lvds_encoder =
+					to_lvds_encoder(&encoder->base);
+	struct lvds_registers *regs = &lvds_encoder->regs;
+	struct lvds_pps_state *pps_state = &lvds_encoder->pps_state;
+
+	I915_WRITE(regs->pp_ctrl, pps_state->pp_ctrl);
+	I915_WRITE(regs->pp_on, pps_state->pp_on);
+	I915_WRITE(regs->pp_off, pps_state->pp_off);
+	I915_WRITE(regs->pp_div, pps_state->pp_div);
 }
 
 static void intel_pre_enable_lvds(struct intel_encoder *encoder)

@@ -1462,6 +1462,9 @@ void intel_dp_dual_mode_set_tmds_output(struct intel_hdmi *hdmi, bool enable);
 /* intel_lvds.c */
 void intel_lvds_init(struct drm_device *dev);
 bool intel_is_dual_link_lvds(struct drm_device *dev);
+bool intel_lvds_pps_is_active(struct intel_encoder *encoder);
+void intel_lvds_save_pps_state(struct intel_encoder *encoder);
+void intel_lvds_restore_pps_state(struct intel_encoder *encoder);
 
 
 /* intel_modes.c */
