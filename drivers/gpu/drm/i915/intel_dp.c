@@ -5303,9 +5303,9 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 {
 	struct drm_connector *connector = &intel_connector->base;
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
-	struct intel_encoder *intel_encoder = &intel_dig_port->base;
-	struct drm_device *dev = intel_encoder->base.dev;
+	struct drm_device *dev = intel_dig_port->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_encoder *lvds_encoder;
 	struct drm_display_mode *fixed_mode = NULL;
 	struct drm_display_mode *downclock_mode = NULL;
 	bool has_dpcd;
@@ -5315,6 +5315,22 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 
 	if (!is_edp(intel_dp))
 		return true;
+
+	/*
+	 * On IBX/CPT we may get here with LVDS already registered. Since the
+	 * driver uses the only internal power sequencer available for both
+	 * eDP and LVDS bail out early in this case to prevent interfering
+	 * with an already powered-on LVDS power sequencer.
+	 */
+	for_each_intel_encoder(dev, lvds_encoder) {
+		if (lvds_encoder->type == INTEL_OUTPUT_LVDS) {
+			WARN_ON(!(HAS_PCH_IBX(dev_priv) ||
+				  HAS_PCH_CPT(dev_priv)));
+
+			DRM_INFO("LVDS was detected, not registering eDP\n");
+			return false;
+		}
+	}
 
 	pps_lock(intel_dp);
 	intel_edp_panel_vdd_sanitize(intel_dp);
