@@ -3953,6 +3953,18 @@ skl_compute_ddb(struct drm_atomic_state *state)
 		if (IS_ERR(cstate))
 			return PTR_ERR(cstate);
 
+		/*
+		 * If this is our first commit after hw readout, we don't have
+		 * valid data rate values cached.  Add all planes to ensure we
+		 * calculate a valid data rate.
+		 */
+		if (dev_priv->wm.distrust_bios_wm) {
+			ret = drm_atomic_add_affected_planes(state,
+							     &intel_crtc->base);
+			if (ret)
+				return ret;
+		}
+
 		ret = skl_allocate_pipe_ddb(cstate, ddb);
 		if (ret)
 			return ret;
