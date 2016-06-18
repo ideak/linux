@@ -48,12 +48,23 @@ struct intel_lvds_connector {
 	struct notifier_block lid_notifier;
 };
 
+struct lvds_registers {
+	i915_reg_t lvds;
+	i915_reg_t pp_ctrl;
+	i915_reg_t pp_stat;
+	i915_reg_t pp_on;
+	i915_reg_t pp_off;
+	i915_reg_t pp_div;
+};
+
 struct intel_lvds_encoder {
 	struct intel_encoder base;
 
 	bool is_dual_link;
 	i915_reg_t reg;
 	u32 a3_power;
+
+	struct lvds_registers regs;
 
 	struct intel_lvds_connector *attached_connector;
 };
@@ -217,21 +228,13 @@ static void intel_enable_lvds(struct intel_encoder *encoder)
 	struct intel_connector *intel_connector =
 		&lvds_encoder->attached_connector->base;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	i915_reg_t ctl_reg, stat_reg;
+	struct lvds_registers *regs = &lvds_encoder->regs;
 
-	if (HAS_PCH_SPLIT(dev)) {
-		ctl_reg = PCH_PP_CONTROL;
-		stat_reg = PCH_PP_STATUS;
-	} else {
-		ctl_reg = PP_CONTROL;
-		stat_reg = PP_STATUS;
-	}
+	I915_WRITE(regs->lvds, I915_READ(regs->lvds) | LVDS_PORT_EN);
 
-	I915_WRITE(lvds_encoder->reg, I915_READ(lvds_encoder->reg) | LVDS_PORT_EN);
-
-	I915_WRITE(ctl_reg, I915_READ(ctl_reg) | POWER_TARGET_ON);
-	POSTING_READ(lvds_encoder->reg);
-	if (wait_for((I915_READ(stat_reg) & PP_ON) != 0, 1000))
+	I915_WRITE(regs->pp_ctrl, I915_READ(regs->pp_ctrl) | POWER_TARGET_ON);
+	POSTING_READ(regs->lvds);
+	if (wait_for((I915_READ(regs->pp_stat) & PP_ON) != 0, 1000))
 		DRM_ERROR("timed out waiting for panel to power on\n");
 
 	intel_panel_enable_backlight(intel_connector);
@@ -242,22 +245,14 @@ static void intel_disable_lvds(struct intel_encoder *encoder)
 	struct drm_device *dev = encoder->base.dev;
 	struct intel_lvds_encoder *lvds_encoder = to_lvds_encoder(&encoder->base);
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	i915_reg_t ctl_reg, stat_reg;
+	struct lvds_registers *regs = &lvds_encoder->regs;
 
-	if (HAS_PCH_SPLIT(dev)) {
-		ctl_reg = PCH_PP_CONTROL;
-		stat_reg = PCH_PP_STATUS;
-	} else {
-		ctl_reg = PP_CONTROL;
-		stat_reg = PP_STATUS;
-	}
-
-	I915_WRITE(ctl_reg, I915_READ(ctl_reg) & ~POWER_TARGET_ON);
-	if (wait_for((I915_READ(stat_reg) & PP_ON) == 0, 1000))
+	I915_WRITE(regs->pp_ctrl, I915_READ(regs->pp_ctrl) & ~POWER_TARGET_ON);
+	if (wait_for((I915_READ(regs->pp_stat) & PP_ON) == 0, 1000))
 		DRM_ERROR("timed out waiting for panel to power off\n");
 
-	I915_WRITE(lvds_encoder->reg, I915_READ(lvds_encoder->reg) & ~LVDS_PORT_EN);
-	POSTING_READ(lvds_encoder->reg);
+	I915_WRITE(regs->lvds, I915_READ(regs->lvds) & ~LVDS_PORT_EN);
+	POSTING_READ(regs->lvds);
 }
 
 static void gmch_disable_lvds(struct intel_encoder *encoder)
@@ -891,22 +886,35 @@ void intel_lvds_init(struct drm_device *dev)
 	struct drm_display_mode *downclock_mode = NULL;
 	struct edid *edid;
 	struct drm_crtc *crtc;
-	i915_reg_t lvds_reg;
+	struct lvds_registers regs;
 	u32 lvds;
 	int pipe;
 	u8 pin;
+
+	if (HAS_PCH_SPLIT(dev_priv)) {
+		regs.lvds = PCH_LVDS;
+		regs.pp_ctrl = PCH_PP_CONTROL;
+		regs.pp_stat = PCH_PP_STATUS;
+		regs.pp_on = PCH_PP_ON_DELAYS;
+		regs.pp_off = PCH_PP_OFF_DELAYS;
+		regs.pp_div = PCH_PP_DIVISOR;
+	} else {
+		regs.lvds = LVDS;
+		regs.pp_ctrl = PP_CONTROL;
+		regs.pp_stat = PP_STATUS;
+		regs.pp_on = PP_ON_DELAYS;
+		regs.pp_off = PP_OFF_DELAYS;
+		regs.pp_div = PP_DIVISOR;
+	}
 
 	/*
 	 * Unlock registers and just leave them unlocked. Do this before
 	 * checking quirk lists to avoid bogus WARNINGs.
 	 */
-	if (HAS_PCH_SPLIT(dev)) {
-		I915_WRITE(PCH_PP_CONTROL,
-			   I915_READ(PCH_PP_CONTROL) | PANEL_UNLOCK_REGS);
-	} else if (INTEL_INFO(dev_priv)->gen < 5) {
-		I915_WRITE(PP_CONTROL,
-			   I915_READ(PP_CONTROL) | PANEL_UNLOCK_REGS);
-	}
+	if (INTEL_INFO(dev_priv)->gen <= 5)
+		I915_WRITE(regs.pp_ctrl,
+			   I915_READ(regs.pp_ctrl) | PANEL_UNLOCK_REGS);
+
 	if (!intel_lvds_supported(dev))
 		return;
 
@@ -914,12 +922,7 @@ void intel_lvds_init(struct drm_device *dev)
 	if (dmi_check_system(intel_no_lvds))
 		return;
 
-	if (HAS_PCH_SPLIT(dev))
-		lvds_reg = PCH_LVDS;
-	else
-		lvds_reg = LVDS;
-
-	lvds = I915_READ(lvds_reg);
+	lvds = I915_READ(regs.lvds);
 
 	if (HAS_PCH_SPLIT(dev)) {
 		if ((lvds & LVDS_DETECTED) == 0)
@@ -941,12 +944,12 @@ void intel_lvds_init(struct drm_device *dev)
 
 	 /* Set the Panel Power On/Off timings if uninitialized. */
 	if (INTEL_INFO(dev_priv)->gen < 5 &&
-	    I915_READ(PP_ON_DELAYS) == 0 && I915_READ(PP_OFF_DELAYS) == 0) {
+	    I915_READ(regs.pp_on) == 0 && I915_READ(regs.pp_off) == 0) {
 		/* Set T2 to 40ms and T5 to 200ms */
-		I915_WRITE(PP_ON_DELAYS, 0x019007d0);
+		I915_WRITE(regs.pp_on, 0x019007d0);
 
 		/* Set T3 to 35ms and Tx to 200ms */
-		I915_WRITE(PP_OFF_DELAYS, 0x015e07d0);
+		I915_WRITE(regs.pp_off, 0x015e07d0);
 
 		DRM_DEBUG_KMS("Panel power timings uninitialized, setting defaults\n");
 	}
@@ -1009,7 +1012,7 @@ void intel_lvds_init(struct drm_device *dev)
 	connector->interlace_allowed = false;
 	connector->doublescan_allowed = false;
 
-	lvds_encoder->reg = lvds_reg;
+	lvds_encoder->regs = regs;
 
 	/* create the scaling mode property */
 	drm_mode_create_scaling_mode_property(dev);
