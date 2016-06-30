@@ -718,7 +718,8 @@ static int adp8860_probe(struct i2c_client *client,
 
 	bl = devm_backlight_device_register(&client->dev,
 				dev_driver_string(&client->dev),
-				&client->dev, data, &adp8860_bl_ops, &props);
+				&client->dev, data, &adp8860_bl_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&client->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

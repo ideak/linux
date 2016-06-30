@@ -68,7 +68,8 @@ int shmob_drm_backlight_init(struct shmob_drm_connector *scon)
 		return 0;
 
 	backlight = backlight_device_register(bdata->name, dev->dev, scon,
-					      &shmob_drm_backlight_ops, NULL);
+					      &shmob_drm_backlight_ops, NULL,
+					      BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(backlight)) {
 		dev_err(dev->dev, "unable to register backlight device: %ld\n",
 			PTR_ERR(backlight));

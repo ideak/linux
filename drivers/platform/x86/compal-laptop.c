@@ -1008,7 +1008,8 @@ static int __init compal_init(void)
 		compalbl_device = backlight_device_register(DRIVER_NAME,
 							    NULL, NULL,
 							    &compalbl_ops,
-							    &props);
+							    &props,
+							    BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(compalbl_device))
 			return PTR_ERR(compalbl_device);
 	}

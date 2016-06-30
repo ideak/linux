@@ -118,7 +118,8 @@ static int jornada_bl_probe(struct platform_device *pdev)
 
 	bd = devm_backlight_device_register(&pdev->dev, S1D_DEVICENAME,
 					&pdev->dev, NULL, &jornada_bl_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		ret = PTR_ERR(bd);
 		dev_err(&pdev->dev, "failed to register device, err=%x\n", ret);

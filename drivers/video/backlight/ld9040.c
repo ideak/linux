@@ -722,7 +722,8 @@ static int ld9040_probe(struct spi_device *spi)
 	props.max_brightness = MAX_BRIGHTNESS;
 
 	bd = devm_backlight_device_register(&spi->dev, "ld9040-bl", &spi->dev,
-					lcd, &ld9040_backlight_ops, &props);
+					lcd, &ld9040_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

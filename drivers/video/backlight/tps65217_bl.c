@@ -306,7 +306,8 @@ static int tps65217_bl_probe(struct platform_device *pdev)
 
 	tps65217_bl->bl = devm_backlight_device_register(&pdev->dev, pdev->name,
 						tps65217_bl->dev, tps65217_bl,
-						&tps65217_bl_ops, &bl_props);
+						&tps65217_bl_ops, &bl_props,
+						BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(tps65217_bl->bl)) {
 		dev_err(tps65217_bl->dev,
 			"registration of backlight device failed: %d\n", rc);

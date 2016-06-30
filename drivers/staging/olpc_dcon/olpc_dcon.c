@@ -643,7 +643,8 @@ static int dcon_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* Add the backlight device for the DCON */
 	dcon_bl_props.brightness = dcon->bl_val;
 	dcon->bl_dev = backlight_device_register("dcon-bl", &dcon_device->dev,
-		dcon, &dcon_bl_ops, &dcon_bl_props);
+		dcon, &dcon_bl_ops, &dcon_bl_props,
+		BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(dcon->bl_dev)) {
 		dev_err(&client->dev, "cannot register backlight dev (%ld)\n",
 				PTR_ERR(dcon->bl_dev));

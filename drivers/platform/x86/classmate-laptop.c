@@ -970,7 +970,8 @@ static int cmpc_ipml_add(struct acpi_device *acpi)
 	props.max_brightness = 7;
 	ipml->bd = backlight_device_register("cmpc_bl", &acpi->dev,
 					     acpi->handle, &cmpc_bl_ops,
-					     &props);
+					     &props,
+					     BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(ipml->bd)) {
 		retval = PTR_ERR(ipml->bd);
 		goto out_bd;

@@ -129,7 +129,8 @@ static int pcf50633_bl_probe(struct platform_device *pdev)
 
 	pcf_bl->bl = devm_backlight_device_register(&pdev->dev, pdev->name,
 						&pdev->dev, pcf_bl,
-						&pcf50633_bl_ops, &bl_props);
+						&pcf50633_bl_ops, &bl_props,
+						BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(pcf_bl->bl))
 		return PTR_ERR(pcf_bl->bl);

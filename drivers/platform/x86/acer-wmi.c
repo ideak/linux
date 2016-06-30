@@ -1419,7 +1419,8 @@ static int acer_backlight_init(struct device *dev)
 	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = max_brightness;
 	bd = backlight_device_register("acer-wmi", dev, NULL, &acer_bl_ops,
-				       &props);
+				       &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		pr_err("Could not register Acer backlight device\n");
 		acer_backlight_device = NULL;

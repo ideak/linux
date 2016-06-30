@@ -343,7 +343,8 @@ static void riva_bl_init(struct riva_par *par)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = FB_BACKLIGHT_LEVELS - 1;
 	bd = backlight_device_register(name, info->dev, par, &riva_bl_ops,
-				       &props);
+				       &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		info->bl_dev = NULL;
 		printk(KERN_WARNING "riva: Backlight registration failed\n");

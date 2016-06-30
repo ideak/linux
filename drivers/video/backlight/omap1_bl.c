@@ -148,7 +148,8 @@ static int omapbl_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = OMAPBL_MAX_INTENSITY;
 	dev = devm_backlight_device_register(&pdev->dev, "omap-bl", &pdev->dev,
-					bl, &omapbl_ops, &props);
+					bl, &omapbl_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(dev))
 		return PTR_ERR(dev);
 

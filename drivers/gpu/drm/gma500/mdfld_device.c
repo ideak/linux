@@ -130,7 +130,8 @@ static int mdfld_backlight_init(struct drm_device *dev)
 	props.max_brightness = BRIGHTNESS_MAX_LEVEL;
 	props.type = BACKLIGHT_PLATFORM;
 	mdfld_backlight_device = backlight_device_register("mdfld-bl",
-				NULL, (void *)dev, &mdfld_ops, &props);
+				NULL, (void *)dev, &mdfld_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(mdfld_backlight_device))
 		return PTR_ERR(mdfld_backlight_device);

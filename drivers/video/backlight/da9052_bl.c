@@ -127,7 +127,8 @@ static int da9052_backlight_probe(struct platform_device *pdev)
 
 	bl = devm_backlight_device_register(&pdev->dev, pdev->name,
 					wleds->da9052->dev, wleds,
-					&da9052_backlight_ops, &props);
+					&da9052_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "Failed to register backlight\n");
 		return PTR_ERR(bl);

@@ -242,7 +242,8 @@ static int pm860x_backlight_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = MAX_BRIGHTNESS;
 	bl = devm_backlight_device_register(&pdev->dev, name, &pdev->dev, data,
-					&pm860x_backlight_ops, &props);
+					&pm860x_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

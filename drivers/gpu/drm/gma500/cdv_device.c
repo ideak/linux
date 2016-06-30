@@ -163,7 +163,8 @@ static int cdv_backlight_init(struct drm_device *dev)
 	props.type = BACKLIGHT_PLATFORM;
 
 	cdv_backlight_device = backlight_device_register("psb-bl",
-					NULL, (void *)dev, &cdv_ops, &props);
+					NULL, (void *)dev, &cdv_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(cdv_backlight_device))
 		return PTR_ERR(cdv_backlight_device);
 

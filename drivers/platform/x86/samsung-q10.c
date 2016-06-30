@@ -60,7 +60,8 @@ static int samsungq10_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = SAMSUNGQ10_BL_MAX_INTENSITY;
 	bd = backlight_device_register("samsung", &pdev->dev, NULL,
-				       &samsungq10_bl_ops, &props);
+				       &samsungq10_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

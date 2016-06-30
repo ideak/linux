@@ -2840,7 +2840,8 @@ static int toshiba_acpi_setup_backlight(struct toshiba_acpi_dev *dev)
 						       &dev->acpi_dev->dev,
 						       dev,
 						       &toshiba_backlight_data,
-						       &props);
+						       &props,
+						       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(dev->backlight_dev)) {
 		ret = PTR_ERR(dev->backlight_dev);
 		pr_err("Could not register toshiba backlight device\n");

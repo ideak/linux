@@ -60,7 +60,8 @@ static int micro_backlight_probe(struct platform_device *pdev)
 
 	bd = devm_backlight_device_register(&pdev->dev, "ipaq-micro-backlight",
 					    &pdev->dev, micro, &micro_bl_ops,
-					    &micro_bl_props);
+					    &micro_bl_props,
+					    BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

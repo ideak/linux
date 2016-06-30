@@ -1201,7 +1201,8 @@ int intel_backlight_device_register(struct intel_connector *connector)
 		backlight_device_register("intel_backlight",
 					  connector->base.kdev,
 					  connector,
-					  &intel_backlight_device_ops, &props);
+					  &intel_backlight_device_ops, &props,
+					  0);
 
 	if (IS_ERR(panel->backlight.device)) {
 		DRM_ERROR("Failed to register backlight: %ld\n",

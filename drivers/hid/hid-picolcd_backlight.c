@@ -77,7 +77,8 @@ int picolcd_init_backlight(struct picolcd_data *data, struct hid_report *report)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 0xff;
 	bdev = backlight_device_register(dev_name(dev), dev, data,
-			&picolcd_blops, &props);
+			&picolcd_blops, &props,
+			BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bdev)) {
 		dev_err(dev, "failed to register backlight\n");
 		return PTR_ERR(bdev);

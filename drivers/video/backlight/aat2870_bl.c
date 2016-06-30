@@ -152,7 +152,8 @@ static int aat2870_bl_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	bd = devm_backlight_device_register(&pdev->dev, "aat2870-backlight",
 					&pdev->dev, aat2870_bl, &aat2870_bl_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		dev_err(&pdev->dev,
 			"Failed allocate memory for backlight device\n");

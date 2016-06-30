@@ -131,7 +131,8 @@ static int psb_backlight_init(struct drm_device *dev)
 	props.type = BACKLIGHT_PLATFORM;
 
 	psb_backlight_device = backlight_device_register("psb-bl",
-					NULL, (void *)dev, &psb_ops, &props);
+					NULL, (void *)dev, &psb_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(psb_backlight_device))
 		return PTR_ERR(psb_backlight_device);
 

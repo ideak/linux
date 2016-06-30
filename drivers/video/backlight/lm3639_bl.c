@@ -349,7 +349,8 @@ static int lm3639_probe(struct i2c_client *client,
 	pchip->bled =
 	    devm_backlight_device_register(pchip->dev, "lm3639_bled",
 					   pchip->dev, pchip, &lm3639_bled_ops,
-					   &props);
+					   &props,
+					   BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(pchip->bled)) {
 		dev_err(&client->dev, "fail : backlight register\n");
 		ret = PTR_ERR(pchip->bled);

@@ -299,7 +299,8 @@ void fbtft_register_backlight(struct fbtft_par *par)
 		bl_props.state |= BL_CORE_DRIVER1;
 
 	bd = backlight_device_register(dev_driver_string(par->info->device),
-				par->info->device, par, &fbtft_bl_ops, &bl_props);
+				par->info->device, par, &fbtft_bl_ops, &bl_props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		dev_err(par->info->device,
 			"cannot register backlight device (%ld)\n",

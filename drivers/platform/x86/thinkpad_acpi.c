@@ -6821,7 +6821,8 @@ static int __init brightness_init(struct ibm_init_struct *iibm)
 	ibm_backlight_device = backlight_device_register(TPACPI_BACKLIGHT_DEV_NAME,
 							 NULL, NULL,
 							 &ibm_backlight_data,
-							 &props);
+							 &props,
+							 BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(ibm_backlight_device)) {
 		int rc = PTR_ERR(ibm_backlight_device);
 		ibm_backlight_device = NULL;

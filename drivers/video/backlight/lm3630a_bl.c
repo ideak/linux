@@ -338,7 +338,8 @@ static int lm3630a_backlight_register(struct lm3630a_chip *pchip)
 		pchip->bleda =
 		    devm_backlight_device_register(pchip->dev, "lm3630a_leda",
 						   pchip->dev, pchip,
-						   &lm3630a_bank_a_ops, &props);
+						   &lm3630a_bank_a_ops, &props,
+						   BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(pchip->bleda))
 			return PTR_ERR(pchip->bleda);
 	}
@@ -350,7 +351,8 @@ static int lm3630a_backlight_register(struct lm3630a_chip *pchip)
 		pchip->bledb =
 		    devm_backlight_device_register(pchip->dev, "lm3630a_ledb",
 						   pchip->dev, pchip,
-						   &lm3630a_bank_b_ops, &props);
+						   &lm3630a_bank_b_ops, &props,
+						   BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(pchip->bledb))
 			return PTR_ERR(pchip->bledb);
 	}

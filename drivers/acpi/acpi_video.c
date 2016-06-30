@@ -1693,7 +1693,8 @@ static void acpi_video_dev_register_backlight(struct acpi_video_device *device)
 						      parent,
 						      device,
 						      &acpi_backlight_ops,
-						      &props);
+						      &props,
+						      BACKLIGHT_REGISTER_FB_CLIENT);
 	kfree(name);
 	if (IS_ERR(device->backlight)) {
 		device->backlight = NULL;

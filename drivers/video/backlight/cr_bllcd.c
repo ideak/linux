@@ -197,7 +197,8 @@ static int cr_backlight_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	bdp = devm_backlight_device_register(&pdev->dev, "cr-backlight",
 					&pdev->dev, NULL, &cr_backlight_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bdp)) {
 		pci_dev_put(lpc_dev);
 		return PTR_ERR(bdp);

@@ -155,7 +155,8 @@ void radeonfb_bl_init(struct radeonfb_info *rinfo)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = FB_BACKLIGHT_LEVELS - 1;
 	bd = backlight_device_register(name, rinfo->info->dev, pdata,
-				       &radeon_bl_data, &props);
+				       &radeon_bl_data, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		rinfo->info->bl_dev = NULL;
 		printk("radeonfb: Backlight registration failed\n");

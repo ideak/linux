@@ -831,7 +831,8 @@ static int asus_backlight_init(struct asus_laptop *asus)
 
 	bd = backlight_device_register(ASUS_LAPTOP_FILE,
 				       &asus->platform_device->dev, asus,
-				       &asusbl_ops, &props);
+				       &asusbl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		pr_err("Could not register asus backlight device\n");
 		asus->backlight_device = NULL;

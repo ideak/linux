@@ -165,7 +165,8 @@ static int max8925_backlight_probe(struct platform_device *pdev)
 	props.max_brightness = MAX_BRIGHTNESS;
 	bl = devm_backlight_device_register(&pdev->dev, "max8925-backlight",
 					&pdev->dev, data,
-					&max8925_backlight_ops, &props);
+					&max8925_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

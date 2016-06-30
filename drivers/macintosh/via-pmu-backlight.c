@@ -160,7 +160,8 @@ void __init pmu_backlight_init()
 	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = FB_BACKLIGHT_LEVELS - 1;
 	bd = backlight_device_register(name, NULL, NULL, &pmu_backlight_data,
-				       &props);
+				       &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		printk(KERN_ERR "PMU Backlight registration failed\n");
 		return;

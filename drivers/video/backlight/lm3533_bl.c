@@ -312,7 +312,8 @@ static int lm3533_bl_probe(struct platform_device *pdev)
 	props.brightness = pdata->default_brightness;
 	bd = devm_backlight_device_register(&pdev->dev, pdata->name,
 					pdev->dev.parent, bl, &lm3533_bl_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		dev_err(&pdev->dev, "failed to register backlight device\n");
 		return PTR_ERR(bd);

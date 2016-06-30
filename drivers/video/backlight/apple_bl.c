@@ -182,7 +182,8 @@ static int apple_bl_add(struct acpi_device *dev)
 	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = 15;
 	apple_backlight_device = backlight_device_register("apple_backlight",
-				  NULL, NULL, &hw_data->backlight_ops, &props);
+				  NULL, NULL, &hw_data->backlight_ops, &props,
+				  BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(apple_backlight_device)) {
 		release_region(hw_data->iostart, hw_data->iolen);

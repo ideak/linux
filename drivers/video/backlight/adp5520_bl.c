@@ -315,7 +315,8 @@ static int adp5520_bl_probe(struct platform_device *pdev)
 	props.max_brightness = ADP5020_MAX_BRIGHTNESS;
 	bl = devm_backlight_device_register(&pdev->dev, pdev->name,
 					data->master, data, &adp5520_bl_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

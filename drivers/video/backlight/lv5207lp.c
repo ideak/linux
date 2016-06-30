@@ -120,7 +120,8 @@ static int lv5207lp_probe(struct i2c_client *client,
 
 	backlight = devm_backlight_device_register(&client->dev,
 				dev_name(&client->dev), &lv->client->dev,
-				lv, &lv5207lp_backlight_ops, &props);
+				lv, &lv5207lp_backlight_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(backlight)) {
 		dev_err(&client->dev, "failed to register backlight\n");
 		return PTR_ERR(backlight);

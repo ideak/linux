@@ -163,7 +163,8 @@ static int bd6107_probe(struct i2c_client *client,
 	backlight = devm_backlight_device_register(&client->dev,
 					      dev_name(&client->dev),
 					      &bd->client->dev, bd,
-					      &bd6107_backlight_ops, &props);
+					      &bd6107_backlight_ops, &props,
+					      BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(backlight)) {
 		dev_err(&client->dev, "failed to register backlight\n");
 		return PTR_ERR(backlight);

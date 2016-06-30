@@ -200,7 +200,8 @@ static int locomolcd_probe(struct locomo_dev *ldev)
 	props.max_brightness = 4;
 	locomolcd_bl_device = backlight_device_register("locomo-bl",
 							&ldev->dev, NULL,
-							&locomobl_data, &props);
+							&locomobl_data, &props,
+							BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(locomolcd_bl_device))
 		return PTR_ERR(locomolcd_bl_device);

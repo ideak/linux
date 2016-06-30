@@ -319,7 +319,8 @@ static void mx3fb_init_backlight(struct mx3fb_data *fbd)
 	sdc_set_brightness(fbd, fbd->backlight_level);
 
 	bl = backlight_device_register("mx3fb-bl", fbd->dev, fbd,
-				       &mx3fb_lcdc_bl_ops, &props);
+				       &mx3fb_lcdc_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(fbd->dev, "error %ld on backlight register\n",
 				PTR_ERR(bl));

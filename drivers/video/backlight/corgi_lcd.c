@@ -562,7 +562,8 @@ static int corgi_lcd_probe(struct spi_device *spi)
 	props.max_brightness = pdata->max_intensity;
 	lcd->bl_dev = devm_backlight_device_register(&spi->dev, "corgi_bl",
 						&spi->dev, lcd, &corgi_bl_ops,
-						&props);
+						&props,
+						BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(lcd->bl_dev))
 		return PTR_ERR(lcd->bl_dev);
 

@@ -1565,7 +1565,8 @@ static int asus_wmi_backlight_init(struct asus_wmi *asus)
 	props.max_brightness = max;
 	bd = backlight_device_register(asus->driver->name,
 				       &asus->platform_device->dev, asus,
-				       &asus_wmi_bl_ops, &props);
+				       &asus_wmi_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		pr_err("Could not register backlight device\n");
 		return PTR_ERR(bd);

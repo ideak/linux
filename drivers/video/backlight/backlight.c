@@ -319,13 +319,15 @@ EXPORT_SYMBOL(backlight_force_update);
  * @devdata: an optional pointer to be stored for private driver use. The
  *   methods may retrieve it by using bl_get_data(bd).
  * @ops: the backlight operations structure.
+ * @flags: bitmask to control backlight registration
  *
  * Creates and registers new backlight device. Returns either an
  * ERR_PTR() or a pointer to the newly allocated device.
  */
 struct backlight_device *backlight_device_register(const char *name,
 	struct device *parent, void *devdata, const struct backlight_ops *ops,
-	const struct backlight_properties *props)
+	const struct backlight_properties *props,
+	unsigned long flags)
 {
 	struct backlight_device *new_bd;
 	int rc;
@@ -363,10 +365,12 @@ struct backlight_device *backlight_device_register(const char *name,
 		return ERR_PTR(rc);
 	}
 
-	rc = backlight_register_fb(new_bd);
-	if (rc) {
-		device_unregister(&new_bd->dev);
-		return ERR_PTR(rc);
+	if (flags & BACKLIGHT_REGISTER_FB_CLIENT) {
+		rc = backlight_register_fb(new_bd);
+		if (rc) {
+			device_unregister(&new_bd->dev);
+			return ERR_PTR(rc);
+		}
 	}
 
 	new_bd->ops = ops;
@@ -494,6 +498,7 @@ EXPORT_SYMBOL(backlight_unregister_notifier);
  * @devdata: an optional pointer to be stored for private driver use
  * @ops: the backlight operations structure
  * @props: the backlight properties
+ * @flags: bitmask to control backlight registration
  *
  * @return a struct backlight on success, or an ERR_PTR on error
  *
@@ -504,7 +509,8 @@ EXPORT_SYMBOL(backlight_unregister_notifier);
 struct backlight_device *devm_backlight_device_register(struct device *dev,
 	const char *name, struct device *parent, void *devdata,
 	const struct backlight_ops *ops,
-	const struct backlight_properties *props)
+	const struct backlight_properties *props,
+	unsigned long flags)
 {
 	struct backlight_device **ptr, *backlight;
 
@@ -514,7 +520,7 @@ struct backlight_device *devm_backlight_device_register(struct device *dev,
 		return ERR_PTR(-ENOMEM);
 
 	backlight = backlight_device_register(name, parent, devdata, ops,
-						props);
+						props, flags);
 	if (!IS_ERR(backlight)) {
 		*ptr = backlight;
 		devres_add(dev, ptr);

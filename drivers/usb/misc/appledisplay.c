@@ -293,7 +293,8 @@ static int appledisplay_probe(struct usb_interface *iface,
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 0xff;
 	pdata->bd = backlight_device_register(bl_name, NULL, pdata,
-					      &appledisplay_bl_data, &props);
+					      &appledisplay_bl_data, &props,
+					      BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(pdata->bd)) {
 		dev_err(&iface->dev, "Backlight registration failed\n");
 		retval = PTR_ERR(pdata->bd);

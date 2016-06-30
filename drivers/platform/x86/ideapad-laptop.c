@@ -726,7 +726,8 @@ static int ideapad_backlight_init(struct ideapad_private *priv)
 					      &priv->platform_device->dev,
 					      priv,
 					      &ideapad_backlight_ops,
-					      &props);
+					      &props,
+					      BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(blightdev)) {
 		pr_err("Could not register backlight device\n");
 		return PTR_ERR(blightdev);

@@ -1159,7 +1159,8 @@ static int eeepc_backlight_init(struct eeepc_laptop *eeepc)
 	props.max_brightness = 15;
 	bd = backlight_device_register(EEEPC_LAPTOP_FILE,
 				       &eeepc->platform_device->dev, eeepc,
-				       &eeepcbl_ops, &props);
+				       &eeepcbl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		pr_err("Could not register eeepc backlight device\n");
 		eeepc->backlight_device = NULL;

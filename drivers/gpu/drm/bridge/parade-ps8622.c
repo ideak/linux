@@ -608,7 +608,8 @@ static int ps8622_probe(struct i2c_client *client,
 	if (!of_find_property(dev->of_node, "use-external-pwm", NULL)) {
 		ps8622->bl = backlight_device_register("ps8622-backlight",
 				dev, ps8622, &ps8622_backlight_ops,
-				NULL);
+				NULL,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(ps8622->bl)) {
 			DRM_ERROR("failed to register backlight\n");
 			ret = PTR_ERR(ps8622->bl);

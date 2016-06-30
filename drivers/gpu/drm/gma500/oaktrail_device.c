@@ -155,7 +155,8 @@ static int oaktrail_backlight_init(struct drm_device *dev)
 	props.type = BACKLIGHT_PLATFORM;
 
 	oaktrail_backlight_device = backlight_device_register("oaktrail-bl",
-				NULL, (void *)dev, &oaktrail_ops, &props);
+				NULL, (void *)dev, &oaktrail_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(oaktrail_backlight_device))
 		return PTR_ERR(oaktrail_backlight_device);

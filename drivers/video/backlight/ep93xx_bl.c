@@ -93,7 +93,8 @@ static int ep93xxbl_probe(struct platform_device *dev)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = EP93XX_MAX_BRIGHT;
 	bl = devm_backlight_device_register(&dev->dev, dev->name, &dev->dev,
-					ep93xxbl, &ep93xxbl_ops, &props);
+					ep93xxbl, &ep93xxbl_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl))
 		return PTR_ERR(bl);
 

@@ -748,7 +748,8 @@ static int s6e63m0_probe(struct spi_device *spi)
 
 	bd = devm_backlight_device_register(&spi->dev, "s6e63m0bl-bl",
 					&spi->dev, lcd, &s6e63m0_backlight_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

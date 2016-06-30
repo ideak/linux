@@ -214,7 +214,8 @@ static int lp8788_backlight_register(struct lp8788_bl *bl)
 		name = pdata->name;
 
 	bl_dev = backlight_device_register(name, bl->lp->dev, bl,
-				       &lp8788_bl_ops, &props);
+				       &lp8788_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl_dev))
 		return PTR_ERR(bl_dev);
 

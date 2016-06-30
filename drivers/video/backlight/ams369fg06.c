@@ -484,7 +484,8 @@ static int ams369fg06_probe(struct spi_device *spi)
 
 	bd = devm_backlight_device_register(&spi->dev, "ams369fg06-bl",
 					&spi->dev, lcd,
-					&ams369fg06_backlight_ops, &props);
+					&ams369fg06_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

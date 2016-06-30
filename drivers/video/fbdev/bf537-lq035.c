@@ -765,7 +765,8 @@ static int bfin_lq035_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = MAX_BRIGHENESS;
 	bl_dev = backlight_device_register("bf537-bl", NULL, NULL,
-					   &bfin_lq035fb_bl_ops, &props);
+					   &bfin_lq035fb_bl_ops, &props,
+					   BACKLIGHT_REGISTER_FB_CLIENT);
 
 	lcd_dev = lcd_device_register(KBUILD_MODNAME, &pdev->dev, NULL,
 				      &bfin_lcd_ops);

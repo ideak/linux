@@ -115,7 +115,8 @@ static int pandora_backlight_probe(struct platform_device *pdev)
 	props.max_brightness = MAX_USER_VALUE;
 	props.type = BACKLIGHT_RAW;
 	bl = devm_backlight_device_register(&pdev->dev, pdev->name, &pdev->dev,
-					NULL, &pandora_backlight_ops, &props);
+					NULL, &pandora_backlight_ops, &props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

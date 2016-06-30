@@ -244,7 +244,8 @@ static void init_backlight(struct atmel_lcdfb_info *sinfo)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 0xff;
 	bl = backlight_device_register("backlight", &sinfo->pdev->dev, sinfo,
-				       &atmel_lcdc_bl_ops, &props);
+				       &atmel_lcdc_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&sinfo->pdev->dev, "error %ld on backlight register\n",
 				PTR_ERR(bl));

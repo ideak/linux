@@ -2035,7 +2035,8 @@ static int __init dell_init(void)
 								  &platform_device->dev,
 								  NULL,
 								  &dell_ops,
-								  &props);
+								  &props,
+								  BACKLIGHT_REGISTER_FB_CLIENT);
 
 		if (IS_ERR(dell_backlight_device)) {
 			ret = PTR_ERR(dell_backlight_device);

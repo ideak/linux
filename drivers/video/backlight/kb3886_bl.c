@@ -153,7 +153,8 @@ static int kb3886bl_probe(struct platform_device *pdev)
 	kb3886_backlight_device = devm_backlight_device_register(&pdev->dev,
 							"kb3886-bl", &pdev->dev,
 							NULL, &kb3886bl_ops,
-							&props);
+							&props,
+							BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(kb3886_backlight_device))
 		return PTR_ERR(kb3886_backlight_device);
 

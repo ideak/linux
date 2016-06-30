@@ -2314,7 +2314,8 @@ static struct backlight_device *sh_mobile_lcdc_bl_probe(struct device *parent,
 	struct backlight_device *bl;
 
 	bl = backlight_device_register(ch->cfg->bl_info.name, parent, ch,
-				       &sh_mobile_lcdc_bl_ops, NULL);
+				       &sh_mobile_lcdc_bl_ops, NULL,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(parent, "unable to register backlight device: %ld\n",
 			PTR_ERR(bl));

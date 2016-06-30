@@ -1200,7 +1200,8 @@ static int __init samsung_backlight_init(struct samsung_laptop *samsung)
 	bd = backlight_device_register("samsung",
 				       &samsung->platform_device->dev,
 				       samsung, &backlight_ops,
-				       &props);
+				       &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

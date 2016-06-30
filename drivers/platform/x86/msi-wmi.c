@@ -247,7 +247,8 @@ static int __init msi_wmi_backlight_setup(void)
 	props.max_brightness = ARRAY_SIZE(backlight_map) - 1;
 	backlight = backlight_device_register(DRV_NAME, NULL, NULL,
 					      &msi_backlight_ops,
-					      &props);
+					      &props,
+					      BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(backlight))
 		return PTR_ERR(backlight);
 

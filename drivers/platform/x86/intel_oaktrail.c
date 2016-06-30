@@ -253,7 +253,8 @@ static int oaktrail_backlight_init(void)
 	bd = backlight_device_register(DRIVER_NAME,
 				       &oaktrail_device->dev, NULL,
 				       &oaktrail_bl_ops,
-				       &props);
+				       &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(bd)) {
 		oaktrail_bl_device = NULL;

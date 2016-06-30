@@ -618,7 +618,8 @@ static int acpi_pcc_hotkey_add(struct acpi_device *device)
 	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = pcc->sinf[SINF_AC_MAX_BRIGHT];
 	pcc->backlight = backlight_device_register("panasonic", NULL, pcc,
-						   &pcc_backlight_ops, &props);
+						   &pcc_backlight_ops, &props,
+						   BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(pcc->backlight)) {
 		result = PTR_ERR(pcc->backlight);
 		goto out_input;

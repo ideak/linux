@@ -198,7 +198,8 @@ void amdgpu_atombios_encoder_init_backlight(struct amdgpu_encoder *amdgpu_encode
 	snprintf(bl_name, sizeof(bl_name),
 		 "amdgpu_bl%d", dev->primary->index);
 	bd = backlight_device_register(bl_name, drm_connector->kdev,
-				       pdata, &amdgpu_atombios_encoder_backlight_ops, &props);
+				       pdata, &amdgpu_atombios_encoder_backlight_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		DRM_ERROR("Backlight registration failed\n");
 		goto error;

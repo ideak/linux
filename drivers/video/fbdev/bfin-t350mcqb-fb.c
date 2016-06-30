@@ -549,7 +549,8 @@ static int bfin_t350mcqb_probe(struct platform_device *pdev)
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 255;
 	bl_dev = backlight_device_register("bf52x-bl", NULL, NULL,
-					   &bfin_lq043fb_bl_ops, &props);
+					   &bfin_lq043fb_bl_ops, &props,
+					   BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl_dev)) {
 		printk(KERN_ERR DRIVER_NAME
 			": unable to register backlight.\n");

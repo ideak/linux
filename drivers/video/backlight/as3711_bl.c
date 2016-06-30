@@ -244,7 +244,8 @@ static int as3711_bl_register(struct platform_device *pdev,
 				       su->type == AS3711_BL_SU1 ?
 				       "as3711-su1" : "as3711-su2",
 				       &pdev->dev, su,
-				       &as3711_bl_ops, &props);
+				       &as3711_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

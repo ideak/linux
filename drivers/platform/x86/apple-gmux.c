@@ -698,7 +698,8 @@ static int gmux_probe(struct pnp_dev *pnp, const struct pnp_device_id *id)
 		props.max_brightness = GMUX_MAX_BRIGHTNESS;
 
 	bdev = backlight_device_register("gmux_backlight", &pnp->dev,
-					 gmux_data, &gmux_bl_ops, &props);
+					 gmux_data, &gmux_bl_ops, &props,
+					 BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bdev)) {
 		ret = PTR_ERR(bdev);
 		goto err_release;

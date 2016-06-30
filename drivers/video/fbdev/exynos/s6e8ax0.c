@@ -796,7 +796,8 @@ static int s6e8ax0_probe(struct mipi_dsim_lcd_device *dsim_dev)
 	}
 
 	lcd->bd = devm_backlight_device_register(lcd->dev, "s6e8ax0-bl",
-				lcd->dev, lcd, &s6e8ax0_backlight_ops, NULL);
+				lcd->dev, lcd, &s6e8ax0_backlight_ops, NULL,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(lcd->bd)) {
 		dev_err(lcd->dev, "failed to register backlight ops.\n");
 		return PTR_ERR(lcd->bd);

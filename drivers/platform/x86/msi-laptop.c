@@ -1078,7 +1078,8 @@ static int __init msi_init(void)
 		props.max_brightness = MSI_LCD_LEVEL_MAX - 1;
 		msibl_device = backlight_device_register("msi-laptop-bl", NULL,
 							 NULL, &msibl_ops,
-							 &props);
+							 &props,
+							 BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(msibl_device))
 			return PTR_ERR(msibl_device);
 	}

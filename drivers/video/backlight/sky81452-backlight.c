@@ -294,7 +294,8 @@ static int sky81452_bl_probe(struct platform_device *pdev)
 	props.max_brightness = SKY81452_MAX_BRIGHTNESS,
 	name = pdata->name ? pdata->name : SKY81452_DEFAULT_NAME;
 	bd = devm_backlight_device_register(dev, name, dev, regmap,
-						&sky81452_bl_ops, &props);
+						&sky81452_bl_ops, &props,
+						BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bd)) {
 		dev_err(dev, "failed to register. err=%ld\n", PTR_ERR(bd));
 		return PTR_ERR(bd);

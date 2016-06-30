@@ -299,7 +299,8 @@ static int lp855x_backlight_register(struct lp855x *lp)
 	props.brightness = pdata->initial_brightness;
 
 	bl = devm_backlight_device_register(lp->dev, name, lp->dev, lp,
-				       &lp855x_bl_ops, &props);
+				       &lp855x_bl_ops, &props,
+				       BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl))
 		return PTR_ERR(bl);
 

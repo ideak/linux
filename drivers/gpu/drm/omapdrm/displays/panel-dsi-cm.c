@@ -1260,7 +1260,8 @@ static int dsicm_probe(struct platform_device *pdev)
 
 		props.type = BACKLIGHT_RAW;
 		bldev = backlight_device_register(dev_name(dev),
-				dev, ddata, &dsicm_bl_ops, &props);
+				dev, ddata, &dsicm_bl_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(bldev)) {
 			r = PTR_ERR(bldev);
 			goto err_bl;

@@ -894,7 +894,8 @@ static int adp8870_probe(struct i2c_client *client,
 	props.max_brightness = props.brightness = ADP8870_MAX_BRIGHTNESS;
 	bl = devm_backlight_device_register(&client->dev,
 				dev_driver_string(&client->dev),
-				&client->dev, data, &adp8870_bl_ops, &props);
+				&client->dev, data, &adp8870_bl_ops, &props,
+				BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&client->dev, "failed to register backlight\n");
 		return PTR_ERR(bl);

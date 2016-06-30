@@ -817,7 +817,8 @@ static int acx565akm_probe(struct spi_device *spi)
 	props.type = BACKLIGHT_RAW;
 
 	bldev = backlight_device_register("acx565akm", &ddata->spi->dev,
-			ddata, &acx565akm_bl_ops, &props);
+			ddata, &acx565akm_bl_ops, &props,
+			BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bldev)) {
 		r = PTR_ERR(bldev);
 		goto err_reg_bl;

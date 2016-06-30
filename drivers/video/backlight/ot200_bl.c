@@ -120,7 +120,8 @@ static int ot200_backlight_probe(struct platform_device *pdev)
 
 	bl = devm_backlight_device_register(&pdev->dev, dev_name(&pdev->dev),
 					&pdev->dev, data, &ot200_backlight_ops,
-					&props);
+					&props,
+					BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		retval = PTR_ERR(bl);

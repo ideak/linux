@@ -3158,7 +3158,8 @@ static void sony_nc_backlight_setup(void)
 	props.max_brightness = max_brightness;
 	sony_bl_props.dev = backlight_device_register("sony", NULL,
 						      &sony_bl_props,
-						      ops, &props);
+						      ops, &props,
+						      BACKLIGHT_REGISTER_FB_CLIENT);
 
 	if (IS_ERR(sony_bl_props.dev)) {
 		pr_warn("unable to register backlight device\n");

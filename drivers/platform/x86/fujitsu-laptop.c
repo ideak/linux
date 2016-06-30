@@ -1167,7 +1167,8 @@ static int __init fujitsu_init(void)
 		fujitsu->bl_device = backlight_device_register("fujitsu-laptop",
 							       NULL, NULL,
 							       &fujitsubl_ops,
-							       &props);
+							       &props,
+							       BACKLIGHT_REGISTER_FB_CLIENT);
 		if (IS_ERR(fujitsu->bl_device)) {
 			ret = PTR_ERR(fujitsu->bl_device);
 			fujitsu->bl_device = NULL;

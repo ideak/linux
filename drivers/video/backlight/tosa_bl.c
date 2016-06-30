@@ -107,7 +107,8 @@ static int tosa_bl_probe(struct i2c_client *client,
 	props.max_brightness = 512 - 1;
 	data->bl = devm_backlight_device_register(&client->dev, "tosa-bl",
 						&client->dev, data, &bl_ops,
-						&props);
+						&props,
+						BACKLIGHT_REGISTER_FB_CLIENT);
 	if (IS_ERR(data->bl)) {
 		ret = PTR_ERR(data->bl);
 		goto err_reg;
