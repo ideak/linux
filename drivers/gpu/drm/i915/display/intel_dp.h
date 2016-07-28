@@ -140,4 +140,9 @@ void intel_ddi_update_pipe(struct intel_atomic_state *state,
 int intel_dp_init_hdcp(struct intel_digital_port *dig_port,
 		       struct intel_connector *intel_connector);
 
+bool intel_dp_initial_fastset_check(struct intel_encoder *encoder,
+				    const struct intel_crtc_state *crtc_state);
+void intel_dp_sync_state(struct intel_encoder *encoder,
+			 const struct intel_crtc_state *crtc_state);
+
 #endif /* __INTEL_DP_H__ */

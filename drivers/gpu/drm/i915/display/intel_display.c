@@ -17951,6 +17951,8 @@ retry:
 		}
 
 		if (crtc_state->hw.active) {
+			struct intel_encoder *encoder;
+
 			/*
 			 * We've not yet detected sink capabilities
 			 * (audio,infoframes,etc.) and thus we don't want to
@@ -17972,22 +17974,21 @@ retry:
 			 */
 			crtc_state->uapi.color_mgmt_changed = true;
 
-			/*
-			 * FIXME hack to force full modeset when DSC is being
-			 * used.
-			 *
-			 * As long as we do not have full state readout and
-			 * config comparison of crtc_state->dsc, we have no way
-			 * to ensure reliable fastset. Remove once we have
-			 * readout for DSC.
-			 */
-			if (crtc_state->dsc.compression_enable) {
-				ret = drm_atomic_add_affected_connectors(state,
-									 &crtc->base);
-				if (ret)
-					goto out;
-				crtc_state->uapi.mode_changed = true;
-				drm_dbg_kms(dev, "Force full modeset for DSC\n");
+			for_each_intel_encoder_mask(dev, encoder,
+						    crtc_state->uapi.encoder_mask) {
+				if (encoder->initial_fastset_check &&
+				    !encoder->initial_fastset_check(encoder, crtc_state)) {
+					drm_dbg_kms(dev, "Encoders force full modeset\n");
+
+					crtc_state->uapi.connectors_changed = true;
+
+					ret = drm_atomic_add_affected_connectors(state,
+										 &crtc->base);
+					if (ret)
+						goto out;
+
+					break;
+				}
 			}
 		}
 	}
@@ -18728,8 +18729,12 @@ static void intel_modeset_readout_hw_state(struct drm_device *dev)
 
 			encoder->base.crtc = &crtc->base;
 			encoder->get_config(encoder, crtc_state);
+			if (encoder->sync_state)
+				encoder->sync_state(encoder, crtc_state);
 		} else {
 			encoder->base.crtc = NULL;
+			if (encoder->sync_state)
+				encoder->sync_state(encoder, NULL);
 		}
 
 		drm_dbg_kms(&dev_priv->drm,

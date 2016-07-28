@@ -187,6 +187,17 @@ struct intel_encoder {
 	 * be set correctly before calling this function. */
 	void (*get_config)(struct intel_encoder *,
 			   struct intel_crtc_state *pipe_config);
+
+	 /*
+	  * Used during init/resume to sync any cached state
+	  * stored outside the pipe config (eg. active DP link
+	  * parameters).
+	  */
+	void (*sync_state)(struct intel_encoder *,
+			   const struct intel_crtc_state *);
+	bool (*initial_fastset_check)(struct intel_encoder *,
+				      const struct intel_crtc_state *);
+
 	/*
 	 * Acquires the power domains needed for an active encoder during
 	 * hardware state readout.

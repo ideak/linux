@@ -5092,6 +5092,8 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 	encoder->update_pipe = intel_ddi_update_pipe;
 	encoder->get_hw_state = intel_ddi_get_hw_state;
 	encoder->get_config = intel_ddi_get_config;
+	encoder->sync_state = intel_dp_sync_state;
+	encoder->initial_fastset_check = intel_dp_initial_fastset_check;
 	encoder->suspend = intel_dp_encoder_suspend;
 	encoder->get_power_domains = intel_ddi_get_power_domains;
 
