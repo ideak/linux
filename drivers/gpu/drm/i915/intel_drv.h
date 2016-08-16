@@ -953,12 +953,19 @@ struct intel_dp {
 	bool compliance_test_active;
 };
 
+struct intel_lspcon {
+	bool active;
+	enum drm_lspcon_mode mode;
+	struct drm_dp_aux *aux;
+};
+
 struct intel_digital_port {
 	struct intel_encoder base;
 	enum port port;
 	u32 saved_port_bits;
 	struct intel_dp dp;
 	struct intel_hdmi hdmi;
+	struct intel_lspcon lspcon;
 	enum irqreturn (*hpd_pulse)(struct intel_digital_port *, bool);
 	bool release_cl2_override;
 	uint8_t max_lanes;
@@ -1526,7 +1533,6 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 			       struct drm_connector_state *conn_state);
 void intel_dp_dual_mode_set_tmds_output(struct intel_hdmi *hdmi, bool enable);
 
-
 /* intel_lvds.c */
 void intel_lvds_init(struct drm_device *dev);
 struct intel_encoder *intel_get_lvds_encoder(struct drm_device *dev);
@@ -1850,4 +1856,9 @@ static inline int intel_crtc_set_crc_source(struct drm_crtc *crtc,
 #endif
 extern const struct file_operations i915_display_crc_ctl_fops;
 
+/* intel_lspcon.c */
+bool lspcon_init(struct intel_digital_port *intel_dig_port);
+enum drm_connector_status
+lspcon_ls_mode_detect(struct drm_connector *connector, bool force);
+bool is_lspcon_active(struct intel_digital_port *dig_port);
 #endif /* __INTEL_DRV_H__ */
