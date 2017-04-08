@@ -135,7 +135,7 @@ static bool intel_hpd_irq_storm_detect(struct drm_i915_private *dev_priv,
 		DRM_DEBUG_KMS("Received HPD interrupt on PIN %d - cnt: 0\n", pin);
 	} else if (dev_priv->hotplug.stats[pin].count > threshold &&
 		   threshold) {
-		dev_priv->hotplug.stats[pin].state = HPD_MARK_DISABLED;
+		dev_priv->hotplug.stats[pin].throttled = true;
 		DRM_DEBUG_KMS("HPD interrupt storm detected on PIN %d\n", pin);
 		storm = true;
 	} else {
@@ -159,6 +159,9 @@ static void intel_hpd_irq_storm_disable(struct drm_i915_private *dev_priv)
 
 	lockdep_assert_held(&dev_priv->irq_lock);
 
+	if (!dev_priv->hotplug.autoprobing_enabled)
+		return;
+
 	drm_connector_list_iter_begin(dev, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
 		if (connector->polled != DRM_CONNECTOR_POLL_HPD)
@@ -171,14 +174,13 @@ static void intel_hpd_irq_storm_disable(struct drm_i915_private *dev_priv)
 
 		pin = intel_encoder->hpd_pin;
 		if (pin == HPD_NONE ||
-		    dev_priv->hotplug.stats[pin].state != HPD_MARK_DISABLED)
+		    !dev_priv->hotplug.stats[pin].throttled)
 			continue;
 
 		DRM_INFO("HPD interrupt storm detected on connector %s: "
 			 "switching from hotplug detection to polling\n",
 			 connector->name);
 
-		dev_priv->hotplug.stats[pin].state = HPD_DISABLED;
 		connector->polled = DRM_CONNECTOR_POLL_CONNECT
 			| DRM_CONNECTOR_POLL_DISCONNECT;
 		hpd_disabled = true;
@@ -186,11 +188,8 @@ static void intel_hpd_irq_storm_disable(struct drm_i915_private *dev_priv)
 	drm_connector_list_iter_end(&conn_iter);
 
 	/* Enable polling and queue hotplug re-enabling. */
-	if (hpd_disabled) {
+	if (hpd_disabled)
 		drm_kms_helper_poll_enable(dev);
-		mod_delayed_work(system_wq, &dev_priv->hotplug.reenable_work,
-				 msecs_to_jiffies(HPD_STORM_REENABLE_DELAY));
-	}
 }
 
 static void intel_hpd_irq_storm_reenable_work(struct work_struct *work)
@@ -203,15 +202,22 @@ static void intel_hpd_irq_storm_reenable_work(struct work_struct *work)
 
 	intel_runtime_pm_get(dev_priv);
 
+	mutex_lock(&dev->mode_config.mutex);
+
 	spin_lock_irq(&dev_priv->irq_lock);
+
 	for_each_hpd_pin(i) {
 		struct drm_connector *connector;
 		struct drm_connector_list_iter conn_iter;
 
-		if (dev_priv->hotplug.stats[i].state != HPD_DISABLED)
+		if (!dev_priv->hotplug.stats[i].throttled)
 			continue;
 
-		dev_priv->hotplug.stats[i].state = HPD_ENABLED;
+		dev_priv->hotplug.stats[i].throttled = false;
+
+		if (!dev_priv->hotplug.autoprobing_enabled ||
+		    !dev_priv->display_irqs_enabled)
+			continue;
 
 		drm_connector_list_iter_begin(dev, &conn_iter);
 		drm_for_each_connector_iter(connector, &conn_iter) {
@@ -232,6 +238,8 @@ static void intel_hpd_irq_storm_reenable_work(struct work_struct *work)
 		dev_priv->display.hpd_irq_setup(dev_priv);
 	spin_unlock_irq(&dev_priv->irq_lock);
 
+	mutex_unlock(&dev->mode_config.mutex);
+
 	intel_runtime_pm_put(dev_priv);
 }
 
@@ -239,8 +247,17 @@ static bool intel_hpd_irq_event(struct drm_device *dev,
 				struct drm_connector *connector)
 {
 	enum drm_connector_status old_status;
+	struct drm_i915_private *dev_priv = to_i915(dev);
 
 	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
+
+	/*
+	 * We'll do an unconditional probe on all connectors once auto probing
+	 * is enabled.
+	 */
+	if (!dev_priv->hotplug.autoprobing_enabled)
+		return false;
+
 	old_status = connector->status;
 
 	connector->status = connector->funcs->detect(connector, false);
@@ -254,6 +271,23 @@ static bool intel_hpd_irq_event(struct drm_device *dev,
 		      drm_get_connector_status_name(connector->status));
 
 	return true;
+}
+
+void i915_hpd_hotplug_event(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+	bool do_hotplug;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	do_hotplug = dev_priv->hotplug.autoprobing_enabled;
+	if (!do_hotplug)
+		dev_priv->hotplug.deferred_hotplug = true;
+
+	mutex_unlock(&dev->mode_config.mutex);
+
+	if (do_hotplug)
+		drm_kms_helper_hotplug_event(dev);
 }
 
 static void i915_digport_work_func(struct work_struct *work)
@@ -351,7 +385,7 @@ static void i915_hotplug_work_func(struct work_struct *work)
 	mutex_unlock(&dev->mode_config.mutex);
 
 	if (changed)
-		drm_kms_helper_hotplug_event(dev);
+		intel_hpd_hotplug_event(dev_priv);
 }
 
 
@@ -410,7 +444,7 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 			}
 		}
 
-		if (dev_priv->hotplug.stats[i].state == HPD_DISABLED) {
+		if (!dev_priv->hotplug.stats[i].enabled) {
 			/*
 			 * On GMCH platforms the interrupt mask bits only
 			 * prevent irq generation, not the setting of the
@@ -422,7 +456,7 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 			continue;
 		}
 
-		if (dev_priv->hotplug.stats[i].state != HPD_ENABLED)
+		if (dev_priv->hotplug.stats[i].throttled)
 			continue;
 
 		if (!is_dig_port) {
@@ -436,8 +470,12 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 		}
 	}
 
-	if (storm_detected && dev_priv->display_irqs_enabled)
-		dev_priv->display.hpd_irq_setup(dev_priv);
+	if (storm_detected) {
+		if (dev_priv->display_irqs_enabled)
+			dev_priv->display.hpd_irq_setup(dev_priv);
+		mod_delayed_work(system_wq, &dev_priv->hotplug.reenable_work,
+				 msecs_to_jiffies(HPD_STORM_REENABLE_DELAY));
+	}
 	spin_unlock(&dev_priv->irq_lock);
 
 	/*
@@ -463,31 +501,118 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
  *
  * This is a separate step from interrupt enabling to simplify the locking rules
  * in the driver load and resume code.
- *
- * Also see: intel_hpd_poll_init(), which enables connector polling
  */
 void intel_hpd_init(struct drm_i915_private *dev_priv)
 {
-	int i;
+	struct intel_encoder *encoder;
 
-	for_each_hpd_pin(i) {
-		dev_priv->hotplug.stats[i].count = 0;
-		dev_priv->hotplug.stats[i].state = HPD_ENABLED;
+	spin_lock_irq(&dev_priv->irq_lock);
+
+	for_each_intel_encoder(&dev_priv->drm, encoder) {
+		int pin = encoder->hpd_pin;
+
+		dev_priv->hotplug.stats[pin].count = 0;
+		dev_priv->hotplug.stats[pin].enabled = true;
+		dev_priv->hotplug.stats[pin].throttled = false;
 	}
 
-	WRITE_ONCE(dev_priv->hotplug.poll_enabled, false);
-	schedule_work(&dev_priv->hotplug.poll_init_work);
+	if (dev_priv->display_irqs_enabled && dev_priv->display.hpd_irq_setup)
+		dev_priv->display.hpd_irq_setup(dev_priv);
+
+	spin_unlock_irq(&dev_priv->irq_lock);
+}
+
+static bool __intel_hpd_poll_setup(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+	struct drm_connector *connector;
+	struct drm_connector_list_iter conn_iter;
+
+	drm_connector_list_iter_begin(dev, &conn_iter);
+	drm_for_each_connector_iter(connector, &conn_iter) {
+		struct intel_connector *intel_connector =
+			to_intel_connector(connector);
+		int hpd_pin;
+
+		connector->polled = intel_connector->polled;
+
+		/* MST has a dynamic intel_connector->encoder and it's reprobing
+		 * is all handled by the MST helpers. */
+		if (intel_connector->mst_port)
+			continue;
+
+		hpd_pin = intel_connector->encoder->hpd_pin;
+		if (connector->polled || I915_HAS_HOTPLUG(dev_priv) ||
+		    hpd_pin == HPD_NONE)
+			continue;
+
+		if (dev_priv->display_irqs_enabled)
+			connector->polled = DRM_CONNECTOR_POLL_HPD;
+		else
+			connector->polled = DRM_CONNECTOR_POLL_CONNECT |
+					    DRM_CONNECTOR_POLL_DISCONNECT;
+	}
+	drm_connector_list_iter_end(&conn_iter);
+
+	return !dev_priv->display_irqs_enabled;
+}
+
+void intel_hpd_autoprobing_resume(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+	bool deferred_hotplug;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	dev_priv->hotplug.autoprobing_enabled = true;
+	deferred_hotplug = dev_priv->hotplug.deferred_hotplug;
+	dev_priv->hotplug.deferred_hotplug = false;
+
+	__intel_hpd_poll_setup(dev_priv);
+
+	mutex_unlock(&dev->mode_config.mutex);
 
 	/*
-	 * Interrupt setup is already guaranteed to be single-threaded, this is
-	 * just to make the assert_spin_locked checks happy.
+	 * Do an explicit probing to account for lost hotplug events while
+	 * auto probing was disabled. Even if nothing is detected now signal
+	 * a hotplug event if a hotplug was signaled during the auto-probe
+	 * disabled period for any reason (for example DP compliance testing).
 	 */
-	if (dev_priv->display_irqs_enabled && dev_priv->display.hpd_irq_setup) {
-		spin_lock_irq(&dev_priv->irq_lock);
-		if (dev_priv->display_irqs_enabled)
-			dev_priv->display.hpd_irq_setup(dev_priv);
-		spin_unlock_irq(&dev_priv->irq_lock);
-	}
+	if (!drm_helper_hpd_irq_event(dev) && deferred_hotplug)
+		drm_kms_helper_hotplug_event(dev);
+}
+
+void intel_hpd_autoprobing_init(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+
+	intel_hpd_autoprobing_resume(dev_priv);
+
+	mutex_lock(&dev->mode_config.mutex);
+	drm_kms_helper_poll_init(dev);
+	mutex_unlock(&dev->mode_config.mutex);
+}
+
+void intel_hpd_autoprobing_suspend(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+
+	mutex_lock(&dev->mode_config.mutex);
+	dev_priv->hotplug.autoprobing_enabled = false;
+	mutex_unlock(&dev->mode_config.mutex);
+
+	drm_kms_helper_poll_disable(&dev_priv->drm);
+}
+
+void intel_hpd_autoprobing_fini(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = &dev_priv->drm;
+
+	mutex_lock(&dev->mode_config.mutex);
+	dev_priv->hotplug.autoprobing_enabled = false;
+	mutex_unlock(&dev->mode_config.mutex);
+
+	drm_kms_helper_poll_fini(&dev_priv->drm);
 }
 
 static void i915_hpd_poll_init_work(struct work_struct *work)
@@ -496,37 +621,19 @@ static void i915_hpd_poll_init_work(struct work_struct *work)
 		container_of(work, struct drm_i915_private,
 			     hotplug.poll_init_work);
 	struct drm_device *dev = &dev_priv->drm;
-	struct drm_connector *connector;
-	struct drm_connector_list_iter conn_iter;
-	bool enabled;
+	bool poll_enabled;
 
 	mutex_lock(&dev->mode_config.mutex);
 
-	enabled = READ_ONCE(dev_priv->hotplug.poll_enabled);
-
-	drm_connector_list_iter_begin(dev, &conn_iter);
-	drm_for_each_connector_iter(connector, &conn_iter) {
-		struct intel_connector *intel_connector =
-			to_intel_connector(connector);
-		connector->polled = intel_connector->polled;
-
-		/* MST has a dynamic intel_connector->encoder and it's reprobing
-		 * is all handled by the MST helpers. */
-		if (intel_connector->mst_port)
-			continue;
-
-		if (!connector->polled && I915_HAS_HOTPLUG(dev_priv) &&
-		    intel_connector->encoder->hpd_pin > HPD_NONE) {
-			connector->polled = enabled ?
-				DRM_CONNECTOR_POLL_CONNECT |
-				DRM_CONNECTOR_POLL_DISCONNECT :
-				DRM_CONNECTOR_POLL_HPD;
-		}
+	if (!dev_priv->hotplug.autoprobing_enabled) {
+		mutex_unlock(&dev->mode_config.mutex);
+		return;
 	}
-	drm_connector_list_iter_end(&conn_iter);
 
-	if (enabled)
-		drm_kms_helper_poll_enable(dev);
+	poll_enabled = __intel_hpd_poll_setup(dev_priv);
+
+	if (poll_enabled)
+		 drm_kms_helper_poll_enable(dev);
 
 	mutex_unlock(&dev->mode_config.mutex);
 
@@ -534,7 +641,7 @@ static void i915_hpd_poll_init_work(struct work_struct *work)
 	 * We might have missed any hotplugs that happened while we were
 	 * in the middle of disabling polling
 	 */
-	if (!enabled)
+	if (!poll_enabled)
 		drm_helper_hpd_irq_event(dev);
 }
 
@@ -542,7 +649,7 @@ static void i915_hpd_poll_init_work(struct work_struct *work)
  * intel_hpd_poll_init - enables/disables polling for connectors with hpd
  * @dev_priv: i915 device instance
  *
- * This function enables polling for all connectors, regardless of whether or
+ * This function sets up polling for all connectors, regardless of whether or
  * not they support hotplug detection. Under certain conditions HPD may not be
  * functional. On most Intel GPUs, this happens when we enter runtime suspend.
  * On Valleyview and Cherryview systems, this also happens when we shut off all
@@ -551,19 +658,18 @@ static void i915_hpd_poll_init_work(struct work_struct *work)
  * Since this function can get called in contexts where we're already holding
  * dev->mode_config.mutex, we do the actual hotplug enabling in a seperate
  * worker.
- *
- * Also see: intel_hpd_init(), which restores hpd handling.
  */
-void intel_hpd_poll_init(struct drm_i915_private *dev_priv)
+void intel_hpd_switch_to_poll_mode(struct drm_i915_private *dev_priv)
 {
-	WRITE_ONCE(dev_priv->hotplug.poll_enabled, true);
+	schedule_work(&dev_priv->hotplug.poll_init_work);
+}
 
-	/*
-	 * We might already be holding dev->mode_config.mutex, so do this in a
-	 * seperate worker
-	 * As well, there's no issue if we race here since we always reschedule
-	 * this worker anyway
-	 */
+void intel_hpd_switch_to_irq_mode(struct drm_i915_private *dev_priv)
+{
+	spin_lock_irq(&dev_priv->irq_lock);
+	if (dev_priv->display_irqs_enabled && dev_priv->display.hpd_irq_setup)
+		dev_priv->display.hpd_irq_setup(dev_priv);
+	spin_unlock_irq(&dev_priv->irq_lock);
 	schedule_work(&dev_priv->hotplug.poll_init_work);
 }
 
@@ -576,9 +682,17 @@ void intel_hpd_init_work(struct drm_i915_private *dev_priv)
 			  intel_hpd_irq_storm_reenable_work);
 }
 
-void intel_hpd_cancel_work(struct drm_i915_private *dev_priv)
+void intel_hpd_suspend(struct drm_i915_private *dev_priv)
 {
+	struct intel_encoder *encoder;
+
 	spin_lock_irq(&dev_priv->irq_lock);
+
+	for_each_intel_encoder(&dev_priv->drm, encoder)
+		dev_priv->hotplug.stats[encoder->hpd_pin].enabled = false;
+
+	if (dev_priv->display_irqs_enabled && dev_priv->display.hpd_irq_setup)
+		dev_priv->display.hpd_irq_setup(dev_priv);
 
 	dev_priv->hotplug.long_port_mask = 0;
 	dev_priv->hotplug.short_port_mask = 0;
@@ -600,8 +714,8 @@ bool intel_hpd_disable(struct drm_i915_private *dev_priv, enum hpd_pin pin)
 		return false;
 
 	spin_lock_irq(&dev_priv->irq_lock);
-	if (dev_priv->hotplug.stats[pin].state == HPD_ENABLED) {
-		dev_priv->hotplug.stats[pin].state = HPD_DISABLED;
+	if (dev_priv->hotplug.stats[pin].enabled) {
+		dev_priv->hotplug.stats[pin].enabled = false;
 		ret = true;
 	}
 	spin_unlock_irq(&dev_priv->irq_lock);
@@ -615,6 +729,6 @@ void intel_hpd_enable(struct drm_i915_private *dev_priv, enum hpd_pin pin)
 		return;
 
 	spin_lock_irq(&dev_priv->irq_lock);
-	dev_priv->hotplug.stats[pin].state = HPD_ENABLED;
+	dev_priv->hotplug.stats[pin].enabled = true;
 	spin_unlock_irq(&dev_priv->irq_lock);
 }

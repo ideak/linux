@@ -1139,7 +1139,7 @@ static void vlv_display_power_well_init(struct drm_i915_private *dev_priv)
 	if (dev_priv->power_domains.initializing)
 		return;
 
-	intel_hpd_init(dev_priv);
+	intel_hpd_switch_to_irq_mode(dev_priv);
 
 	/* Re-enable the ADPA, if we have one */
 	for_each_intel_encoder(&dev_priv->drm, encoder) {
@@ -1163,9 +1163,7 @@ static void vlv_display_power_well_deinit(struct drm_i915_private *dev_priv)
 
 	intel_power_sequencer_reset(dev_priv);
 
-	/* Prevent us from re-enabling polling on accident in late suspend */
-	if (!dev_priv->drm.dev->power.is_suspended)
-		intel_hpd_poll_init(dev_priv);
+	intel_hpd_switch_to_poll_mode(dev_priv);
 }
 
 static void vlv_display_power_well_enable(struct drm_i915_private *dev_priv,

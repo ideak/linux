@@ -1167,6 +1167,13 @@ dp_to_lspcon(struct intel_dp *intel_dp)
 	return &dp_to_dig_port(intel_dp)->lspcon;
 }
 
+static inline struct drm_device *intel_dp_to_dev(struct intel_dp *intel_dp)
+{
+	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
+
+	return intel_dig_port->base.base.dev;
+}
+
 static inline struct intel_digital_port *
 hdmi_to_dig_port(struct intel_hdmi *intel_hdmi)
 {
@@ -1559,7 +1566,15 @@ int intel_dsi_dcs_init_backlight_funcs(struct intel_connector *intel_connector);
 /* intel_dvo.c */
 void intel_dvo_init(struct drm_i915_private *dev_priv);
 /* intel_hotplug.c */
-void intel_hpd_poll_init(struct drm_i915_private *dev_priv);
+void intel_hpd_suspend(struct drm_i915_private *dev_priv);
+void intel_hpd_autoprobing_init(struct drm_i915_private *dev_priv);
+void intel_hpd_autoprobing_suspend(struct drm_i915_private *dev_priv);
+void intel_hpd_autoprobing_resume(struct drm_i915_private *dev_priv);
+void intel_hpd_autoprobing_fini(struct drm_i915_private *dev_priv);
+void intel_hpd_switch_to_poll_mode(struct drm_i915_private *dev_priv);
+void intel_hpd_switch_to_irq_mode(struct drm_i915_private *dev_priv);
+void intel_hpd_suspend(struct drm_i915_private *dev_priv);
+void intel_hpd_hotplug_event(struct drm_i915_private *dev_priv);
 
 
 /* legacy fbdev emulation in intel_fbdev.c */

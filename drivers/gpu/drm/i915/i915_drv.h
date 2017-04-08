@@ -378,14 +378,15 @@ struct i915_hotplug {
 	struct work_struct hotplug_work;
 
 	struct {
+		bool enabled:1;
+		bool throttled:1;
 		unsigned long last_jiffies;
 		int count;
-		enum {
-			HPD_ENABLED = 0,
-			HPD_DISABLED = 1,
-			HPD_MARK_DISABLED = 2
-		} state;
 	} stats[HPD_NUM_PINS];
+
+	bool autoprobing_enabled;
+	bool deferred_hotplug;
+
 	u32 event_bits;
 	struct delayed_work reenable_work;
 
@@ -3034,7 +3035,6 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 			   u32 pin_mask, u32 long_mask);
 void intel_hpd_init(struct drm_i915_private *dev_priv);
 void intel_hpd_init_work(struct drm_i915_private *dev_priv);
-void intel_hpd_cancel_work(struct drm_i915_private *dev_priv);
 bool intel_hpd_pin_to_port(enum hpd_pin pin, enum port *port);
 bool intel_hpd_disable(struct drm_i915_private *dev_priv, enum hpd_pin pin);
 void intel_hpd_enable(struct drm_i915_private *dev_priv, enum hpd_pin pin);

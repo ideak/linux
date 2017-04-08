@@ -113,13 +113,6 @@ static bool is_edp(struct intel_dp *intel_dp)
 	return intel_dig_port->base.type == INTEL_OUTPUT_EDP;
 }
 
-static struct drm_device *intel_dp_to_dev(struct intel_dp *intel_dp)
-{
-	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
-
-	return intel_dig_port->base.base.dev;
-}
-
 static struct intel_dp *intel_attached_dp(struct drm_connector *connector)
 {
 	return enc_to_intel_dp(&intel_attached_encoder(connector)->base);
@@ -4168,12 +4161,11 @@ go_again:
 
 			return ret;
 		} else {
-			struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 			DRM_DEBUG_KMS("failed to get ESI - device may have failed\n");
 			intel_dp->is_mst = false;
 			drm_dp_mst_topology_mgr_set_mst(&intel_dp->mst_mgr, intel_dp->is_mst);
 			/* send a hotplug event */
-			drm_kms_helper_hotplug_event(intel_dig_port->base.base.dev);
+			intel_hpd_hotplug_event(to_i915(intel_dp_to_dev(intel_dp)));
 		}
 	}
 	return -EINVAL;
@@ -4255,7 +4247,6 @@ static bool
 intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
-	struct intel_encoder *intel_encoder = &dp_to_dig_port(intel_dp)->base;
 	u8 sink_irq_vector = 0;
 	u8 old_sink_count = intel_dp->sink_count;
 	bool ret;
@@ -4300,7 +4291,7 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 	if (intel_dp->compliance.test_type == DP_TEST_LINK_TRAINING) {
 		DRM_DEBUG_KMS("Link Training Compliance Test requested\n");
 		/* Send a Hotplug Uevent to userspace to start modeset */
-		drm_kms_helper_hotplug_event(intel_encoder->base.dev);
+		intel_hpd_hotplug_event(to_i915(dev));
 	}
 
 	return true;

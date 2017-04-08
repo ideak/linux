@@ -3589,16 +3589,12 @@ void intel_finish_reset(struct drm_i915_private *dev_priv)
 		intel_pps_unlock_regs_wa(dev_priv);
 		intel_modeset_init_hw(dev);
 
-		spin_lock_irq(&dev_priv->irq_lock);
-		if (dev_priv->display.hpd_irq_setup)
-			dev_priv->display.hpd_irq_setup(dev_priv);
-		spin_unlock_irq(&dev_priv->irq_lock);
+		intel_hpd_init(dev_priv);
 
 		ret = __intel_display_resume(dev, state, ctx);
 		if (ret)
 			DRM_ERROR("Restoring old state failed with %i\n", ret);
 
-		intel_hpd_init(dev_priv);
 	}
 
 	if (state)
@@ -15682,6 +15678,9 @@ void intel_modeset_cleanup(struct drm_device *dev)
 	WARN_ON(!llist_empty(&dev_priv->atomic_helper.free_list));
 
 	intel_disable_gt_powersave(dev_priv);
+
+	intel_hpd_autoprobing_fini(dev_priv);
+	intel_hpd_suspend(dev_priv);
 
 	/*
 	 * Interrupts and polling as the first thing to avoid creating havoc.

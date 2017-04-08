@@ -3092,12 +3092,12 @@ static void cherryview_irq_preinstall(struct drm_device *dev)
 static u32 intel_hpd_enabled_irqs(struct drm_i915_private *dev_priv,
 				  const u32 hpd[HPD_NUM_PINS])
 {
-	struct intel_encoder *encoder;
 	u32 enabled_irqs = 0;
+	int pin;
 
-	for_each_intel_encoder(&dev_priv->drm, encoder)
-		if (dev_priv->hotplug.stats[encoder->hpd_pin].state == HPD_ENABLED)
-			enabled_irqs |= hpd[encoder->hpd_pin];
+	for_each_hpd_pin(pin)
+		if (dev_priv->hotplug.stats[pin].enabled)
+			enabled_irqs |= hpd[pin];
 
 	return enabled_irqs;
 }
@@ -3373,6 +3373,8 @@ static int ironlake_irq_postinstall(struct drm_device *dev)
 		spin_unlock_irq(&dev_priv->irq_lock);
 	}
 
+	dev_priv->display_irqs_enabled = true;
+
 	return 0;
 }
 
@@ -3502,6 +3504,8 @@ static void gen8_de_irq_postinstall(struct drm_i915_private *dev_priv)
 		bxt_hpd_detection_setup(dev_priv);
 	else if (IS_BROADWELL(dev_priv))
 		ilk_hpd_detection_setup(dev_priv);
+
+	dev_priv->display_irqs_enabled = true;
 }
 
 static int gen8_irq_postinstall(struct drm_device *dev)
@@ -3548,6 +3552,8 @@ static void gen8_irq_uninstall(struct drm_device *dev)
 		return;
 
 	gen8_irq_reset(dev);
+
+	dev_priv->display_irqs_enabled = false;
 }
 
 static void valleyview_irq_uninstall(struct drm_device *dev)
@@ -3598,6 +3604,8 @@ static void ironlake_irq_uninstall(struct drm_device *dev)
 		return;
 
 	ironlake_irq_reset(dev);
+
+	dev_priv->display_irqs_enabled = false;
 }
 
 static void i8xx_irq_preinstall(struct drm_device * dev)
@@ -3639,6 +3647,8 @@ static int i8xx_irq_postinstall(struct drm_device *dev)
 	i915_enable_pipestat(dev_priv, PIPE_A, PIPE_CRC_DONE_INTERRUPT_STATUS);
 	i915_enable_pipestat(dev_priv, PIPE_B, PIPE_CRC_DONE_INTERRUPT_STATUS);
 	spin_unlock_irq(&dev_priv->irq_lock);
+
+	dev_priv->display_irqs_enabled = true;
 
 	return 0;
 }
@@ -3765,6 +3775,8 @@ static void i8xx_irq_uninstall(struct drm_device * dev)
 	I915_WRITE16(IMR, 0xffff);
 	I915_WRITE16(IER, 0x0);
 	I915_WRITE16(IIR, I915_READ16(IIR));
+
+	dev_priv->display_irqs_enabled = false;
 }
 
 static void i915_irq_preinstall(struct drm_device * dev)
@@ -3828,6 +3840,8 @@ static int i915_irq_postinstall(struct drm_device *dev)
 	i915_enable_pipestat(dev_priv, PIPE_A, PIPE_CRC_DONE_INTERRUPT_STATUS);
 	i915_enable_pipestat(dev_priv, PIPE_B, PIPE_CRC_DONE_INTERRUPT_STATUS);
 	spin_unlock_irq(&dev_priv->irq_lock);
+
+	dev_priv->display_irqs_enabled = true;
 
 	return 0;
 }
@@ -3989,6 +4003,8 @@ static void i915_irq_uninstall(struct drm_device * dev)
 	I915_WRITE(IER, 0x0);
 
 	I915_WRITE(IIR, I915_READ(IIR));
+
+	dev_priv->display_irqs_enabled = false;
 }
 
 static void i965_irq_preinstall(struct drm_device * dev)
@@ -4061,6 +4077,8 @@ static int i965_irq_postinstall(struct drm_device *dev)
 	POSTING_READ(PORT_HOTPLUG_EN);
 
 	i915_enable_asle_pipestat(dev_priv);
+
+	dev_priv->display_irqs_enabled = true;
 
 	return 0;
 }
@@ -4221,6 +4239,8 @@ static void i965_irq_uninstall(struct drm_device * dev)
 		I915_WRITE(PIPESTAT(pipe),
 			   I915_READ(PIPESTAT(pipe)) & 0x8000ffff);
 	I915_WRITE(IIR, I915_READ(IIR));
+
+	dev_priv->display_irqs_enabled = false;
 }
 
 /**
@@ -4281,16 +4301,6 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 	 */
 	if (!IS_GEN2(dev_priv))
 		dev->vblank_disable_immediate = true;
-
-	/* Most platforms treat the display irq block as an always-on
-	 * power domain. vlv/chv can disable it at runtime and need
-	 * special care to avoid writing any of the display block registers
-	 * outside of the power domain. We defer setting up the display irqs
-	 * in this case to the runtime pm.
-	 */
-	dev_priv->display_irqs_enabled = true;
-	if (IS_VALLEYVIEW(dev_priv) || IS_CHERRYVIEW(dev_priv))
-		dev_priv->display_irqs_enabled = false;
 
 	dev_priv->hotplug.hpd_storm_threshold = HPD_STORM_DEFAULT_THRESHOLD;
 
@@ -4395,7 +4405,6 @@ int intel_irq_install(struct drm_i915_private *dev_priv)
 void intel_irq_uninstall(struct drm_i915_private *dev_priv)
 {
 	drm_irq_uninstall(&dev_priv->drm);
-	intel_hpd_cancel_work(dev_priv);
 	dev_priv->pm.irqs_enabled = false;
 }
 

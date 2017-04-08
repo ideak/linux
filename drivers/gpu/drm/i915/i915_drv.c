@@ -624,8 +624,7 @@ static int i915_load_modeset_init(struct drm_device *dev)
 
 	/* Only enable hotplug handling once the fbdev is fully set up. */
 	intel_hpd_init(dev_priv);
-
-	drm_kms_helper_poll_init(dev);
+	intel_hpd_autoprobing_init(dev_priv);
 
 	return 0;
 
@@ -1459,7 +1458,7 @@ static int i915_drm_suspend(struct drm_device *dev)
 	 * properly. */
 	intel_display_set_init_power(dev_priv, true);
 
-	drm_kms_helper_poll_disable(dev);
+	intel_hpd_autoprobing_suspend(dev_priv);
 
 	pci_save_state(pdev);
 
@@ -1476,8 +1475,8 @@ static int i915_drm_suspend(struct drm_device *dev)
 
 	intel_dp_mst_suspend(dev);
 
+	intel_hpd_suspend(dev_priv);
 	intel_runtime_pm_disable_interrupts(dev_priv);
-	intel_hpd_cancel_work(dev_priv);
 
 	intel_suspend_encoders(dev_priv);
 
@@ -1639,24 +1638,11 @@ static int i915_drm_resume(struct drm_device *dev)
 
 	intel_modeset_init_hw(dev);
 
-	spin_lock_irq(&dev_priv->irq_lock);
-	if (dev_priv->display.hpd_irq_setup)
-		dev_priv->display.hpd_irq_setup(dev_priv);
-	spin_unlock_irq(&dev_priv->irq_lock);
+	intel_hpd_init(dev_priv);
 
 	intel_dp_mst_resume(dev);
 
 	intel_display_resume(dev);
-
-	drm_kms_helper_poll_enable(dev);
-
-	/*
-	 * ... but also need to make sure that hotplug processing
-	 * doesn't cause havoc. Like in the driver load code we don't
-	 * bother with the tiny race here where we might loose hotplug
-	 * notifications.
-	 * */
-	intel_hpd_init(dev_priv);
 
 	intel_opregion_register(dev_priv);
 
@@ -1671,6 +1657,9 @@ static int i915_drm_resume(struct drm_device *dev)
 	intel_autoenable_gt_powersave(dev_priv);
 
 	enable_rpm_wakeref_asserts(dev_priv);
+
+	/* Make sure that hotplug processing doesn't cause havoc. */
+	intel_hpd_autoprobing_resume(dev_priv);
 
 	return 0;
 }
@@ -2422,7 +2411,7 @@ static int intel_runtime_suspend(struct device *kdev)
 	assert_forcewakes_inactive(dev_priv);
 
 	if (!IS_VALLEYVIEW(dev_priv) && !IS_CHERRYVIEW(dev_priv))
-		intel_hpd_poll_init(dev_priv);
+		intel_hpd_switch_to_poll_mode(dev_priv);
 
 	DRM_DEBUG_KMS("Device suspended\n");
 	return 0;
@@ -2480,7 +2469,7 @@ static int intel_runtime_resume(struct device *kdev)
 	 * everyone else do it here.
 	 */
 	if (!IS_VALLEYVIEW(dev_priv) && !IS_CHERRYVIEW(dev_priv))
-		intel_hpd_init(dev_priv);
+		intel_hpd_switch_to_irq_mode(dev_priv);
 
 	enable_rpm_wakeref_asserts(dev_priv);
 

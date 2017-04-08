@@ -501,10 +501,8 @@ static void intel_dp_destroy_mst_connector(struct drm_dp_mst_topology_mgr *mgr,
 static void intel_dp_mst_hotplug(struct drm_dp_mst_topology_mgr *mgr)
 {
 	struct intel_dp *intel_dp = container_of(mgr, struct intel_dp, mst_mgr);
-	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
-	struct drm_device *dev = intel_dig_port->base.base.dev;
 
-	drm_kms_helper_hotplug_event(dev);
+	intel_hpd_hotplug_event(to_i915(intel_dp_to_dev(intel_dp)));
 }
 
 static const struct drm_dp_mst_topology_cbs mst_cbs = {
