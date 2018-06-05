@@ -3049,10 +3049,9 @@ static void icl_disable_phy_clock_gating(struct intel_digital_port *dig_port)
 	I915_WRITE(MG_MISC_SUS0(tc_port), val);
 }
 
-static void icl_program_mg_dp_mode(struct intel_dp *intel_dp)
+static void icl_program_mg_dp_mode(struct intel_digital_port *intel_dig_port)
 {
-	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
-	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp)
+	struct drm_i915_private *dev_priv = to_i915(intel_dig_port->base.base.dev);
 	enum port port = intel_dig_port->base.port;
 	enum tc_port tc_port = intel_port_to_tc(dev_priv, port);
 	u32 ln0, ln1, lane_info;
@@ -3137,7 +3136,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
-	icl_program_mg_dp_mode(intel_dp);
+	icl_program_mg_dp_mode(dig_port);
 	icl_disable_phy_clock_gating(dig_port);
 
 	if (IS_ICELAKE(dev_priv))
@@ -3179,6 +3178,7 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
+	icl_program_mg_dp_mode(dig_port);
 	icl_disable_phy_clock_gating(dig_port);
 
 	if (IS_ICELAKE(dev_priv))
