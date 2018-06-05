@@ -3113,6 +3113,8 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
+	icl_disable_phy_clock_gating(dig_port);
+
 	if (IS_ICELAKE(dev_priv))
 		icl_ddi_vswing_sequence(encoder, crtc_state->port_clock,
 					level, INTEL_OUTPUT_HDMI);
@@ -3122,6 +3124,8 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 		bxt_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
 	else
 		intel_prepare_hdmi_ddi_buffers(encoder, level);
+
+	icl_enable_phy_clock_gating(dig_port);
 
 	if (IS_GEN9_BC(dev_priv))
 		skl_ddi_set_iboost(encoder, level, INTEL_OUTPUT_HDMI);
