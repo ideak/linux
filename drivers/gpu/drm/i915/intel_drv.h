@@ -1369,9 +1369,15 @@ dp_to_lspcon(struct intel_dp *intel_dp)
 }
 
 static inline struct drm_i915_private *
+dig_port_to_i915(struct intel_digital_port *dig_port)
+{
+	return to_i915(dig_port->base.base.dev);
+}
+
+static inline struct drm_i915_private *
 dp_to_i915(struct intel_dp *intel_dp)
 {
-	return to_i915(dp_to_dig_port(intel_dp)->base.base.dev);
+	return dig_port_to_i915(dp_to_dig_port(intel_dp));
 }
 
 static inline struct intel_digital_port *

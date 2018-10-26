@@ -3605,6 +3605,8 @@ intel_ddi_init_dp_connector(struct intel_digital_port *intel_dig_port)
 		return NULL;
 
 	intel_dig_port->dp.output_reg = DDI_BUF_CTL(port);
+	intel_dig_port->aux_ch = intel_aux_ch(dig_port_to_i915(intel_dig_port),
+					      port);
 	if (!intel_dp_init_connector(intel_dig_port, connector)) {
 		kfree(connector);
 		return NULL;
@@ -3768,6 +3770,8 @@ intel_ddi_init_hdmi_connector(struct intel_digital_port *intel_dig_port)
 		return NULL;
 
 	intel_dig_port->hdmi.hdmi_reg = DDI_BUF_CTL(port);
+	intel_dig_port->aux_ch = intel_aux_ch(dig_port_to_i915(intel_dig_port),
+					      port);
 	intel_hdmi_init_connector(intel_dig_port, connector);
 
 	return connector;
