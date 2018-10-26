@@ -921,6 +921,7 @@ struct i915_power_well_desc {
 			/* The pw is backing the VGA functionality */
 			bool has_vga:1;
 			bool has_fuses:1;
+			bool is_tc_tbt;
 		} hsw;
 	};
 	const struct i915_power_well_ops *ops;
