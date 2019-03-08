@@ -3117,7 +3117,9 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 
 	intel_ddi_clk_select(encoder, crtc_state);
 
-	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
+	if (dig_port->tc_type != TC_PORT_TBT)
+		intel_display_power_get(dev_priv,
+					dig_port->ddi_io_power_domain);
 
 	icl_program_mg_dp_mode(dig_port);
 	icl_disable_phy_clock_gating(dig_port);
@@ -3290,8 +3292,9 @@ static void intel_ddi_post_disable_dp(struct intel_encoder *encoder,
 	intel_edp_panel_vdd_on(intel_dp);
 	intel_edp_panel_off(intel_dp);
 
-	intel_display_power_put_unchecked(dev_priv,
-					  dig_port->ddi_io_power_domain);
+	if (dig_port->tc_type != TC_PORT_TBT)
+		intel_display_power_put_unchecked(dev_priv,
+						  dig_port->ddi_io_power_domain);
 
 	intel_ddi_clk_disable(encoder);
 }
