@@ -59,13 +59,21 @@ intel_display_power_get_if_enabled(struct drm_i915_private *dev_priv,
 				   enum intel_display_power_domain domain);
 void intel_display_power_put_unchecked(struct drm_i915_private *dev_priv,
 				       enum intel_display_power_domain domain);
+void __intel_display_power_put_async(struct drm_i915_private *i915,
+				     enum intel_display_power_domain domain,
+				     intel_wakeref_t wakeref);
+void intel_display_power_flush_work(struct drm_i915_private *i915);
 #if IS_ENABLED(CONFIG_DRM_I915_DEBUG_RUNTIME_PM)
 void intel_display_power_put(struct drm_i915_private *dev_priv,
 			     enum intel_display_power_domain domain,
 			     intel_wakeref_t wakeref);
+#define intel_display_power_put_async(i915, domain, wakeref) \
+	__intel_display_power_put_async(i915, domain, wakeref)
 #else
 #define intel_display_power_put(i915, domain, wakeref) \
 	intel_display_power_put_unchecked(i915, domain)
+#define intel_display_power_put_async(i915, domain, wakeref) \
+	__intel_display_power_put_async(i915, domain, -1)
 #endif
 void icl_dbuf_slices_update(struct drm_i915_private *dev_priv,
 			    u8 req_slices);
