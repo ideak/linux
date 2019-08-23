@@ -1934,9 +1934,9 @@ struct intel_dpll_mgr {
 			  struct intel_encoder *encoder);
 	void (*put_dplls)(struct intel_atomic_state *state,
 			  struct intel_crtc *crtc);
-	void (*update_active_dpll)(struct intel_atomic_state *state,
-				   struct intel_crtc *crtc,
-				   struct intel_encoder *encoder);
+	void (*update_active_tc_dpll)(struct intel_atomic_state *state,
+				      struct intel_crtc *crtc,
+				      struct intel_encoder *encoder);
 	void (*dump_hw_state)(struct drm_i915_private *dev_priv,
 			      const struct intel_dpll_hw_state *hw_state);
 };
@@ -3449,7 +3449,7 @@ static const struct intel_dpll_mgr icl_pll_mgr = {
 	.dpll_info = icl_plls,
 	.get_dplls = icl_get_dplls,
 	.put_dplls = icl_put_dplls,
-	.update_active_dpll = icl_update_active_dpll,
+	.update_active_tc_dpll = icl_update_active_dpll,
 	.dump_hw_state = icl_dump_hw_state,
 };
 
@@ -3593,18 +3593,19 @@ void intel_release_shared_dplls(struct intel_atomic_state *state,
 }
 
 /**
- * intel_update_active_dpll - update the active DPLL for a CRTC/encoder
+ * intel_update_active_tc_dpll - update the active TypeC DPLL for a CRTC/encoder
  * @state: atomic state
  * @crtc: the CRTC for which to update the active DPLL
  * @encoder: encoder determining the type of port DPLL
  *
- * Update the active DPLL for the given @crtc/@encoder in @crtc's atomic state,
- * from the port DPLLs reserved previously by intel_reserve_shared_dplls(). The
- * DPLL selected will be based on the current mode of the encoder's port.
+ * Update the active DPLL for the given @crtc/@encoder on a TypeC port in
+ * @crtc's atomic state, from the port DPLLs reserved previously by
+ * intel_reserve_shared_dplls(). The DPLL selected will be based on the current
+ * TypeC mode of the encoder's port.
  */
-void intel_update_active_dpll(struct intel_atomic_state *state,
-			      struct intel_crtc *crtc,
-			      struct intel_encoder *encoder)
+void intel_update_active_tc_dpll(struct intel_atomic_state *state,
+				 struct intel_crtc *crtc,
+				 struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	const struct intel_dpll_mgr *dpll_mgr = dev_priv->dpll_mgr;
@@ -3612,7 +3613,7 @@ void intel_update_active_dpll(struct intel_atomic_state *state,
 	if (WARN_ON(!dpll_mgr))
 		return;
 
-	dpll_mgr->update_active_dpll(state, crtc, encoder);
+	dpll_mgr->update_active_tc_dpll(state, crtc, encoder);
 }
 
 /**

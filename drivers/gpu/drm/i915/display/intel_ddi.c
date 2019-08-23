@@ -3683,9 +3683,9 @@ static void intel_ddi_update_pipe(struct intel_encoder *encoder,
 }
 
 static void
-intel_ddi_update_prepare(struct intel_atomic_state *state,
-			 struct intel_encoder *encoder,
-			 struct intel_crtc *crtc)
+intel_ddi_tc_update_prepare(struct intel_atomic_state *state,
+			    struct intel_encoder *encoder,
+			    struct intel_crtc *crtc)
 {
 	struct intel_crtc_state *crtc_state =
 		crtc ? intel_atomic_get_new_crtc_state(state, crtc) : NULL;
@@ -3695,13 +3695,13 @@ intel_ddi_update_prepare(struct intel_atomic_state *state,
 
 	intel_tc_port_get_link(enc_to_dig_port(&encoder->base), required_lanes);
 	if (crtc_state && crtc_state->base.active)
-		intel_update_active_dpll(state, crtc, encoder);
+		intel_update_active_tc_dpll(state, crtc, encoder);
 }
 
 static void
-intel_ddi_update_complete(struct intel_atomic_state *state,
-			  struct intel_encoder *encoder,
-			  struct intel_crtc *crtc)
+intel_ddi_tc_update_complete(struct intel_atomic_state *state,
+			     struct intel_encoder *encoder,
+			     struct intel_crtc *crtc)
 {
 	intel_tc_port_put_link(enc_to_dig_port(&encoder->base));
 }
@@ -4347,8 +4347,8 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 
 		intel_tc_port_init(intel_dig_port, is_legacy);
 
-		intel_encoder->update_prepare = intel_ddi_update_prepare;
-		intel_encoder->update_complete = intel_ddi_update_complete;
+		intel_encoder->update_prepare = intel_ddi_tc_update_prepare;
+		intel_encoder->update_complete = intel_ddi_tc_update_complete;
 	}
 
 	switch (port) {
