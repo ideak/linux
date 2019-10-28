@@ -598,6 +598,7 @@ skl_program_plane(struct intel_plane *plane,
 	unsigned long irqflags;
 	u32 keymsk, keymax;
 	u32 plane_ctl = plane_state->ctl;
+	u64 ccval = plane_state->ccval;
 
 	plane_ctl |= skl_plane_ctl_crtc(crtc_state);
 
@@ -639,6 +640,10 @@ skl_program_plane(struct intel_plane *plane,
 
 	if (fb->format->is_yuv && icl_is_hdr_plane(dev_priv, plane_id))
 		icl_program_input_csc(plane, crtc_state, plane_state);
+
+	if (fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC)
+		intel_uncore_write64_fw(&dev_priv->uncore,
+					PLANE_CC_VAL(pipe, plane_id), ccval);
 
 	skl_write_plane_wm(plane, crtc_state);
 
@@ -2108,7 +2113,8 @@ static int skl_plane_check_fb(const struct intel_crtc_state *crtc_state,
 	     fb->modifier == I915_FORMAT_MOD_Y_TILED_CCS ||
 	     fb->modifier == I915_FORMAT_MOD_Yf_TILED_CCS ||
 	     fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS ||
-	     fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS)) {
+	     fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS ||
+	     fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC)) {
 		DRM_DEBUG_KMS("Y/Yf tiling not supported in IF-ID mode\n");
 		return -EINVAL;
 	}
@@ -2583,6 +2589,7 @@ static const u64 skl_plane_format_modifiers_ccs[] = {
 static const u64 gen12_plane_format_modifiers_mc_ccs[] = {
 	I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS,
 	I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS,
+	I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC,
 	I915_FORMAT_MOD_Y_TILED,
 	I915_FORMAT_MOD_X_TILED,
 	DRM_FORMAT_MOD_LINEAR,
@@ -2591,6 +2598,7 @@ static const u64 gen12_plane_format_modifiers_mc_ccs[] = {
 
 static const u64 gen12_plane_format_modifiers_rc_ccs[] = {
 	I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS,
+	I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC,
 	I915_FORMAT_MOD_Y_TILED,
 	I915_FORMAT_MOD_X_TILED,
 	DRM_FORMAT_MOD_LINEAR,
@@ -2773,6 +2781,7 @@ static bool gen12_plane_format_mod_supported(struct drm_plane *_plane,
 	case I915_FORMAT_MOD_X_TILED:
 	case I915_FORMAT_MOD_Y_TILED:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 		break;
 	default:
 		return false;

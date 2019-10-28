@@ -1946,13 +1946,19 @@ static bool is_ccs_plane(const struct drm_framebuffer *fb, int plane)
 static bool is_gen12_ccs_modifier(u64 modifier)
 {
 	return modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS ||
+	       modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC ||
 	       modifier == I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS;
-
 }
 
 static bool is_gen12_ccs_plane(const struct drm_framebuffer *fb, int plane)
 {
 	return is_gen12_ccs_modifier(fb->modifier) && is_ccs_plane(fb, plane);
+}
+
+static bool is_gen12_ccs_cc_plane(const struct drm_framebuffer *fb, int plane)
+{
+	return fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC &&
+	       plane == 2;
 }
 
 static bool is_aux_plane(const struct drm_framebuffer *fb, int plane)
@@ -1975,6 +1981,9 @@ static int ccs_to_main_plane(const struct drm_framebuffer *fb, int ccs_plane)
 {
 	WARN_ON(!is_ccs_modifier(fb->modifier) ||
 		ccs_plane < fb->format->num_planes / 2);
+
+	if (is_gen12_ccs_cc_plane(fb, ccs_plane))
+		return 0;
 
 	return ccs_plane - fb->format->num_planes / 2;
 }
@@ -2022,6 +2031,7 @@ intel_tile_width_bytes(const struct drm_framebuffer *fb, int color_plane)
 			return 128;
 		/* fall through */
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
 		if (is_ccs_plane(fb, color_plane))
 			return 64;
@@ -2178,6 +2188,7 @@ static unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
 			return intel_tile_row_size(fb, color_plane);
 		/* Fall-through */
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 		return 16 * 1024;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
@@ -2580,6 +2591,7 @@ static unsigned int intel_fb_modifier_to_tiling(u64 fb_modifier)
 	case I915_FORMAT_MOD_Y_TILED:
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
 		return I915_TILING_Y;
 	default:
@@ -2658,6 +2670,25 @@ static const struct drm_format_info gen12_ccs_formats[] = {
 	  .hsub = 2, .vsub = 2, .is_yuv = true },
 };
 
+/*
+ * Same as gen12_ccs_formats[] above, but with additional surface used
+ * to pass Clear Color information in plane 2 with 64 bits of data.
+ */
+static const struct drm_format_info gen12_ccs_cc_formats[] = {
+	{ .format = DRM_FORMAT_XRGB8888, .depth = 24, .num_planes = 3,
+	  .char_per_block = { 4, 1, 0 }, .block_w = { 1, 2, 2 }, .block_h = { 1, 1, 1 },
+	  .hsub = 1, .vsub = 1, },
+	{ .format = DRM_FORMAT_XBGR8888, .depth = 24, .num_planes = 3,
+	  .char_per_block = { 4, 1, 0 }, .block_w = { 1, 2, 2 }, .block_h = { 1, 1, 1 },
+	  .hsub = 1, .vsub = 1, },
+	{ .format = DRM_FORMAT_ARGB8888, .depth = 32, .num_planes = 3,
+	  .char_per_block = { 4, 1, 0 }, .block_w = { 1, 2, 2 }, .block_h = { 1, 1, 1 },
+	  .hsub = 1, .vsub = 1, .has_alpha = true },
+	{ .format = DRM_FORMAT_ABGR8888, .depth = 32, .num_planes = 3,
+	  .char_per_block = { 4, 1, 0 }, .block_w = { 1, 2, 2 }, .block_h = { 1, 1, 1 },
+	  .hsub = 1, .vsub = 1, .has_alpha = true },
+};
+
 static const struct drm_format_info *
 lookup_format_info(const struct drm_format_info formats[],
 		   int num_formats, u32 format)
@@ -2686,6 +2717,10 @@ intel_get_format_info(const struct drm_mode_fb_cmd2 *cmd)
 		return lookup_format_info(gen12_ccs_formats,
 					  ARRAY_SIZE(gen12_ccs_formats),
 					  cmd->pixel_format);
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
+		return lookup_format_info(gen12_ccs_cc_formats,
+					  ARRAY_SIZE(gen12_ccs_cc_formats),
+					  cmd->pixel_format);
 	default:
 		return NULL;
 	}
@@ -2694,6 +2729,7 @@ intel_get_format_info(const struct drm_mode_fb_cmd2 *cmd)
 bool is_ccs_modifier(u64 modifier)
 {
 	return modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS ||
+	       modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC ||
 	       modifier == I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS ||
 	       modifier == I915_FORMAT_MOD_Y_TILED_CCS ||
 	       modifier == I915_FORMAT_MOD_Yf_TILED_CCS;
@@ -2910,7 +2946,7 @@ intel_fb_check_ccs_xy(struct drm_framebuffer *fb, int ccs_plane, int x, int y)
 	int ccs_x, ccs_y;
 	int main_x, main_y;
 
-	if (!is_ccs_plane(fb, ccs_plane))
+	if (!is_ccs_plane(fb, ccs_plane) || is_gen12_ccs_cc_plane(fb, ccs_plane))
 		return 0;
 
 	intel_tile_dims(fb, ccs_plane, &tile_width, &tile_height);
@@ -3035,6 +3071,18 @@ intel_fill_fb_info(struct drm_i915_private *dev_priv,
 		u32 offset;
 		int x, y;
 		int ret;
+
+		/*
+		 * Plane 2 of Render Compression with Clear Color fb modifier
+		 * is consumed by the driver and not passed to DE. Skip the
+		 * arithmetic related to alignment and offset calculation.
+		 */
+		if (is_gen12_ccs_cc_plane(fb, i)) {
+			if (IS_ALIGNED(fb->offsets[2], PAGE_SIZE))
+				continue;
+			else
+				return -EINVAL;
+		}
 
 		cpp = fb->format->cpp[i];
 		intel_fb_plane_dims(&width, &height, fb, i);
@@ -3954,7 +4002,8 @@ static int skl_check_ccs_aux_surface(struct intel_plane_state *plane_state)
 		int hsub, vsub;
 		int x, y;
 
-		if (!is_ccs_plane(fb, ccs_plane))
+		if (!is_ccs_plane(fb, ccs_plane) ||
+		    is_gen12_ccs_cc_plane(fb, ccs_plane))
 			continue;
 
 		intel_fb_plane_get_subsampling(&main_hsub, &main_vsub, fb,
@@ -4608,6 +4657,7 @@ static u32 skl_plane_ctl_tiling(u64 fb_modifier)
 	case I915_FORMAT_MOD_Y_TILED:
 		return PLANE_CTL_TILED_Y;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 		return PLANE_CTL_TILED_Y | PLANE_CTL_RENDER_DECOMPRESSION_ENABLE;
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
 		return PLANE_CTL_TILED_Y |
@@ -15749,6 +15799,15 @@ static int intel_plane_pin_fb(struct intel_plane_state *plane_state)
 
 	plane_state->vma = vma;
 
+	if (fb->modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC) {
+		u32 *ccaddr = kmap_atomic(i915_gem_object_get_page(intel_fb_obj(fb),
+								  fb->offsets[2] >> PAGE_SHIFT));
+
+		plane_state->ccval = ((u64)*(ccaddr + CC_VAL_HIGHER_OFFSET) << 32)
+				     | *(ccaddr + CC_VAL_LOWER_OFFSET);
+		kunmap_atomic(ccaddr);
+	}
+
 	return 0;
 }
 
@@ -17041,7 +17100,7 @@ static int intel_framebuffer_init(struct intel_framebuffer *intel_fb,
 			goto err;
 		}
 
-		if (is_gen12_ccs_plane(fb, i)) {
+		if (is_gen12_ccs_plane(fb, i) && !is_gen12_ccs_cc_plane(fb, i)) {
 			int ccs_aux_stride = gen12_ccs_aux_stride(fb, i);
 
 			if (fb->pitches[i] != ccs_aux_stride) {

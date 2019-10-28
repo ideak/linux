@@ -607,6 +607,9 @@ struct intel_plane_state {
 	u32 planar_slave;
 
 	struct drm_intel_sprite_colorkey ckey;
+
+	/* Clear Color Value */
+	u64 ccval;
 };
 
 struct intel_initial_plane_config {
