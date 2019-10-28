@@ -555,7 +555,7 @@ struct intel_plane_state {
 		 */
 		u32 stride;
 		int x, y;
-	} color_plane[2];
+	} color_plane[4];
 
 	/* plane control register */
 	u32 ctl;
