@@ -1952,6 +1952,10 @@ intel_tile_width_bytes(const struct drm_framebuffer *fb, int color_plane)
 		if (color_plane == 1)
 			return 128;
 		/* fall through */
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+		if (color_plane == 1)
+			return 64;
+		/* fall through */
 	case I915_FORMAT_MOD_Y_TILED:
 		if (IS_GEN(dev_priv, 2) || HAS_128_BYTE_Y_TILING(dev_priv))
 			return 128;
@@ -1985,8 +1989,15 @@ intel_tile_width_bytes(const struct drm_framebuffer *fb, int color_plane)
 static unsigned int
 intel_tile_height(const struct drm_framebuffer *fb, int color_plane)
 {
-	return intel_tile_size(to_i915(fb->dev)) /
-		intel_tile_width_bytes(fb, color_plane);
+	switch (fb->modifier) {
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+		if (color_plane == 1)
+			return 1;
+		/* fall through */
+	default:
+		return intel_tile_size(to_i915(fb->dev)) /
+			intel_tile_width_bytes(fb, color_plane);
+	}
 }
 
 /* Return the tile dimensions in pixel units */
@@ -2085,6 +2096,8 @@ static unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
 		if (INTEL_GEN(dev_priv) >= 9)
 			return 256 * 1024;
 		return 0;
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+		return 16 * 1024;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
 	case I915_FORMAT_MOD_Y_TILED:
@@ -2279,7 +2292,8 @@ static u32 intel_adjust_tile_offset(int *x, int *y,
 
 static bool is_surface_linear(u64 modifier, int color_plane)
 {
-	return modifier == DRM_FORMAT_MOD_LINEAR;
+	return modifier == DRM_FORMAT_MOD_LINEAR ||
+	       (modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS && color_plane == 1);
 }
 
 static u32 intel_adjust_aligned_offset(int *x, int *y,
@@ -2466,6 +2480,7 @@ static unsigned int intel_fb_modifier_to_tiling(u64 fb_modifier)
 		return I915_TILING_X;
 	case I915_FORMAT_MOD_Y_TILED:
 	case I915_FORMAT_MOD_Y_TILED_CCS:
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
 		return I915_TILING_Y;
 	default:
 		return I915_TILING_NONE;
@@ -2486,7 +2501,7 @@ static unsigned int intel_fb_modifier_to_tiling(u64 fb_modifier)
  * us a ratio of one byte in the CCS for each 8x16 pixels in the
  * main surface.
  */
-static const struct drm_format_info ccs_formats[] = {
+static const struct drm_format_info skl_ccs_formats[] = {
 	{ .format = DRM_FORMAT_XRGB8888, .depth = 24, .num_planes = 2,
 	  .cpp = { 4, 1, }, .hsub = 8, .vsub = 16, },
 	{ .format = DRM_FORMAT_XBGR8888, .depth = 24, .num_planes = 2,
@@ -2495,6 +2510,24 @@ static const struct drm_format_info ccs_formats[] = {
 	  .cpp = { 4, 1, }, .hsub = 8, .vsub = 16, .has_alpha = true, },
 	{ .format = DRM_FORMAT_ABGR8888, .depth = 32, .num_planes = 2,
 	  .cpp = { 4, 1, }, .hsub = 8, .vsub = 16, .has_alpha = true, },
+};
+
+/*
+ * Gen-12 compression uses 4 bits of CCS data for each cache line pair in the
+ * main surface. And each 64B CCS cache line represents an area of 4x1 Y-tiles
+ * in the main surface. With 4 byte pixels and each Y-tile having dimensions of
+ * 32x32 pixels, the ratio turns out to 1B in the CCS for every 2x32 pixels in
+ * the main surface.
+ */
+static const struct drm_format_info gen12_ccs_formats[] = {
+	{ .format = DRM_FORMAT_XRGB8888, .depth = 24, .num_planes = 2,
+	  .cpp = { 4, 1, }, .hsub = 2, .vsub = 32, },
+	{ .format = DRM_FORMAT_XBGR8888, .depth = 24, .num_planes = 2,
+	  .cpp = { 4, 1, }, .hsub = 2, .vsub = 32, },
+	{ .format = DRM_FORMAT_ARGB8888, .depth = 32, .num_planes = 2,
+	  .cpp = { 4, 1, }, .hsub = 2, .vsub = 32, .has_alpha = true },
+	{ .format = DRM_FORMAT_ABGR8888, .depth = 32, .num_planes = 2,
+	  .cpp = { 4, 1, }, .hsub = 2, .vsub = 32, .has_alpha = true },
 };
 
 static const struct drm_format_info *
@@ -2517,8 +2550,12 @@ intel_get_format_info(const struct drm_mode_fb_cmd2 *cmd)
 	switch (cmd->modifier[0]) {
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
-		return lookup_format_info(ccs_formats,
-					  ARRAY_SIZE(ccs_formats),
+		return lookup_format_info(skl_ccs_formats,
+					  ARRAY_SIZE(skl_ccs_formats),
+					  cmd->pixel_format);
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+		return lookup_format_info(gen12_ccs_formats,
+					  ARRAY_SIZE(gen12_ccs_formats),
 					  cmd->pixel_format);
 	default:
 		return NULL;
@@ -2527,7 +2564,8 @@ intel_get_format_info(const struct drm_mode_fb_cmd2 *cmd)
 
 bool is_ccs_modifier(u64 modifier)
 {
-	return modifier == I915_FORMAT_MOD_Y_TILED_CCS ||
+	return modifier == I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS ||
+	       modifier == I915_FORMAT_MOD_Y_TILED_CCS ||
 	       modifier == I915_FORMAT_MOD_Yf_TILED_CCS;
 }
 
@@ -2575,8 +2613,9 @@ static u32
 intel_fb_stride_alignment(const struct drm_framebuffer *fb, int color_plane)
 {
 	struct drm_i915_private *dev_priv = to_i915(fb->dev);
+	u32 tile_width;
 
-	if (fb->modifier == DRM_FORMAT_MOD_LINEAR) {
+	if (is_surface_linear(fb->modifier, color_plane)) {
 		u32 max_stride = intel_plane_fb_max_stride(dev_priv,
 							   fb->format->format,
 							   fb->modifier);
@@ -2585,13 +2624,14 @@ intel_fb_stride_alignment(const struct drm_framebuffer *fb, int color_plane)
 		 * To make remapping with linear generally feasible
 		 * we need the stride to be page aligned.
 		 */
-		if (fb->pitches[color_plane] > max_stride)
+		if (fb->pitches[color_plane] > max_stride && !is_ccs_modifier(fb->modifier))
 			return intel_tile_size(dev_priv);
 		else
 			return 64;
-	} else {
-		u32 tile_width = intel_tile_width_bytes(fb, color_plane);
+	}
 
+	tile_width = intel_tile_width_bytes(fb, color_plane);
+	if (is_ccs_modifier(fb->modifier) && color_plane == 0) {
 		/*
 		 * Display WA #0531: skl,bxt,kbl,glk
 		 *
@@ -2601,12 +2641,16 @@ intel_fb_stride_alignment(const struct drm_framebuffer *fb, int color_plane)
 		 * require the entire fb to accommodate that to avoid
 		 * potential runtime errors at plane configuration time.
 		 */
-		if (IS_GEN(dev_priv, 9) && is_ccs_modifier(fb->modifier) &&
-		    color_plane == 0 && fb->width > 3840)
+		if (IS_GEN(dev_priv, 9) && fb->width > 3840)
 			tile_width *= 4;
-
-		return tile_width;
+		/*
+		 * The main surface pitch must be padded to a multiple of four
+		 * tile widths.
+		 */
+		else if (INTEL_GEN(dev_priv) >= 12)
+			tile_width *= 4;
 	}
+	return tile_width;
 }
 
 bool intel_plane_can_remap(const struct intel_plane_state *plane_state)
@@ -2715,6 +2759,7 @@ intel_fill_fb_info(struct drm_i915_private *dev_priv,
 			int ccs_x, ccs_y;
 
 			intel_tile_dims(fb, i, &tile_width, &tile_height);
+
 			tile_width *= hsub;
 			tile_height *= vsub;
 
@@ -4112,7 +4157,7 @@ static unsigned int skl_plane_stride_mult(const struct drm_framebuffer *fb,
 	 * The stride is either expressed as a multiple of 64 bytes chunks for
 	 * linear buffers or in number of tiles for tiled buffers.
 	 */
-	if (fb->modifier == DRM_FORMAT_MOD_LINEAR)
+	if (is_surface_linear(fb->modifier, color_plane))
 		return 64;
 	else if (drm_rotation_90_or_270(rotation))
 		return intel_tile_height(fb, color_plane);
@@ -4240,6 +4285,10 @@ static u32 skl_plane_ctl_tiling(u64 fb_modifier)
 		return PLANE_CTL_TILED_Y;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 		return PLANE_CTL_TILED_Y | PLANE_CTL_RENDER_DECOMPRESSION_ENABLE;
+	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
+		return PLANE_CTL_TILED_Y |
+		       PLANE_CTL_RENDER_DECOMPRESSION_ENABLE |
+		       PLANE_CTL_CLEAR_COLOR_DISABLE;
 	case I915_FORMAT_MOD_Yf_TILED:
 		return PLANE_CTL_TILED_YF;
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
@@ -10016,7 +10065,9 @@ skylake_get_initial_plane_config(struct intel_crtc *crtc,
 	case PLANE_CTL_TILED_Y:
 		plane_config->tiling = I915_TILING_Y;
 		if (val & PLANE_CTL_RENDER_DECOMPRESSION_ENABLE)
-			fb->modifier = I915_FORMAT_MOD_Y_TILED_CCS;
+			fb->modifier = INTEL_GEN(dev_priv) >= 12 ?
+				I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS :
+				I915_FORMAT_MOD_Y_TILED_CCS;
 		else
 			fb->modifier = I915_FORMAT_MOD_Y_TILED;
 		break;
