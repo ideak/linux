@@ -90,12 +90,12 @@ struct intel_framebuffer {
 	/* for each plane in the normal GTT view */
 	struct {
 		unsigned int x, y;
-	} normal[2];
+	} normal[4];
 	/* for each plane in the rotated GTT view */
 	struct {
 		unsigned int x, y;
 		unsigned int pitch; /* pixels */
-	} rotated[2];
+	} rotated[4];
 };
 
 struct intel_fbdev {
@@ -556,6 +556,7 @@ struct intel_plane_state {
 		u32 stride;
 		int x, y;
 	} color_plane[4];
+	int uv_plane;
 
 	/* plane control register */
 	u32 ctl;

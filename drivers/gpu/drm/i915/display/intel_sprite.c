@@ -417,7 +417,7 @@ skl_program_scaler(struct intel_plane *plane,
 				      0, INT_MAX);
 
 	/* TODO: handle sub-pixel coordinates */
-	if (drm_format_info_is_yuv_semiplanar(fb->format) &&
+	if (intel_format_info_is_yuv_semiplanar(fb->format, fb->modifier) &&
 	    !icl_is_hdr_plane(dev_priv, plane->id)) {
 		y_hphase = skl_scaler_calc_phase(1, hscale, false);
 		y_vphase = skl_scaler_calc_phase(1, vscale, false);
@@ -583,8 +583,8 @@ skl_program_plane(struct intel_plane *plane,
 	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
 	u32 surf_addr = plane_state->color_plane[color_plane].offset;
 	u32 stride = skl_plane_stride(plane_state, color_plane);
-	u32 aux_dist = plane_state->color_plane[1].offset - surf_addr;
-	u32 aux_stride = skl_plane_stride(plane_state, 1);
+	u32 aux_dist = plane_state->color_plane[color_plane + 1].offset - surf_addr;
+	u32 aux_stride = skl_plane_stride(plane_state, color_plane + 1);
 	int crtc_x = plane_state->uapi.dst.x1;
 	int crtc_y = plane_state->uapi.dst.y1;
 	u32 x = plane_state->color_plane[color_plane].x;
@@ -679,9 +679,13 @@ skl_update_plane(struct intel_plane *plane,
 {
 	int color_plane = 0;
 
-	if (plane_state->planar_linked_plane && !plane_state->planar_slave)
-		/* Program the UV plane on planar master */
-		color_plane = 1;
+	if (plane_state->planar_linked_plane && !plane_state->planar_slave) {
+		/* Program the UV plane */
+		WARN_ON(plane_state->uv_plane == 0);
+		DRM_DEBUG_DRIVER("uv plane %d\n", plane_state->uv_plane);
+		color_plane = plane_state->uv_plane;
+	}
+
 
 	skl_program_plane(plane, crtc_state, plane_state, color_plane);
 }
@@ -2158,7 +2162,7 @@ static int skl_plane_check_nv12_rotation(const struct intel_plane_state *plane_s
 	int src_w = drm_rect_width(&plane_state->uapi.src) >> 16;
 
 	/* Display WA #1106 */
-	if (drm_format_info_is_yuv_semiplanar(fb->format) && src_w & 3 &&
+	if (intel_format_info_is_yuv_semiplanar(fb->format, fb->modifier) && src_w & 3 &&
 	    (rotation == DRM_MODE_ROTATE_270 ||
 	     rotation == (DRM_MODE_REFLECT_X | DRM_MODE_ROTATE_90))) {
 		DRM_DEBUG_KMS("src width must be multiple of 4 for rotated planar YUV\n");
@@ -2178,7 +2182,7 @@ static int skl_plane_max_scale(struct drm_i915_private *dev_priv,
 	 * FIXME need to properly check this later.
 	 */
 	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv) ||
-	    !drm_format_info_is_yuv_semiplanar(fb->format))
+	    !intel_format_info_is_yuv_semiplanar(fb->format, fb->modifier))
 		return 0x30000 - 1;
 	else
 		return 0x20000 - 1;
@@ -2240,7 +2244,7 @@ static int skl_plane_check(struct intel_crtc_state *crtc_state,
 		plane_state->color_ctl = glk_plane_color_ctl(crtc_state,
 							     plane_state);
 
-	if (drm_format_info_is_yuv_semiplanar(fb->format) &&
+	if (intel_format_info_is_yuv_semiplanar(fb->format, fb->modifier) &&
 	    icl_is_hdr_plane(dev_priv, plane->id))
 		/* Enable and use MPEG-2 chroma siting */
 		plane_state->cus_ctl = PLANE_CUS_ENABLE |
@@ -2797,18 +2801,18 @@ static bool gen12_plane_format_mod_supported(struct drm_plane *_plane,
 	case DRM_FORMAT_YVYU:
 	case DRM_FORMAT_UYVY:
 	case DRM_FORMAT_VYUY:
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_P010:
+	case DRM_FORMAT_P012:
+	case DRM_FORMAT_P016:
 		if (modifier == I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS)
 			return true;
 		/* fall through */
-	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_RGB565:
 	case DRM_FORMAT_XRGB2101010:
 	case DRM_FORMAT_XBGR2101010:
 	case DRM_FORMAT_ARGB2101010:
 	case DRM_FORMAT_ABGR2101010:
-	case DRM_FORMAT_P010:
-	case DRM_FORMAT_P012:
-	case DRM_FORMAT_P016:
 	case DRM_FORMAT_XVYU2101010:
 	case DRM_FORMAT_C8:
 	case DRM_FORMAT_XBGR16161616F:
