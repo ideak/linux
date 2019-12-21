@@ -77,7 +77,7 @@ static void advance(struct i915_request *request)
 	i915_request_mark_complete(request);
 	GEM_BUG_ON(!i915_request_completed(request));
 
-	intel_engine_queue_breadcrumbs(request->engine);
+	intel_engine_signal_breadcrumbs(request->engine);
 }
 
 static void hw_delay_complete(struct timer_list *t)
@@ -290,6 +290,7 @@ int mock_engine_init(struct intel_engine_cs *engine)
 	intel_engine_init_breadcrumbs(engine);
 	intel_engine_init_execlists(engine);
 	intel_engine_init__pm(engine);
+	intel_engine_init_retire(engine);
 	intel_engine_pool_init(&engine->pool);
 
 	ce = create_kernel_context(engine);
@@ -332,6 +333,7 @@ void mock_engine_free(struct intel_engine_cs *engine)
 	intel_context_unpin(engine->kernel_context);
 	intel_context_put(engine->kernel_context);
 
+	intel_engine_fini_retire(engine);
 	intel_engine_fini_breadcrumbs(engine);
 
 	kfree(engine);

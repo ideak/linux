@@ -62,19 +62,16 @@ static void engine_retire(struct work_struct *work)
 static bool add_retire(struct intel_engine_cs *engine,
 		       struct intel_timeline *tl)
 {
+#define STUB ((struct intel_timeline *)1)
 	struct intel_timeline *first;
 
 	/*
 	 * We open-code a llist here to include the additional tag [BIT(0)]
 	 * so that we know when the timeline is already on a
 	 * retirement queue: either this engine or another.
-	 *
-	 * However, we rely on that a timeline can only be active on a single
-	 * engine at any one time and that add_retire() is called before the
-	 * engine releases the timeline and transferred to another to retire.
 	 */
 
-	if (READ_ONCE(tl->retire)) /* already queued */
+	if (cmpxchg(&tl->retire, NULL, STUB)) /* already queued */
 		return false;
 
 	intel_timeline_get(tl);
@@ -109,7 +106,6 @@ long intel_gt_retire_requests_timeout(struct intel_gt *gt, long timeout)
 	struct intel_gt_timelines *timelines = &gt->timelines;
 	struct intel_timeline *tl, *tn;
 	unsigned long active_count = 0;
-	unsigned long flags;
 	bool interruptible;
 	LIST_HEAD(free);
 
@@ -119,7 +115,7 @@ long intel_gt_retire_requests_timeout(struct intel_gt *gt, long timeout)
 
 	flush_submission(gt); /* kick the ksoftirqd tasklets */
 
-	spin_lock_irqsave(&timelines->lock, flags);
+	spin_lock(&timelines->lock);
 	list_for_each_entry_safe(tl, tn, &timelines->active_list, link) {
 		if (!mutex_trylock(&tl->mutex)) {
 			active_count++; /* report busy to caller, try again? */
@@ -129,7 +125,7 @@ long intel_gt_retire_requests_timeout(struct intel_gt *gt, long timeout)
 		intel_timeline_get(tl);
 		GEM_BUG_ON(!atomic_read(&tl->active_count));
 		atomic_inc(&tl->active_count); /* pin the list element */
-		spin_unlock_irqrestore(&timelines->lock, flags);
+		spin_unlock(&timelines->lock);
 
 		if (timeout > 0) {
 			struct dma_fence *fence;
@@ -145,7 +141,7 @@ long intel_gt_retire_requests_timeout(struct intel_gt *gt, long timeout)
 
 		retire_requests(tl);
 
-		spin_lock_irqsave(&timelines->lock, flags);
+		spin_lock(&timelines->lock);
 
 		/* Resume iteration after dropping lock */
 		list_safe_reset_next(tl, tn, link);
@@ -162,7 +158,7 @@ long intel_gt_retire_requests_timeout(struct intel_gt *gt, long timeout)
 			list_add(&tl->link, &free);
 		}
 	}
-	spin_unlock_irqrestore(&timelines->lock, flags);
+	spin_unlock(&timelines->lock);
 
 	list_for_each_entry_safe(tl, tn, &free, link)
 		__intel_timeline_free(&tl->kref);
@@ -190,9 +186,9 @@ static void retire_work_handler(struct work_struct *work)
 	struct intel_gt *gt =
 		container_of(work, typeof(*gt), requests.retire_work.work);
 
-	intel_gt_retire_requests(gt);
 	schedule_delayed_work(&gt->requests.retire_work,
 			      round_jiffies_up_relative(HZ));
+	intel_gt_retire_requests(gt);
 }
 
 void intel_gt_init_requests(struct intel_gt *gt)
@@ -209,4 +205,10 @@ void intel_gt_unpark_requests(struct intel_gt *gt)
 {
 	schedule_delayed_work(&gt->requests.retire_work,
 			      round_jiffies_up_relative(HZ));
+}
+
+void intel_gt_fini_requests(struct intel_gt *gt)
+{
+	/* Wait until the work is marked as finished before unloading! */
+	cancel_delayed_work_sync(&gt->requests.retire_work);
 }
