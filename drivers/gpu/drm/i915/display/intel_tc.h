@@ -25,6 +25,7 @@ void intel_tc_port_get_link(struct intel_digital_port *dig_port,
 			    int required_lanes);
 void intel_tc_port_put_link(struct intel_digital_port *dig_port);
 bool intel_tc_port_ref_held(struct intel_digital_port *dig_port);
+bool intel_tc_port_needs_reset(struct intel_digital_port *dig_port);
 
 void intel_tc_port_init(struct intel_digital_port *dig_port, bool is_legacy);
 

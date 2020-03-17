@@ -478,9 +478,20 @@ out:
 	mutex_unlock(&dig_port->tc_lock);
 }
 
-static bool intel_tc_port_needs_reset(struct intel_digital_port *dig_port)
+static bool __intel_tc_port_needs_reset(struct intel_digital_port *dig_port)
 {
 	return intel_tc_port_get_target_mode(dig_port) != dig_port->tc_mode;
+}
+
+bool intel_tc_port_needs_reset(struct intel_digital_port *dig_port)
+{
+	bool ret;
+
+	mutex_lock(&dig_port->tc_lock);
+	ret = __intel_tc_port_needs_reset(dig_port);
+	mutex_unlock(&dig_port->tc_lock);
+
+	return ret;
 }
 
 /*
@@ -516,7 +527,7 @@ static void __intel_tc_port_lock(struct intel_digital_port *dig_port,
 	mutex_lock(&dig_port->tc_lock);
 
 	if (!dig_port->tc_link_refcount &&
-	    intel_tc_port_needs_reset(dig_port))
+	    __intel_tc_port_needs_reset(dig_port))
 		intel_tc_port_reset_mode(dig_port, required_lanes);
 
 	drm_WARN_ON(&i915->drm, dig_port->tc_lock_wakeref);

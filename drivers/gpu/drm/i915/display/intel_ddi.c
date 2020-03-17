@@ -4287,27 +4287,62 @@ static int intel_hdmi_reset_link(struct intel_encoder *encoder,
 	return modeset_pipe(&crtc->base, ctx);
 }
 
-static enum intel_hotplug_state
-intel_ddi_hotplug(struct intel_encoder *encoder,
-		  struct intel_connector *connector)
+static int intel_tc_dp_reset_link(struct intel_encoder *encoder,
+				  struct drm_modeset_acquire_ctx *ctx)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
 	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	enum phy phy = intel_port_to_phy(i915, encoder->port);
-	bool is_tc = intel_phy_is_tc(i915, phy);
-	struct drm_modeset_acquire_ctx ctx;
-	enum intel_hotplug_state state;
+	struct intel_dp *dp = &dig_port->dp;
+	struct intel_connector *connector = dp->attached_connector;
+	struct drm_connector_state *conn_state;
+	struct intel_crtc_state *crtc_state;
+	struct intel_crtc *crtc;
 	int ret;
 
-	state = intel_encoder_hotplug(encoder, connector);
+	if (!connector)
+		return 0;
+
+	ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex, ctx);
+	if (ret)
+		return ret;
+
+	conn_state = connector->base.state;
+
+	crtc = to_intel_crtc(conn_state->crtc);
+	if (!crtc)
+		return 0;
+
+	ret = drm_modeset_lock(&crtc->base.mutex, ctx);
+	if (ret)
+		return ret;
+
+	crtc_state = to_intel_crtc_state(crtc->base.state);
+
+	drm_WARN_ON(&i915->drm,
+		    !intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DP));
+
+	if (!crtc_state->hw.active)
+		return 0;
+
+	if (conn_state->commit &&
+	    !try_wait_for_completion(&conn_state->commit->hw_done))
+		return 0;
+
+	return modeset_pipe(&crtc->base, ctx);
+}
+
+static void
+intel_ddi_reset_link(struct intel_encoder *encoder,
+		     int (*reset_fn)(struct intel_encoder *encoder,
+				     struct drm_modeset_acquire_ctx *ctx))
+{
+	struct drm_modeset_acquire_ctx ctx;
+	int ret;
 
 	drm_modeset_acquire_init(&ctx, 0);
 
 	for (;;) {
-		if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
-			ret = intel_hdmi_reset_link(encoder, &ctx);
-		else
-			ret = intel_dp_retrain_link(encoder, &ctx);
+		ret = reset_fn(encoder, &ctx);
 
 		if (ret == -EDEADLK) {
 			drm_modeset_backoff(&ctx);
@@ -4319,8 +4354,29 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
-	drm_WARN(encoder->base.dev, ret,
-		 "Acquiring modeset locks failed with %i\n", ret);
+	drm_WARN(encoder->base.dev, ret, "Resetting link failed (%i)\n", ret);
+}
+
+static enum intel_hotplug_state
+intel_ddi_hotplug(struct intel_encoder *encoder,
+		  struct intel_connector *connector)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	enum phy phy = intel_port_to_phy(i915, encoder->port);
+	bool is_tc = intel_phy_is_tc(i915, phy);
+	enum intel_hotplug_state state;
+
+	if (!dig_port->dp.is_mst &&
+	    is_tc && intel_tc_port_needs_reset(dig_port))
+		intel_ddi_reset_link(encoder, intel_tc_dp_reset_link);
+
+	state = intel_encoder_hotplug(encoder, connector);
+
+	if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
+		intel_ddi_reset_link(encoder, intel_hdmi_reset_link);
+	else
+		intel_ddi_reset_link(encoder, intel_dp_retrain_link);
 
 	/*
 	 * Unpowered type-c dongles can take some time to boot and be
