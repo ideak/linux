@@ -1287,6 +1287,8 @@ struct intel_dp {
 	/* intersection of source and sink rates */
 	int num_common_rates;
 	int common_rates[DP_MAX_SUPPORTED_RATES];
+	/* Link training failed */
+	bool bad_link;
 	/* Max lane count for the current link */
 	int max_link_lane_count;
 	/* Max rate for the current link */

@@ -127,7 +127,7 @@ static bool intel_dp_link_max_vswing_reached(struct intel_dp *intel_dp)
 }
 
 /* Enable corresponding port and start training pattern 1 */
-static bool
+static int
 intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
@@ -173,7 +173,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 				       DP_TRAINING_PATTERN_1 |
 				       DP_LINK_SCRAMBLING_DISABLE)) {
 		drm_err(&i915->drm, "failed to enable link training\n");
-		return false;
+		return -EIO;
 	}
 
 	/*
@@ -197,23 +197,23 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 
 		if (!intel_dp_get_link_status(intel_dp, link_status)) {
 			drm_err(&i915->drm, "failed to get link status\n");
-			return false;
+			return -EIO;
 		}
 
 		if (drm_dp_clock_recovery_ok(link_status, intel_dp->lane_count)) {
 			drm_dbg_kms(&i915->drm, "clock recovery OK\n");
-			return true;
+			return 0;
 		}
 
 		if (voltage_tries == 5) {
 			drm_dbg_kms(&i915->drm,
 				    "Same voltage tried 5 times\n");
-			return false;
+			return -EAGAIN;
 		}
 
 		if (max_vswing_reached) {
 			drm_dbg_kms(&i915->drm, "Max Voltage Swing reached\n");
-			return false;
+			return -EAGAIN;
 		}
 
 		voltage = intel_dp->train_set[0] & DP_TRAIN_VOLTAGE_SWING_MASK;
@@ -223,7 +223,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 		if (!intel_dp_update_link_train(intel_dp)) {
 			drm_err(&i915->drm,
 				"failed to update link training\n");
-			return false;
+			return -EIO;
 		}
 
 		if ((intel_dp->train_set[0] & DP_TRAIN_VOLTAGE_SWING_MASK) ==
@@ -238,7 +238,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 	}
 	drm_err(&i915->drm,
 		"Failed clock recovery %d times, giving up!\n", max_cr_tries);
-	return false;
+	return -EAGAIN;
 }
 
 /*
@@ -289,14 +289,14 @@ static u32 intel_dp_training_pattern(struct intel_dp *intel_dp)
 	return DP_TRAINING_PATTERN_2;
 }
 
-static bool
+static int
 intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	int tries;
 	u32 training_pattern;
 	u8 link_status[DP_LINK_STATUS_SIZE];
-	bool channel_eq = false;
+	int err;
 
 	training_pattern = intel_dp_training_pattern(intel_dp);
 	/* Scrambling is disabled for TPS2/3 and enabled for TPS4 */
@@ -307,15 +307,15 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 	if (!intel_dp_set_link_train(intel_dp,
 				     training_pattern)) {
 		drm_err(&i915->drm, "failed to start channel equalization\n");
-		return false;
+		return -EIO;
 	}
 
 	for (tries = 0; tries < 5; tries++) {
-
 		drm_dp_link_train_channel_eq_delay(intel_dp->dpcd);
 		if (!intel_dp_get_link_status(intel_dp, link_status)) {
 			drm_err(&i915->drm,
 				"failed to get link status\n");
+			err = -EIO;
 			break;
 		}
 
@@ -326,14 +326,15 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 			drm_dbg_kms(&i915->drm,
 				    "Clock recovery check failed, cannot "
 				    "continue channel equalization\n");
+			err = -EAGAIN;
 			break;
 		}
 
 		if (drm_dp_channel_eq_ok(link_status,
 					 intel_dp->lane_count)) {
-			channel_eq = true;
 			drm_dbg_kms(&i915->drm, "Channel EQ done. DP Training "
 				    "successful\n");
+			err = 0;
 			break;
 		}
 
@@ -342,6 +343,7 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 		if (!intel_dp_update_link_train(intel_dp)) {
 			drm_err(&i915->drm,
 				"failed to update link training\n");
+			err = -EIO;
 			break;
 		}
 	}
@@ -351,11 +353,12 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 		intel_dp_dump_link_status(link_status);
 		drm_dbg_kms(&i915->drm,
 			    "Channel equalization failed 5 times\n");
+		err = -EAGAIN;
 	}
 
 	intel_dp_set_idle_link_train(intel_dp);
 
-	return channel_eq;
+	return err;
 
 }
 
@@ -371,10 +374,14 @@ void
 intel_dp_start_link_train(struct intel_dp *intel_dp)
 {
 	struct intel_connector *intel_connector = intel_dp->attached_connector;
+	bool retry;
+	int err;
 
-	if (!intel_dp_link_training_clock_recovery(intel_dp))
+	err = intel_dp_link_training_clock_recovery(intel_dp);
+	if (err)
 		goto failure_handling;
-	if (!intel_dp_link_training_channel_equalization(intel_dp))
+	err = intel_dp_link_training_channel_equalization(intel_dp);
+	if (err)
 		goto failure_handling;
 
 	drm_dbg_kms(&dp_to_i915(intel_dp)->drm,
@@ -386,13 +393,26 @@ intel_dp_start_link_train(struct intel_dp *intel_dp)
 
  failure_handling:
 	drm_dbg_kms(&dp_to_i915(intel_dp)->drm,
-		    "[CONNECTOR:%d:%s] Link Training failed at link rate = %d, lane count = %d",
+		    "[CONNECTOR:%d:%s] Link Training failed at link rate = %d, lane count = %d, err = %pe",
 		    intel_connector->base.base.id,
 		    intel_connector->base.name,
-		    intel_dp->link_rate, intel_dp->lane_count);
-	if (!intel_dp_get_link_train_fallback_values(intel_dp,
+		    intel_dp->link_rate, intel_dp->lane_count,
+		    ERR_PTR(err));
+
+	retry = false;
+
+	if (err == -EAGAIN &&
+	    !intel_dp_get_link_train_fallback_values(intel_dp,
 						     intel_dp->link_rate,
 						     intel_dp->lane_count))
+		retry = true;
+
+	if (!intel_dp->bad_link) {
+		retry = true;
+		intel_dp->bad_link = true;
+	}
+
+	if (retry)
 		/* Schedule a Hotplug Uevent to userspace to start modeset */
 		schedule_work(&intel_connector->modeset_retry_work);
 	return;

@@ -6073,6 +6073,8 @@ intel_dp_detect(struct drm_connector *connector,
 	}
 
 	if (intel_dp->reset_link_params) {
+		intel_dp->bad_link = false;
+
 		/* Initial max link lane count */
 		intel_dp->max_link_lane_count = intel_dp_max_common_lane_count(intel_dp);
 
