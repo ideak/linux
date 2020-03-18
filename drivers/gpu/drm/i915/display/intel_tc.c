@@ -246,10 +246,12 @@ static bool icl_tc_phy_set_safe_mode(struct intel_digital_port *dig_port,
 	intel_uncore_write(uncore,
 			   PORT_TX_DFLEXDPCSSS(dig_port->tc_phy_fia), val);
 
-	if (enable && wait_for(!icl_tc_phy_status_complete(dig_port), 10))
-		drm_dbg_kms(&i915->drm,
-			    "Port %s: PHY complete clear timed out\n",
-			    dig_port->tc_port_name);
+	wait_for(icl_tc_phy_status_complete(dig_port) == !enable, 10);
+	drm_dbg_kms(&i915->drm, "Port %s: PHY mode: %s, %s\n",
+			    dig_port->tc_port_name,
+			    enable ? "safe" : "not-safe",
+			    icl_tc_phy_status_complete(dig_port) ?
+				"DP-alt/legacy" : "TBT");
 
 	return true;
 }
@@ -287,6 +289,13 @@ static void icl_tc_phy_connect(struct intel_digital_port *dig_port,
 			       int required_lanes)
 {
 	int max_lanes;
+
+	if (!(tc_port_live_status_mask(dig_port) &
+	      (BIT(TC_PORT_DP_ALT) | BIT(TC_PORT_LEGACY)))) {
+		DRM_DEBUG_KMS("Port %s: No DP-alt/legacy sink detected\n",
+			      dig_port->tc_port_name);
+		goto out_set_tbt_alt_mode;
+	}
 
 	if (!icl_tc_phy_status_complete(dig_port)) {
 		DRM_DEBUG_KMS("Port %s: PHY not ready\n",
