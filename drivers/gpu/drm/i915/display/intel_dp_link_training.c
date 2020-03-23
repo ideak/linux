@@ -34,6 +34,17 @@ intel_dp_dump_link_status(const u8 link_status[DP_LINK_STATUS_SIZE])
 		      link_status[3], link_status[4], link_status[5]);
 }
 
+#define ltr_fail_msg(intel_dp, msg, ...) do { \
+	if (intel_dp_is_edp(intel_dp) || \
+	    intel_digital_port_connected(&dp_to_dig_port(intel_dp)->base)) \
+		drm_err(&dp_to_i915(intel_dp)->drm, \
+			msg, ## __VA_ARGS__); \
+	else \
+		drm_dbg_kms(&dp_to_i915(intel_dp)->drm, \
+			    msg, ## __VA_ARGS__); \
+} while(0)
+
+
 static void
 intel_get_adjust_train(struct intel_dp *intel_dp,
 		       const u8 link_status[DP_LINK_STATUS_SIZE])
@@ -172,7 +183,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 	if (!intel_dp_reset_link_train(intel_dp,
 				       DP_TRAINING_PATTERN_1 |
 				       DP_LINK_SCRAMBLING_DISABLE)) {
-		drm_err(&i915->drm, "failed to enable link training\n");
+		ltr_fail_msg(intel_dp, "failed to enable link training\n");
 		return -EIO;
 	}
 
@@ -196,7 +207,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 		drm_dp_link_train_clock_recovery_delay(intel_dp->dpcd);
 
 		if (!intel_dp_get_link_status(intel_dp, link_status)) {
-			drm_err(&i915->drm, "failed to get link status\n");
+			ltr_fail_msg(intel_dp, "failed to get link status\n");
 			return -EIO;
 		}
 
@@ -221,8 +232,8 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 		/* Update training set as requested by target */
 		intel_get_adjust_train(intel_dp, link_status);
 		if (!intel_dp_update_link_train(intel_dp)) {
-			drm_err(&i915->drm,
-				"failed to update link training\n");
+			ltr_fail_msg(intel_dp,
+				     "failed to update link training\n");
 			return -EIO;
 		}
 
@@ -236,8 +247,9 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 			max_vswing_reached = true;
 
 	}
-	drm_err(&i915->drm,
-		"Failed clock recovery %d times, giving up!\n", max_cr_tries);
+	ltr_fail_msg(intel_dp,
+		     "Failed clock recovery %d times, giving up!\n",
+		     max_cr_tries);
 	return -EAGAIN;
 }
 
@@ -306,15 +318,16 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 	/* channel equalization */
 	if (!intel_dp_set_link_train(intel_dp,
 				     training_pattern)) {
-		drm_err(&i915->drm, "failed to start channel equalization\n");
+		ltr_fail_msg(intel_dp,
+			     "failed to start channel equalization\n");
 		return -EIO;
 	}
 
 	for (tries = 0; tries < 5; tries++) {
 		drm_dp_link_train_channel_eq_delay(intel_dp->dpcd);
 		if (!intel_dp_get_link_status(intel_dp, link_status)) {
-			drm_err(&i915->drm,
-				"failed to get link status\n");
+			ltr_fail_msg(intel_dp,
+				     "failed to get link status\n");
 			err = -EIO;
 			break;
 		}
@@ -341,8 +354,8 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 		/* Update training set as requested by target */
 		intel_get_adjust_train(intel_dp, link_status);
 		if (!intel_dp_update_link_train(intel_dp)) {
-			drm_err(&i915->drm,
-				"failed to update link training\n");
+			ltr_fail_msg(intel_dp,
+				     "failed to update link training\n");
 			err = -EIO;
 			break;
 		}
