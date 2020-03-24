@@ -169,7 +169,8 @@ int mipi_dbi_command_buf(struct mipi_dbi *dbi, u8 cmd, u8 *data, size_t len)
 EXPORT_SYMBOL(mipi_dbi_command_buf);
 
 /* This should only be used by mipi_dbi_command() */
-int mipi_dbi_command_stackbuf(struct mipi_dbi *dbi, u8 cmd, u8 *data, size_t len)
+int mipi_dbi_command_stackbuf(struct mipi_dbi *dbi, u8 cmd, const u8 *data,
+			      size_t len)
 {
 	u8 *buf;
 	int ret;
@@ -1308,10 +1309,8 @@ static const struct file_operations mipi_dbi_debugfs_command_fops = {
  * controller or getting the read command values.
  * Drivers can use this as their &drm_driver->debugfs_init callback.
  *
- * Returns:
- * Zero on success, negative error code on failure.
  */
-int mipi_dbi_debugfs_init(struct drm_minor *minor)
+void mipi_dbi_debugfs_init(struct drm_minor *minor)
 {
 	struct mipi_dbi_dev *dbidev = drm_to_mipi_dbi_dev(minor->dev);
 	umode_t mode = S_IFREG | S_IWUSR;
@@ -1320,8 +1319,6 @@ int mipi_dbi_debugfs_init(struct drm_minor *minor)
 		mode |= S_IRUGO;
 	debugfs_create_file("command", mode, minor->debugfs_root, dbidev,
 			    &mipi_dbi_debugfs_command_fops);
-
-	return 0;
 }
 EXPORT_SYMBOL(mipi_dbi_debugfs_init);
 
