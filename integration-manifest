@@ -1,0 +1,36 @@
+drm drm-fixes 3d77e6a8804abcc0504c904bd6e5cdf3a5cf8162
+	Linux 5.7
+drm-misc drm-misc-fixes abf56fadf0e208abfb13ad1ac0094416058da0ad
+	gpu/drm: Ingenic: Fix opaque pointer casted to wrong type
+drm-intel drm-intel-fixes 822d6bd1890dbeaedf661d30d2c5280e127ef4b3
+	drm/i915: work around false-positive maybe-uninitialized warning
+drm-amd drm-amd-fixes 2b702e72e33bbdec0764cfb6e1dd00fe1142ae55
+	Merge tag 'drm-misc-fixes-2017-09-28-1' of git://anongit.freedesktop.org/git/drm-misc into drm-fixes
+drm drm-next 66057dd1d1cf2149e0f5fdaee58d6ea69bc98048
+	Merge tag 'drm-misc-next-fixes-2020-06-11' of git://anongit.freedesktop.org/drm/drm-misc into drm-next
+drm-misc drm-misc-next-fixes 291ddeb621e4a9f1ced8302a777fbd7fbda058c6
+	drm/ast: fix missing break in switch statement for format->cpp[0] case 4
+drm-intel drm-intel-next-fixes 3680c2e9f4254d1f033bf00f540e47a51f8f996b
+	drm/i915/display: Only query DP state of a DDI encoder
+drm-amd drm-amd-next-fixes 2bd6bf03f4c1c59381d62c61d03f6cc3fe71f66e
+	Linux 4.14-rc1
+drm-misc drm-misc-next 72822c3bfa8ef7c997692acd580c73c263107592
+	drm/dp_mst: Fix flushing the delayed port/mstb destroy work
+drm-intel drm-intel-next-queued 8d712a7e01c8a94fb95c23722e383fe758ad586b
+	drm/i915/dp_mst: Fix disabling MST on a port
+drm-intel drm-intel-next 3a36aa237e4ed04553c0998cf5f47eda3e206e4f
+	drm/i915: Update DRIVER_DATE to 20200515
+drm-amd drm-amd-next 754270c7c56292e97d0eff924a5d5d83f92add07
+	Merge branch 'drm-next-4.15' of git://people.freedesktop.org/~agd5f/linux into drm-next
+sound-upstream for-linus a4f55d927d33accd6eb535ce0db031e2df47714a
+	Merge tag 'asoc-fix-v5.8' of https://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound into for-linus
+sound-upstream for-next a4f55d927d33accd6eb535ce0db031e2df47714a
+	Merge tag 'asoc-fix-v5.8' of https://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound into for-linus
+drm-intel topic/core-for-CI 26145957338c07613fa603bbec798034aa8b56dc
+	perf/core: Only copy-to-user after completely unlocking all locks, v3.
+drm drm-vmwgfx-coherent 0a6cad5df541108cfd3fbd79eef48eb824c89bdc
+	Merge branch 'vmwgfx-coherent' of git://people.freedesktop.org/~thomash/linux into drm-next
+drm-misc topic/phy-compliance 8cdf727119289db3a98835662eb28e1c5ad835f1
+	drm/i915/dp: Program vswing, pre-emphasis, test-pattern
+drm drm-next-msm-5.8 efe792f39ddbc6396b9142afff97855ee357b492
+	Merge https://gitlab.freedesktop.org/drm/msm into drm-next-msm-5.8
