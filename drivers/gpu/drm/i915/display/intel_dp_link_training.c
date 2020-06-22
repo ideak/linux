@@ -363,6 +363,8 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 			    "Channel equalization failed 5 times\n");
 	}
 
+	intel_dp_set_link_train(intel_dp,
+				DP_TRAINING_PATTERN_DISABLE);
 	intel_dp_set_idle_link_train(intel_dp);
 
 	return channel_eq;
