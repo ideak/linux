@@ -1,0 +1,32 @@
+drm drm-fixes 5b83c254571b26e6b6110019929dc9729e5c59d1
+	Merge tag 'amd-drm-fixes-5.8-2020-06-24' of git://people.freedesktop.org/~agd5f/linux into drm-fixes
+drm-misc drm-misc-fixes dc5bdb68b5b369d5bc7d1de96fa64cc1737a6320
+	drm/fb-helper: Fix vt restore
+drm-intel drm-intel-fixes 48778464bb7d346b47157d21ffde2af6b2d39110
+	Linux 5.8-rc2
+drm-amd drm-amd-fixes 2b702e72e33bbdec0764cfb6e1dd00fe1142ae55
+	Merge tag 'drm-misc-fixes-2017-09-28-1' of git://anongit.freedesktop.org/git/drm-misc into drm-fixes
+drm drm-next 0a19b068acc47d05212f03e494381926dc0381e2
+	Merge tag 'drm-misc-next-2020-06-19' of git://anongit.freedesktop.org/drm/drm-misc into drm-next
+drm-misc drm-misc-next-fixes 291ddeb621e4a9f1ced8302a777fbd7fbda058c6
+	drm/ast: fix missing break in switch statement for format->cpp[0] case 4
+drm-intel drm-intel-next-fixes 3680c2e9f4254d1f033bf00f540e47a51f8f996b
+	drm/i915/display: Only query DP state of a DDI encoder
+drm-amd drm-amd-next-fixes 2bd6bf03f4c1c59381d62c61d03f6cc3fe71f66e
+	Linux 4.14-rc1
+drm-misc drm-misc-next ebf93015097367d4de77deea5d4d9b657dbf7a49
+	drm/bridge: dw-mipi-dsi.c: remove unused header file
+drm-intel drm-intel-next-queued 580fbdc5136822208f107500682e50a1cb232e94
+	drm/i915/dp_mst: Enable VC payload allocation after transcoder is enabled
+drm-intel drm-intel-next 3a36aa237e4ed04553c0998cf5f47eda3e206e4f
+	drm/i915: Update DRIVER_DATE to 20200515
+drm-amd drm-amd-next 754270c7c56292e97d0eff924a5d5d83f92add07
+	Merge branch 'drm-next-4.15' of git://people.freedesktop.org/~agd5f/linux into drm-next
+sound-upstream for-linus 220345e98f1cdc768eeb6e3364a0fa7ab9647fe7
+	ALSA: usb-audio: Fix OOB access of mixer element list
+sound-upstream for-next c7440acc859778eed74b223fc41f094133aeaaf0
+	Merge branch 'topic/hda-micmute-led' into for-next
+drm-intel topic/core-for-CI 7baab4e528ef38546a32f0a368285289aa2c981f
+	ext4: mballoc: Use this_cpu_read instead of this_cpu_ptr
+drm-misc topic/phy-compliance 8cdf727119289db3a98835662eb28e1c5ad835f1
+	drm/i915/dp: Program vswing, pre-emphasis, test-pattern
