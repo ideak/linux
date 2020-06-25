@@ -3988,6 +3988,8 @@ static void chv_dp_post_pll_disable(struct intel_atomic_state *state,
 	chv_phy_post_pll_disable(encoder, old_crtc_state);
 }
 
+#define DP_LTTPR_LINK_STATUS_SIZE 5
+
 /*
  * Fetch AUX CH registers 0x202 - 0x207 which contain
  * link status information
@@ -3995,8 +3997,22 @@ static void chv_dp_post_pll_disable(struct intel_atomic_state *state,
 bool
 intel_dp_get_link_status(struct intel_dp *intel_dp, u8 link_status[DP_LINK_STATUS_SIZE])
 {
-	return drm_dp_dpcd_read(&intel_dp->aux, DP_LANE0_1_STATUS, link_status,
-				DP_LINK_STATUS_SIZE) == DP_LINK_STATUS_SIZE;
+	bool is_lttpr = intel_dp->lttpr_status_offset;
+	int len = is_lttpr ? DP_LTTPR_LINK_STATUS_SIZE : DP_LINK_STATUS_SIZE;
+	int ret;
+
+	ret = drm_dp_dpcd_read(&intel_dp->aux,
+				intel_dp->lttpr_status_offset + DP_LANE0_1_STATUS,
+				link_status, len);
+	if (ret < 0)
+		return false;
+
+	WARN_ON(ret != len);
+
+	if (is_lttpr)
+		memmove(&link_status[4], &link_status[3], 2);
+
+	return true;
 }
 
 static u8 intel_dp_voltage_max_2(struct intel_dp *intel_dp)

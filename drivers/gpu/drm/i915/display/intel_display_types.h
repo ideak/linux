@@ -1280,6 +1280,9 @@ struct intel_dp {
 	u8 edp_dpcd[EDP_DISPLAY_CTL_CAP_SIZE];
 	u8 dsc_dpcd[DP_DSC_RECEIVER_CAP_SIZE];
 	u8 fec_capable;
+	int lttpr_instance;
+	int lttpr_set_offset;
+	int lttpr_status_offset;
 	/* source rates */
 	int num_source_rates;
 	const int *source_rates;

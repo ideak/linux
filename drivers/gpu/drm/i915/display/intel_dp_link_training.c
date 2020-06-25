@@ -96,7 +96,8 @@ intel_dp_set_link_train(struct intel_dp *intel_dp,
 		len = intel_dp->lane_count + 1;
 	}
 
-	ret = drm_dp_dpcd_write(&intel_dp->aux, DP_TRAINING_PATTERN_SET,
+	ret = drm_dp_dpcd_write(&intel_dp->aux,
+				intel_dp->lttpr_set_offset + DP_TRAINING_PATTERN_SET,
 				buf, len);
 
 	return ret == len;
@@ -118,7 +119,8 @@ intel_dp_update_link_train(struct intel_dp *intel_dp)
 
 	intel_dp_set_signal_levels(intel_dp);
 
-	ret = drm_dp_dpcd_write(&intel_dp->aux, DP_TRAINING_LANE0_SET,
+	ret = drm_dp_dpcd_write(&intel_dp->aux,
+				intel_dp->lttpr_set_offset + DP_TRAINING_LANE0_SET,
 				intel_dp->train_set, intel_dp->lane_count);
 
 	return ret == intel_dp->lane_count;
@@ -136,14 +138,9 @@ static bool intel_dp_link_max_vswing_reached(struct intel_dp *intel_dp)
 	return true;
 }
 
-/* Enable corresponding port and start training pattern 1 */
-static bool
-intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
+static void prepare_link_train(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
-	u8 voltage;
-	int voltage_tries, cr_tries, max_cr_tries;
-	bool max_vswing_reached = false;
 	u8 link_config[2];
 	u8 link_bw, rate_select;
 
@@ -177,6 +174,16 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
 	drm_dp_dpcd_write(&intel_dp->aux, DP_DOWNSPREAD_CTRL, link_config, 2);
 
 	intel_dp->DP |= DP_PORT_EN;
+}
+
+/* Enable corresponding port and start training pattern 1 */
+static bool
+intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	u8 voltage;
+	int voltage_tries, cr_tries, max_cr_tries;
+	bool max_vswing_reached = false;
 
 	/* clock recovery */
 	if (!intel_dp_reset_link_train(intel_dp,
@@ -363,7 +370,8 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 			    "Channel equalization failed 5 times\n");
 	}
 
-	intel_dp_set_idle_link_train(intel_dp);
+	if (!intel_dp->lttpr_set_offset)
+		intel_dp_set_idle_link_train(intel_dp);
 
 	return channel_eq;
 
@@ -377,33 +385,178 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp)
 				DP_TRAINING_PATTERN_DISABLE);
 }
 
-void
-intel_dp_start_link_train(struct intel_dp *intel_dp)
+static bool
+__intel_dp_start_link_train(struct intel_dp *intel_dp)
 {
 	struct intel_connector *intel_connector = intel_dp->attached_connector;
 
 	if (!intel_dp_link_training_clock_recovery(intel_dp))
-		goto failure_handling;
+		return false;
+
 	if (!intel_dp_link_training_channel_equalization(intel_dp))
-		goto failure_handling;
+		return false;
 
 	drm_dbg_kms(&dp_to_i915(intel_dp)->drm,
-		    "[CONNECTOR:%d:%s] Link Training Passed at Link Rate = %d, Lane count = %d",
+		    "[CONNECTOR:%d:%s] Link Training Passed at Link Rate = %d, Lane count = %d, at LTTPR %d",
 		    intel_connector->base.base.id,
 		    intel_connector->base.name,
-		    intel_dp->link_rate, intel_dp->lane_count);
-	return;
+		    intel_dp->link_rate, intel_dp->lane_count,
+		    intel_dp->lttpr_instance);
 
- failure_handling:
+	return true;
+}
+
+static void handle_link_train_fallback(struct intel_dp *intel_dp)
+{
+	struct intel_connector *intel_connector = intel_dp->attached_connector;
+
 	drm_dbg_kms(&dp_to_i915(intel_dp)->drm,
-		    "[CONNECTOR:%d:%s] Link Training failed at link rate = %d, lane count = %d",
+		    "[CONNECTOR:%d:%s] Link Training failed at link rate = %d, lane count = %d, at LTTPR %d",
 		    intel_connector->base.base.id,
 		    intel_connector->base.name,
-		    intel_dp->link_rate, intel_dp->lane_count);
+		    intel_dp->link_rate, intel_dp->lane_count,
+		    intel_dp->lttpr_instance);
 	if (!intel_dp_get_link_train_fallback_values(intel_dp,
 						     intel_dp->link_rate,
 						     intel_dp->lane_count))
 		/* Schedule a Hotplug Uevent to userspace to start modeset */
 		schedule_work(&intel_connector->modeset_retry_work);
 	return;
+}
+
+static void init_lttpr(struct intel_dp *intel_dp, int idx)
+{
+	intel_dp->lttpr_instance = idx;
+
+	if (idx) {
+		intel_dp->lttpr_set_offset =
+			DP_TRAINING_PATTERN_SET_PHY_REPEATER(idx) -
+			DP_TRAINING_PATTERN_SET;
+		intel_dp->lttpr_status_offset =
+			DP_LANE0_1_STATUS_PHY_REPEATER(idx) -
+			DP_LANE0_1_STATUS;
+	} else {
+		intel_dp->lttpr_set_offset = 0;
+		intel_dp->lttpr_status_offset = 0;
+	}
+}
+
+static bool train_link_with_lttpr_mode(struct intel_dp *intel_dp,
+				       int phy_repeaters)
+{
+	bool ret = true;
+	int i;
+
+	prepare_link_train(intel_dp);
+
+	for (i = phy_repeaters; i >= 0; i--) {
+		u8 val;
+
+		init_lttpr(intel_dp, i);
+
+		ret = __intel_dp_start_link_train(intel_dp);
+		if (!ret)
+			break;
+
+		val = DP_TRAINING_PATTERN_DISABLE;
+		if (drm_dp_dpcd_write(&intel_dp->aux,
+				      intel_dp->lttpr_set_offset + DP_TRAINING_PATTERN_SET,
+				      &val, 1) != 1) {
+			ret = false;
+			break;
+		}
+	}
+
+	init_lttpr(intel_dp, 0);
+
+	return ret;
+}
+
+static int get_phy_repeater_count(u8 phy_repeater_count_code)
+{
+	switch (hweight8(phy_repeater_count_code)) {
+	case 0:
+		return 0;
+	case 1:
+		break;
+	default:
+		MISSING_CASE(phy_repeater_count_code);
+		return 0;
+	}
+
+	return 8 - ilog2(phy_repeater_count_code);
+}
+
+static bool set_phy_repeater_mode(struct intel_dp *intel_dp, bool transparent)
+{
+	u8 val;
+	int ret;
+
+	val = DP_PHY_REPEATER_MODE_TRANSPARENT;
+	ret = drm_dp_dpcd_write(&intel_dp->aux, DP_PHY_REPEATER_MODE, &val, 1);
+	if (ret < 0)
+		return false;
+
+	if (transparent)
+		return true;
+
+	val = DP_PHY_REPEATER_MODE_NON_TRANSPARENT;
+	ret = drm_dp_dpcd_write(&intel_dp->aux, DP_PHY_REPEATER_MODE, &val, 1);
+
+	return ret >= 0;
+}
+
+static int check_phy_repeater_caps(struct intel_dp *intel_dp)
+{
+	u8 buf[5] = { };
+	int lttprs;
+	int max_link_rate;
+	int max_link_lane_count;
+
+	drm_dp_dpcd_read(&intel_dp->aux,
+			 DP_LT_TUNABLE_PHY_REPEATER_FIELD_DATA_STRUCTURE_REV,
+			 buf, sizeof(buf));
+	drm_dbg_kms(&dp_to_i915(intel_dp)->drm, "LTTPR info: %*ph\n",
+		    (int)sizeof(buf), buf);
+
+	lttprs = get_phy_repeater_count(buf[DP_PHY_REPEATER_CNT -
+					DP_LT_TUNABLE_PHY_REPEATER_FIELD_DATA_STRUCTURE_REV]);
+	if (!lttprs)
+		return 0;
+
+	max_link_rate = drm_dp_bw_code_to_link_rate(buf[DP_MAX_LINK_RATE_PHY_REPEATER -
+						        DP_LT_TUNABLE_PHY_REPEATER_FIELD_DATA_STRUCTURE_REV]);
+	WARN_ON(max_link_rate < intel_dp->max_link_rate);
+
+	max_link_lane_count = buf[DP_MAX_LANE_COUNT_PHY_REPEATER -
+				  DP_LT_TUNABLE_PHY_REPEATER_FIELD_DATA_STRUCTURE_REV];
+
+	WARN_ON(max_link_lane_count < intel_dp->max_link_lane_count);
+
+	return lttprs;
+}
+
+void intel_dp_start_link_train(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	int phy_repeaters;
+	bool ret;
+
+	phy_repeaters = check_phy_repeater_caps(intel_dp);
+	drm_dbg_kms(&i915->drm, "Number of LTTPRs: %d\n", phy_repeaters);
+
+	if (phy_repeaters) {
+		set_phy_repeater_mode(intel_dp, true);
+		set_phy_repeater_mode(intel_dp, false);
+	}
+
+	ret = train_link_with_lttpr_mode(intel_dp, phy_repeaters);
+	if (!ret && phy_repeaters) {
+		drm_dbg_kms(&i915->drm,
+			    "Link training in LTTPR non-transparent mode failed, retrying in transparent mode\n");
+		ret = train_link_with_lttpr_mode(intel_dp, 0);
+	}
+
+	if (!ret)
+		handle_link_train_fallback(intel_dp);
 }

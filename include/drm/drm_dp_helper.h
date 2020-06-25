@@ -1036,6 +1036,8 @@
 #define DP_MAX_LANE_COUNT_PHY_REPEATER			    0xf0004 /* 1.4a */
 #define DP_Repeater_FEC_CAPABILITY			    0xf0004 /* 1.4 */
 #define DP_PHY_REPEATER_EXTENDED_WAIT_TIMEOUT		    0xf0005 /* 1.4a */
+
+#define DP_LTTPR1_BASE					    0xf0010 /* 1.3 */
 #define DP_TRAINING_PATTERN_SET_PHY_REPEATER1		    0xf0010 /* 1.3 */
 #define DP_TRAINING_LANE0_SET_PHY_REPEATER1		    0xf0011 /* 1.3 */
 #define DP_TRAINING_LANE1_SET_PHY_REPEATER1		    0xf0012 /* 1.3 */
@@ -1055,6 +1057,18 @@
 #define DP_FEC_STATUS_PHY_REPEATER1			    0xf0290 /* 1.4 */
 #define DP_FEC_ERROR_COUNT_PHY_REPEATER1                    0xf0291 /* 1.4 */
 #define DP_FEC_CAPABILITY_PHY_REPEATER1                     0xf0294 /* 1.4a */
+
+#define DP_LTTPR2_BASE					    0xf0060 /* 1.3 */
+#define DP_LTTPR_BASE(idx) \
+	(DP_LTTPR1_BASE + (DP_LTTPR2_BASE - DP_LTTPR1_BASE) * ((idx) - 1))
+#define DP_LTTPR_REG(idx, lttpr1_reg) \
+	(DP_LTTPR_BASE(idx) + (lttpr1_reg) - DP_LTTPR_BASE(1))
+
+#define DP_TRAINING_PATTERN_SET_PHY_REPEATER(idx) \
+	DP_LTTPR_REG(idx, DP_TRAINING_PATTERN_SET_PHY_REPEATER1)
+
+#define DP_LANE0_1_STATUS_PHY_REPEATER(idx) \
+	DP_LTTPR_REG(idx, DP_LANE0_1_STATUS_PHY_REPEATER1)
 
 /* Repeater modes */
 #define DP_PHY_REPEATER_MODE_TRANSPARENT		    0x55    /* 1.3 */
