@@ -4508,12 +4508,6 @@ intel_dp_program_link_training_pattern(struct intel_dp *intel_dp,
 	intel_dp->set_link_train(intel_dp, dp_train_pat);
 }
 
-void intel_dp_set_idle_link_train(struct intel_dp *intel_dp)
-{
-	if (intel_dp->set_idle_link_train)
-		intel_dp->set_idle_link_train(intel_dp);
-}
-
 static void
 intel_dp_link_down(struct intel_encoder *encoder,
 		   const struct intel_crtc_state *old_crtc_state)
