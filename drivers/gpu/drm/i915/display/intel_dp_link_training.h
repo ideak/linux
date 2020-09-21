@@ -12,8 +12,9 @@ struct intel_dp;
 
 int intel_dp_lttpr_init(struct intel_dp *intel_dp);
 
-void intel_dp_get_adjust_train(struct intel_dp *intel_dp,
-			       const u8 link_status[DP_LINK_STATUS_SIZE]);
+void
+intel_dp_get_adjust_train(struct intel_dp *intel_dp, enum drm_dp_phy dp_phy,
+			  const u8 link_status[DP_LINK_STATUS_SIZE]);
 void intel_dp_start_link_train(struct intel_dp *intel_dp);
 void intel_dp_stop_link_train(struct intel_dp *intel_dp);
 
