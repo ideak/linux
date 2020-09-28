@@ -1,0 +1,32 @@
+drm drm-fixes a1b8638ba1320e6684aa98233c15255eb803fac7
+	Linux 5.9-rc7
+drm-misc drm-misc-fixes 5af08640795b2b9a940c9266c0260455377ae262
+	fbcon: Fix global-out-of-bounds read in fbcon_get_font()
+drm-intel drm-intel-fixes a1b8638ba1320e6684aa98233c15255eb803fac7
+	Linux 5.9-rc7
+drm-amd drm-amd-fixes 2b702e72e33bbdec0764cfb6e1dd00fe1142ae55
+	Merge tag 'drm-misc-fixes-2017-09-28-1' of git://anongit.freedesktop.org/git/drm-misc into drm-fixes
+drm drm-next 32e4d9df60f71d641fbe628a9afbe2f44d7e9a37
+	agp: use semicolons rather than commas to separate statements
+drm-misc drm-misc-next-fixes de194561359788871f7d8f5f7797557a2a166b4e
+	drm/vc4: kms: Assign a FIFO to enabled CRTCs instead of active
+drm-intel drm-intel-next-fixes ef80c1a1d21b2845e3a60dcb936264b123ebf41c
+	drm/i915: Fix state checker hw.active/hw.enable readout
+drm-amd drm-amd-next-fixes 2bd6bf03f4c1c59381d62c61d03f6cc3fe71f66e
+	Linux 4.14-rc1
+drm-misc drm-misc-next ca876a1d30e51fd1b1d1283b9a7b0988ffb30f03
+	drm/hisilicon: Deleted the drm_device declaration
+drm-intel drm-intel-next-queued 33267703df1562a625a76a654927e1fbd4b6d0ce
+	drm/i915/dsi: Enable software vblank counter
+drm-intel drm-intel-next 8fea92536e3efff14fa4cde7ed37c595b40a52b5
+	drm/i915: Update DRIVER_DATE to 20200917
+drm-amd drm-amd-next 754270c7c56292e97d0eff924a5d5d83f92add07
+	Merge branch 'drm-next-4.15' of git://people.freedesktop.org/~agd5f/linux into drm-next
+sound-upstream for-linus c413c3102703a453c1312ce2160c6b7ffd55403e
+	Revert "ALSA: usb-audio: Disable Lenovo P620 Rear line-in volume control"
+sound-upstream for-next 502f389a0fd2d987ea7405cb57c02817328b6f7a
+	ALSA: hda - remove kerneldoc for internal hdac_i915 function
+drm-intel topic/core-for-CI c082b170b61f96f6148481ae69b69f66664839eb
+	mm: do not rely on mm == current->mm in __get_user_pages_locked
+drm-intel drm-intel-gt-next badef44deff1fae8d21c5c1cfc4dde95fb5bf993
+	drm/i915/gem: Hold request reference for canceling an active context
