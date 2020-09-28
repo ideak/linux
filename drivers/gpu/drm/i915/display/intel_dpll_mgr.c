@@ -1576,31 +1576,31 @@ static bool skl_ddi_hdmi_pll_dividers(struct intel_crtc_state *crtc_state)
 	return true;
 }
 
-static int skl_ddi_wrpll_get_freq(struct drm_i915_private *i915,
-				  const struct intel_shared_dpll *pll)
+static int skl_wrpll_calc_freq(int ref_clock,
+			       u32 dco_integer, u32 dco_fraction,
+			       u32 pdiv, u32 qdiv, u32 kdiv)
 {
-	const struct intel_dpll_hw_state *pll_state = &pll->state.hw_state;
-	int ref_clock = i915->dpll.ref_clks.nssc;
-	u32 p0, p1, p2, dco_freq;
+	u32 dco_freq;
 
-	p0 = pll_state->cfgcr2 & DPLL_CFGCR2_PDIV_MASK;
-	p2 = pll_state->cfgcr2 & DPLL_CFGCR2_KDIV_MASK;
+	dco_freq = ref_clock * dco_integer;
+	dco_freq += dco_fraction * ref_clock / 0x8000;
 
-	if (pll_state->cfgcr2 &  DPLL_CFGCR2_QDIV_MODE(1))
-		p1 = (pll_state->cfgcr2 & DPLL_CFGCR2_QDIV_RATIO_MASK) >> 8;
-	else
-		p1 = 1;
+	return dco_freq / (pdiv * qdiv * kdiv * 5);
+}
 
-
-	switch (p0) {
+static void skl_wrpll_decode_divs(struct drm_i915_private *i915,
+				  const struct skl_wrpll_params *wrpll_params,
+				  u32 *pdiv, u32 *qdiv, u32 *kdiv)
+{
+	switch (DPLL_CFGCR2_PDIV(wrpll_params->pdiv)) {
 	case DPLL_CFGCR2_PDIV_1:
-		p0 = 1;
+		*pdiv = 1;
 		break;
 	case DPLL_CFGCR2_PDIV_2:
-		p0 = 2;
+		*pdiv = 2;
 		break;
 	case DPLL_CFGCR2_PDIV_3:
-		p0 = 3;
+		*pdiv = 3;
 		break;
 	case DPLL_CFGCR2_PDIV_7 | (1 << DPLL_CFGCR2_PDIV_SHIFT):
 		/*
@@ -1608,38 +1608,63 @@ static int skl_ddi_wrpll_get_freq(struct drm_i915_private *i915,
 		 * handling it the same way as PDIV_7.
 		 */
 		drm_err(&i915->drm, "Invalid WRPLL PDIV divider value, fixing it.\n");
-		p0 = 7;
+		*pdiv = 7;
 		break;
+	default:
+		MISSING_CASE(wrpll_params->pdiv);
+		fallthrough;
 	case DPLL_CFGCR2_PDIV_7:
-		p0 = 7;
+		*pdiv = 7;
 		break;
 	}
 
-	switch (p2) {
+	*qdiv = wrpll_params->qdiv_mode ? wrpll_params->qdiv_ratio : 1;
+
+	switch (DPLL_CFGCR2_KDIV(wrpll_params->kdiv)) {
+	default:
+		MISSING_CASE(wrpll_params->kdiv);
+		fallthrough;
 	case DPLL_CFGCR2_KDIV_5:
-		p2 = 5;
+		*kdiv = 5;
 		break;
 	case DPLL_CFGCR2_KDIV_2:
-		p2 = 2;
+		*kdiv = 2;
 		break;
 	case DPLL_CFGCR2_KDIV_3:
-		p2 = 3;
+		*kdiv = 3;
 		break;
 	case DPLL_CFGCR2_KDIV_1:
-		p2 = 1;
+		*kdiv = 1;
 		break;
 	}
+}
 
-	dco_freq = (pll_state->cfgcr1 & DPLL_CFGCR1_DCO_INTEGER_MASK) *
-		   ref_clock;
+static int skl_ddi_wrpll_get_freq(struct drm_i915_private *i915,
+				  const struct intel_shared_dpll *pll)
+{
+	const struct intel_dpll_hw_state *pll_state = &pll->state.hw_state;
+	struct skl_wrpll_params wrpll_params = { };
+	int ref_clock = i915->dpll.ref_clks.nssc;
+	u32 pdiv;
+	u32 qdiv;
+	u32 kdiv;
+	u32 dco_integer;
+	u32 dco_fraction;
 
-	dco_freq += ((pll_state->cfgcr1 & DPLL_CFGCR1_DCO_FRACTION_MASK) >> 9) *
-		    ref_clock / 0x8000;
+	wrpll_params.pdiv = (pll_state->cfgcr2 & DPLL_CFGCR2_PDIV_MASK) >> DPLL_CFGCR2_PDIV_SHIFT;
+	wrpll_params.kdiv = (pll_state->cfgcr2 & DPLL_CFGCR2_KDIV_MASK) >> DPLL_CFGCR2_KDIV_SHIFT;
 
-	if (drm_WARN_ON(&i915->drm, p0 == 0 || p1 == 0 || p2 == 0))
-		return 0;
+	wrpll_params.qdiv_mode = !!(pll_state->cfgcr2 &  DPLL_CFGCR2_QDIV_MODE(1));
+	wrpll_params.qdiv_ratio = (pll_state->cfgcr2 & DPLL_CFGCR2_QDIV_RATIO_MASK) >>
+				  DPLL_CFGCR2_QDIV_RATIO_SHIFT;
 
-	return dco_freq / (p0 * p1 * p2 * 5);
+	skl_wrpll_decode_divs(i915, &wrpll_params, &pdiv, &qdiv, &kdiv);
+
+	dco_integer = pll_state->cfgcr1 & DPLL_CFGCR1_DCO_INTEGER_MASK;
+	dco_fraction = (pll_state->cfgcr1 & DPLL_CFGCR1_DCO_FRACTION_MASK) >>
+			DPLL_CFGCR1_DCO_FRACTION_SHIFT;
+
+	return skl_wrpll_calc_freq(ref_clock, dco_integer, dco_fraction, pdiv, qdiv, kdiv);
 }
 
 static bool
@@ -2630,60 +2655,71 @@ static bool cnl_ddi_hdmi_pll_dividers(struct intel_crtc_state *crtc_state)
 	return true;
 }
 
+static void cnl_wrpll_decode_divs(const struct skl_wrpll_params *wrpll_params,
+				  u32 *pdiv, u32 *qdiv, u32 *kdiv)
+{
+	switch (DPLL_CFGCR1_PDIV(wrpll_params->pdiv)) {
+	case DPLL_CFGCR1_PDIV_2:
+		*pdiv = 2;
+		break;
+	case DPLL_CFGCR1_PDIV_3:
+		*pdiv = 3;
+		break;
+	case DPLL_CFGCR1_PDIV_5:
+		*pdiv = 5;
+		break;
+	default:
+		MISSING_CASE(wrpll_params->pdiv);
+		fallthrough;
+	case DPLL_CFGCR1_PDIV_7:
+		*pdiv = 7;
+		break;
+	}
+
+	*qdiv = wrpll_params->qdiv_mode ? wrpll_params->qdiv_ratio : 1;
+
+	switch (DPLL_CFGCR1_KDIV(wrpll_params->kdiv)) {
+	case DPLL_CFGCR1_KDIV_1:
+		*kdiv = 1;
+		break;
+	case DPLL_CFGCR1_KDIV_2:
+		*kdiv = 2;
+		break;
+	default:
+		MISSING_CASE(wrpll_params->kdiv);
+		fallthrough;
+	case DPLL_CFGCR1_KDIV_3:
+		*kdiv = 3;
+		break;
+	}
+}
+
 static int __cnl_ddi_wrpll_get_freq(struct drm_i915_private *dev_priv,
 				    const struct intel_shared_dpll *pll,
 				    int ref_clock)
 {
 	const struct intel_dpll_hw_state *pll_state = &pll->state.hw_state;
-	u32 p0, p1, p2, dco_freq;
+	struct skl_wrpll_params wrpll_params = { };
+	u32 pdiv;
+	u32 qdiv;
+	u32 kdiv;
+	u32 dco_integer;
+	u32 dco_fraction;
 
-	p0 = pll_state->cfgcr1 & DPLL_CFGCR1_PDIV_MASK;
-	p2 = pll_state->cfgcr1 & DPLL_CFGCR1_KDIV_MASK;
+	wrpll_params.pdiv = (pll_state->cfgcr1 & DPLL_CFGCR1_PDIV_MASK) >> DPLL_CFGCR1_PDIV_SHIFT;
+	wrpll_params.kdiv = (pll_state->cfgcr1 & DPLL_CFGCR1_KDIV_MASK) >> DPLL_CFGCR1_KDIV_SHIFT;
 
-	if (pll_state->cfgcr1 & DPLL_CFGCR1_QDIV_MODE(1))
-		p1 = (pll_state->cfgcr1 & DPLL_CFGCR1_QDIV_RATIO_MASK) >>
-			DPLL_CFGCR1_QDIV_RATIO_SHIFT;
-	else
-		p1 = 1;
+	wrpll_params.qdiv_mode = !!(pll_state->cfgcr1 & DPLL_CFGCR1_QDIV_MODE(1));
+	wrpll_params.qdiv_ratio = (pll_state->cfgcr1 & DPLL_CFGCR1_QDIV_RATIO_MASK) >>
+				  DPLL_CFGCR1_QDIV_RATIO_SHIFT;
 
+	cnl_wrpll_decode_divs(&wrpll_params, &pdiv, &qdiv, &kdiv);
 
-	switch (p0) {
-	case DPLL_CFGCR1_PDIV_2:
-		p0 = 2;
-		break;
-	case DPLL_CFGCR1_PDIV_3:
-		p0 = 3;
-		break;
-	case DPLL_CFGCR1_PDIV_5:
-		p0 = 5;
-		break;
-	case DPLL_CFGCR1_PDIV_7:
-		p0 = 7;
-		break;
-	}
+	dco_integer = pll_state->cfgcr0 & DPLL_CFGCR0_DCO_INTEGER_MASK;
+	dco_fraction = (pll_state->cfgcr0 & DPLL_CFGCR0_DCO_FRACTION_MASK) >>
+		       DPLL_CFGCR0_DCO_FRACTION_SHIFT;
 
-	switch (p2) {
-	case DPLL_CFGCR1_KDIV_1:
-		p2 = 1;
-		break;
-	case DPLL_CFGCR1_KDIV_2:
-		p2 = 2;
-		break;
-	case DPLL_CFGCR1_KDIV_3:
-		p2 = 3;
-		break;
-	}
-
-	dco_freq = (pll_state->cfgcr0 & DPLL_CFGCR0_DCO_INTEGER_MASK) *
-		   ref_clock;
-
-	dco_freq += (((pll_state->cfgcr0 & DPLL_CFGCR0_DCO_FRACTION_MASK) >>
-		      DPLL_CFGCR0_DCO_FRACTION_SHIFT) * ref_clock) / 0x8000;
-
-	if (drm_WARN_ON(&dev_priv->drm, p0 == 0 || p1 == 0 || p2 == 0))
-		return 0;
-
-	return dco_freq / (p0 * p1 * p2 * 5);
+	return skl_wrpll_calc_freq(ref_clock, dco_integer, dco_fraction, pdiv, qdiv, kdiv);
 }
 
 static int cnl_ddi_wrpll_get_freq(struct drm_i915_private *i915,

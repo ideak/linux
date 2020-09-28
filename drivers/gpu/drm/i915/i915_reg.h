@@ -10237,6 +10237,7 @@ enum skl_power_gate {
 #define _DPLL3_CFGCR1	0x6C050
 #define  DPLL_CFGCR1_FREQ_ENABLE	(1 << 31)
 #define  DPLL_CFGCR1_DCO_FRACTION_MASK	(0x7fff << 9)
+#define  DPLL_CFGCR1_DCO_FRACTION_SHIFT	9
 #define  DPLL_CFGCR1_DCO_FRACTION(x)	((x) << 9)
 #define  DPLL_CFGCR1_DCO_INTEGER_MASK	(0x1ff)
 
@@ -10244,9 +10245,11 @@ enum skl_power_gate {
 #define _DPLL2_CFGCR2	0x6C04C
 #define _DPLL3_CFGCR2	0x6C054
 #define  DPLL_CFGCR2_QDIV_RATIO_MASK	(0xff << 8)
+#define  DPLL_CFGCR2_QDIV_RATIO_SHIFT	8
 #define  DPLL_CFGCR2_QDIV_RATIO(x)	((x) << 8)
 #define  DPLL_CFGCR2_QDIV_MODE(x)	((x) << 7)
 #define  DPLL_CFGCR2_KDIV_MASK		(3 << 5)
+#define  DPLL_CFGCR2_KDIV_SHIFT		5
 #define  DPLL_CFGCR2_KDIV(x)		((x) << 5)
 #define  DPLL_CFGCR2_KDIV_5 (0 << 5)
 #define  DPLL_CFGCR2_KDIV_2 (1 << 5)
