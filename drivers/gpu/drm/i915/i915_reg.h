@@ -10253,6 +10253,7 @@ enum skl_power_gate {
 #define  DPLL_CFGCR2_KDIV_3 (2 << 5)
 #define  DPLL_CFGCR2_KDIV_1 (3 << 5)
 #define  DPLL_CFGCR2_PDIV_MASK		(7 << 2)
+#define  DPLL_CFGCR2_PDIV_SHIFT		2
 #define  DPLL_CFGCR2_PDIV(x)		((x) << 2)
 #define  DPLL_CFGCR2_PDIV_1 (0 << 2)
 #define  DPLL_CFGCR2_PDIV_2 (1 << 2)

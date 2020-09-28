@@ -1602,6 +1602,14 @@ static int skl_ddi_wrpll_get_freq(struct drm_i915_private *i915,
 	case DPLL_CFGCR2_PDIV_3:
 		p0 = 3;
 		break;
+	case DPLL_CFGCR2_PDIV_7 | (1 << DPLL_CFGCR2_PDIV_SHIFT):
+		/*
+		 * Incorrect ASUS-Z170M BIOS setting, the HW seems to ignore bit#0,
+		 * handling it the same way as PDIV_7.
+		 */
+		drm_err(&i915->drm, "Invalid WRPLL PDIV divider value, fixing it.\n");
+		p0 = 7;
+		break;
 	case DPLL_CFGCR2_PDIV_7:
 		p0 = 7;
 		break;
