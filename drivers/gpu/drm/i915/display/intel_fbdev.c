@@ -43,6 +43,7 @@
 
 #include "i915_drv.h"
 #include "intel_display_types.h"
+#include "intel_fb_plane.h"
 #include "intel_fbdev.h"
 #include "intel_frontbuffer.h"
 
@@ -379,7 +380,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 		}
 
 		cur_size = crtc->state->adjusted_mode.crtc_vdisplay;
-		cur_size = intel_fb_align_height(&fb->base, 0, cur_size);
+		cur_size = intel_fb_plane_align_height(&fb->base, 0, cur_size);
 		cur_size *= fb->base.pitches[0];
 		drm_dbg_kms(&i915->drm,
 			    "pipe %c area: %dx%d, bpp: %d, size: %d\n",

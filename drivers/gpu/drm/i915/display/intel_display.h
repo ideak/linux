@@ -546,8 +546,6 @@ void intel_init_display_hooks(struct drm_i915_private *dev_priv);
 unsigned int intel_fb_xy_to_linear(int x, int y,
 				   const struct intel_plane_state *state,
 				   int plane);
-unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
-				   int color_plane, unsigned int height);
 void intel_add_fb_offsets(int *x, int *y,
 			  const struct intel_plane_state *state, int plane);
 unsigned int intel_rotation_info_size(const struct intel_rotation_info *rot_info);
@@ -633,32 +631,11 @@ intel_format_info_is_yuv_semiplanar(const struct drm_format_info *info,
 				    u64 modifier);
 
 int intel_plane_compute_gtt(struct intel_plane_state *plane_state);
-u32 intel_plane_compute_aligned_offset(int *x, int *y,
-				       const struct intel_plane_state *state,
-				       int color_plane);
 int intel_plane_pin_fb(struct intel_plane_state *plane_state);
 void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state);
 struct intel_encoder *
 intel_get_crtc_new_encoder(const struct intel_atomic_state *state,
 			   const struct intel_crtc_state *crtc_state);
-unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
-				  int color_plane);
-u32 intel_plane_adjust_aligned_offset(int *x, int *y,
-				      const struct intel_plane_state *state,
-				      int color_plane,
-				      u32 old_offset, u32 new_offset);
-
-unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
-				  int color_plane);
-void intel_fb_plane_get_subsampling(int *hsub, int *vsub,
-				    const struct drm_framebuffer *fb,
-				    int color_plane);
-u32 intel_plane_adjust_aligned_offset(int *x, int *y,
-				      const struct intel_plane_state *state,
-				      int color_plane,
-				      u32 old_offset, u32 new_offset);
-unsigned int intel_tile_width_bytes(const struct drm_framebuffer *fb, int color_plane);
-unsigned int intel_tile_height(const struct drm_framebuffer *fb, int color_plane);
 
 void intel_display_driver_register(struct drm_i915_private *i915);
 void intel_display_driver_unregister(struct drm_i915_private *i915);

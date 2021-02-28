@@ -15,6 +15,7 @@
 #include "intel_cursor.h"
 #include "intel_display_types.h"
 #include "intel_display.h"
+#include "intel_fb_plane.h"
 
 #include "intel_frontbuffer.h"
 #include "intel_pm.h"
@@ -99,8 +100,7 @@ static int intel_cursor_check_surface(struct intel_plane_state *plane_state)
 	src_y = plane_state->uapi.src.y1 >> 16;
 
 	intel_add_fb_offsets(&src_x, &src_y, plane_state, 0);
-	offset = intel_plane_compute_aligned_offset(&src_x, &src_y,
-						    plane_state, 0);
+	offset = intel_fb_plane_compute_aligned_offset(plane_state, 0, &src_x, &src_y);
 
 	if (src_x != 0 || src_y != 0) {
 		drm_dbg_kms(&dev_priv->drm,

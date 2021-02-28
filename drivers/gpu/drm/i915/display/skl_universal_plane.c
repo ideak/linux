@@ -11,6 +11,7 @@
 #include "i915_drv.h"
 #include "intel_atomic_plane.h"
 #include "intel_display_types.h"
+#include "intel_fb_plane.h"
 #include "intel_pm.h"
 #include "intel_psr.h"
 #include "intel_sprite.h"
@@ -561,12 +562,6 @@ icl_program_input_csc(struct intel_plane *plane,
 			  PLANE_INPUT_CSC_POSTOFF(pipe, plane_id, 2), 0x0);
 }
 
-static bool is_surface_linear(const struct drm_framebuffer *fb, int color_plane)
-{
-	return fb->modifier == DRM_FORMAT_MOD_LINEAR ||
-	       is_gen12_ccs_plane(fb, color_plane);
-}
-
 static unsigned int skl_plane_stride_mult(const struct drm_framebuffer *fb,
 					  int color_plane, unsigned int rotation)
 {
@@ -574,12 +569,12 @@ static unsigned int skl_plane_stride_mult(const struct drm_framebuffer *fb,
 	 * The stride is either expressed as a multiple of 64 bytes chunks for
 	 * linear buffers or in number of tiles for tiled buffers.
 	 */
-	if (is_surface_linear(fb, color_plane))
+	if (intel_fb_plane_is_linear(fb, color_plane))
 		return 64;
 	else if (drm_rotation_90_or_270(rotation))
-		return intel_tile_height(fb, color_plane);
+		return intel_fb_plane_tile_height(fb, color_plane);
 	else
-		return intel_tile_width_bytes(fb, color_plane);
+		return intel_fb_plane_tile_width_bytes(fb, color_plane);
 }
 
 static u32 skl_plane_stride(const struct intel_plane_state *plane_state,
@@ -914,40 +909,6 @@ static u32 glk_plane_color_ctl(const struct intel_crtc_state *crtc_state,
 	return plane_color_ctl;
 }
 
-static int
-main_to_ccs_plane(const struct drm_framebuffer *fb, int main_plane)
-{
-	drm_WARN_ON(fb->dev, !is_ccs_modifier(fb->modifier) ||
-		    (main_plane && main_plane >= fb->format->num_planes / 2));
-
-	return fb->format->num_planes / 2 + main_plane;
-}
-
-int skl_ccs_to_main_plane(const struct drm_framebuffer *fb, int ccs_plane)
-{
-	drm_WARN_ON(fb->dev, !is_ccs_modifier(fb->modifier) ||
-		    ccs_plane < fb->format->num_planes / 2);
-
-	if (is_gen12_ccs_cc_plane(fb, ccs_plane))
-		return 0;
-
-	return ccs_plane - fb->format->num_planes / 2;
-}
-
-static int
-skl_main_to_aux_plane(const struct drm_framebuffer *fb, int main_plane)
-{
-	struct drm_i915_private *i915 = to_i915(fb->dev);
-
-	if (is_ccs_modifier(fb->modifier))
-		return main_to_ccs_plane(fb, main_plane);
-	else if (INTEL_GEN(i915) < 11 &&
-		 intel_format_info_is_yuv_semiplanar(fb->format, fb->modifier))
-		return 1;
-	else
-		return 0;
-}
-
 static void
 skl_program_plane(struct intel_plane *plane,
 		  const struct intel_crtc_state *crtc_state,
@@ -961,7 +922,7 @@ skl_program_plane(struct intel_plane *plane,
 	u32 surf_addr = plane_state->color_plane[color_plane].offset;
 	u32 stride = skl_plane_stride(plane_state, color_plane);
 	const struct drm_framebuffer *fb = plane_state->hw.fb;
-	int aux_plane = skl_main_to_aux_plane(fb, color_plane);
+	int aux_plane = intel_fb_plane_main_to_aux(fb, color_plane);
 	int crtc_x = plane_state->uapi.dst.x1;
 	int crtc_y = plane_state->uapi.dst.y1;
 	u32 x = plane_state->color_plane[color_plane].x;
@@ -1311,11 +1272,11 @@ skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state,
 	int aux_x = plane_state->color_plane[ccs_plane].x;
 	int aux_y = plane_state->color_plane[ccs_plane].y;
 	u32 aux_offset = plane_state->color_plane[ccs_plane].offset;
-	u32 alignment = intel_surf_alignment(fb, ccs_plane);
+	u32 alignment = intel_fb_plane_surf_alignment(fb, ccs_plane);
 	int hsub;
 	int vsub;
 
-	intel_fb_plane_get_subsampling(&hsub, &vsub, fb, ccs_plane);
+	intel_fb_plane_get_subsampling(fb, ccs_plane, &hsub, &vsub);
 	while (aux_offset >= main_offset && aux_y <= main_y) {
 		int x, y;
 
@@ -1327,12 +1288,9 @@ skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state,
 
 		x = aux_x / hsub;
 		y = aux_y / vsub;
-		aux_offset = intel_plane_adjust_aligned_offset(&x, &y,
-							       plane_state,
-							       ccs_plane,
-							       aux_offset,
-							       aux_offset -
-								alignment);
+		aux_offset = intel_fb_plane_adjust_aligned_offset(plane_state, ccs_plane,
+								  aux_offset, aux_offset - alignment,
+								  &x, &y);
 		aux_x = x * hsub + aux_x % hsub;
 		aux_y = y * vsub + aux_y % vsub;
 	}
@@ -1354,13 +1312,13 @@ int skl_calc_main_surface_offset(const struct intel_plane_state *plane_state,
 	struct intel_plane *plane = to_intel_plane(plane_state->uapi.plane);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->hw.fb;
-	const int aux_plane = skl_main_to_aux_plane(fb, 0);
+	const int aux_plane = intel_fb_plane_main_to_aux(fb, 0);
 	const u32 aux_offset = plane_state->color_plane[aux_plane].offset;
-	const u32 alignment = intel_surf_alignment(fb, 0);
+	const u32 alignment = intel_fb_plane_surf_alignment(fb, 0);
 	const int w = drm_rect_width(&plane_state->uapi.src) >> 16;
 
 	intel_add_fb_offsets(x, y, plane_state, 0);
-	*offset = intel_plane_compute_aligned_offset(x, y, plane_state, 0);
+	*offset = intel_fb_plane_compute_aligned_offset(plane_state, 0, x, y);
 	if (drm_WARN_ON(&dev_priv->drm, alignment && !is_power_of_2(alignment)))
 		return -EINVAL;
 
@@ -1370,9 +1328,9 @@ int skl_calc_main_surface_offset(const struct intel_plane_state *plane_state,
 	 * sure that is what we will get.
 	 */
 	if (aux_plane && *offset > aux_offset)
-		*offset = intel_plane_adjust_aligned_offset(x, y, plane_state, 0,
-							    *offset,
-							    aux_offset & ~(alignment - 1));
+		*offset = intel_fb_plane_adjust_aligned_offset(plane_state,0,
+							       *offset, aux_offset & ~(alignment - 1),
+							       x, y);
 
 	/*
 	 * When using an X-tiled surface, the plane blows up
@@ -1390,9 +1348,9 @@ int skl_calc_main_surface_offset(const struct intel_plane_state *plane_state,
 				return -EINVAL;
 			}
 
-			*offset = intel_plane_adjust_aligned_offset(x, y, plane_state, 0,
-								    *offset,
-								    *offset - alignment);
+			*offset = intel_fb_plane_adjust_aligned_offset(plane_state, 0,
+								       *offset, *offset - alignment,
+								       x, y);
 		}
 	}
 
@@ -1412,8 +1370,8 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 	const int min_width = intel_plane_min_width(plane, fb, 0, rotation);
 	const int max_width = intel_plane_max_width(plane, fb, 0, rotation);
 	const int max_height = intel_plane_max_height(plane, fb, 0, rotation);
-	const int aux_plane = skl_main_to_aux_plane(fb, 0);
-	const u32 alignment = intel_surf_alignment(fb, 0);
+	const int aux_plane = intel_fb_plane_main_to_aux(fb, 0);
+	const u32 alignment = intel_fb_plane_surf_alignment(fb, 0);
 	u32 offset;
 	int ret;
 
@@ -1438,8 +1396,9 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 			if (offset == 0)
 				break;
 
-			offset = intel_plane_adjust_aligned_offset(&x, &y, plane_state, 0,
-								   offset, offset - alignment);
+			offset = intel_fb_plane_adjust_aligned_offset(plane_state, 0,
+								      offset, offset - alignment,
+								      &x, &y);
 		}
 
 		if (x != plane_state->color_plane[aux_plane].x ||
@@ -1490,30 +1449,26 @@ static int skl_check_nv12_aux_surface(struct intel_plane_state *plane_state)
 	}
 
 	intel_add_fb_offsets(&x, &y, plane_state, uv_plane);
-	offset = intel_plane_compute_aligned_offset(&x, &y,
-						    plane_state, uv_plane);
+	offset = intel_fb_plane_compute_aligned_offset(plane_state, uv_plane, &x, &y);
 
 	if (is_ccs_modifier(fb->modifier)) {
-		int ccs_plane = main_to_ccs_plane(fb, uv_plane);
+		int ccs_plane = intel_fb_plane_main_to_ccs(fb, uv_plane);
 		u32 aux_offset = plane_state->color_plane[ccs_plane].offset;
-		u32 alignment = intel_surf_alignment(fb, uv_plane);
+		u32 alignment = intel_fb_plane_surf_alignment(fb, uv_plane);
 
 		if (offset > aux_offset)
-			offset = intel_plane_adjust_aligned_offset(&x, &y,
-								   plane_state,
-								   uv_plane,
-								   offset,
-								   aux_offset & ~(alignment - 1));
+			offset = intel_fb_plane_adjust_aligned_offset(plane_state, uv_plane,
+								      offset, aux_offset & ~(alignment - 1),
+								      &x, &y);
 
 		while (!skl_check_main_ccs_coordinates(plane_state, x, y,
 						       offset, ccs_plane)) {
 			if (offset == 0)
 				break;
 
-			offset = intel_plane_adjust_aligned_offset(&x, &y,
-								   plane_state,
-								   uv_plane,
-								   offset, offset - alignment);
+			offset = intel_fb_plane_adjust_aligned_offset(plane_state, uv_plane,
+								      offset, offset - alignment,
+								      &x, &y);
 		}
 
 		if (x != plane_state->color_plane[ccs_plane].x ||
@@ -1546,13 +1501,13 @@ static int skl_check_ccs_aux_surface(struct intel_plane_state *plane_state)
 		int hsub, vsub;
 		int x, y;
 
-		if (!is_ccs_plane(fb, ccs_plane) ||
-		    is_gen12_ccs_cc_plane(fb, ccs_plane))
+		if (!intel_fb_plane_is_ccs(fb, ccs_plane) ||
+		    intel_fb_plane_is_gen12_ccs_cc(fb, ccs_plane))
 			continue;
 
-		intel_fb_plane_get_subsampling(&main_hsub, &main_vsub, fb,
-					       skl_ccs_to_main_plane(fb, ccs_plane));
-		intel_fb_plane_get_subsampling(&hsub, &vsub, fb, ccs_plane);
+		intel_fb_plane_get_subsampling(fb, intel_fb_plane_ccs_to_main(fb, ccs_plane),
+					       &main_hsub, &main_vsub);
+		intel_fb_plane_get_subsampling(fb, ccs_plane, &hsub, &vsub);
 
 		hsub *= main_hsub;
 		vsub *= main_vsub;
@@ -1561,9 +1516,7 @@ static int skl_check_ccs_aux_surface(struct intel_plane_state *plane_state)
 
 		intel_add_fb_offsets(&x, &y, plane_state, ccs_plane);
 
-		offset = intel_plane_compute_aligned_offset(&x, &y,
-							    plane_state,
-							    ccs_plane);
+		offset = intel_fb_plane_compute_aligned_offset(plane_state, ccs_plane, &x, &y);
 
 		plane_state->color_plane[ccs_plane].offset = offset;
 		plane_state->color_plane[ccs_plane].x = (x * hsub +
@@ -2247,7 +2200,7 @@ skl_get_initial_plane_config(struct intel_crtc *crtc,
 	stride_mult = skl_plane_stride_mult(fb, 0, DRM_MODE_ROTATE_0);
 	fb->pitches[0] = (val & 0x3ff) * stride_mult;
 
-	aligned_height = intel_fb_align_height(fb, 0, fb->height);
+	aligned_height = intel_fb_plane_align_height(fb, 0, fb->height);
 
 	plane_config->size = fb->pitches[0] * aligned_height;
 

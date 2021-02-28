@@ -11,6 +11,7 @@
 #include "intel_atomic.h"
 #include "intel_atomic_plane.h"
 #include "intel_display_types.h"
+#include "intel_fb_plane.h"
 #include "intel_sprite.h"
 #include "i9xx_plane.h"
 
@@ -250,8 +251,7 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	intel_add_fb_offsets(&src_x, &src_y, plane_state, 0);
 
 	if (INTEL_GEN(dev_priv) >= 4)
-		offset = intel_plane_compute_aligned_offset(&src_x, &src_y,
-							    plane_state, 0);
+		offset = intel_fb_plane_compute_aligned_offset(plane_state, 0, &src_x, &src_y);
 	else
 		offset = 0;
 
@@ -267,7 +267,7 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	 * despite them not using the linear offset anymore.
 	 */
 	if (INTEL_GEN(dev_priv) >= 4 && fb->modifier == I915_FORMAT_MOD_X_TILED) {
-		u32 alignment = intel_surf_alignment(fb, 0);
+		u32 alignment = intel_fb_plane_surf_alignment(fb, 0);
 		int cpp = fb->format->cpp[0];
 
 		while ((src_x + src_w) * cpp > plane_state->color_plane[0].stride) {
@@ -277,8 +277,9 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 				return -EINVAL;
 			}
 
-			offset = intel_plane_adjust_aligned_offset(&src_x, &src_y, plane_state, 0,
-								   offset, offset - alignment);
+			offset = intel_fb_plane_adjust_aligned_offset(plane_state, 0,
+								      offset, offset - alignment,
+								      &src_x, &src_y);
 		}
 	}
 
@@ -1026,7 +1027,7 @@ i9xx_get_initial_plane_config(struct intel_crtc *crtc,
 	val = intel_de_read(dev_priv, DSPSTRIDE(i9xx_plane));
 	fb->pitches[0] = val & 0xffffffc0;
 
-	aligned_height = intel_fb_align_height(fb, 0, fb->height);
+	aligned_height = intel_fb_plane_align_height(fb, 0, fb->height);
 
 	plane_config->size = fb->pitches[0] * aligned_height;
 
