@@ -4533,6 +4533,9 @@ static void intel_dp_process_phy_request(struct intel_dp *intel_dp,
 
 	drm_dp_set_phy_test_pattern(&intel_dp->aux, data,
 				    link_status[DP_DPCD_REV]);
+
+	drm_dp_dpcd_writeb(&intel_dp->aux, DP_TEST_RESPONSE, DP_TEST_ACK);
+	drm_dp_dpcd_writeb(&intel_dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, DP_AUTOMATED_TEST_REQUEST);
 }
 
 static u8 intel_dp_autotest_phy_pattern(struct intel_dp *intel_dp)
@@ -4551,10 +4554,11 @@ static u8 intel_dp_autotest_phy_pattern(struct intel_dp *intel_dp)
 	return DP_TEST_ACK;
 }
 
-static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
+static bool intel_dp_handle_test_request(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	u8 response = DP_TEST_NAK;
+	bool send_response = true;
 	u8 request = 0;
 	int status;
 
@@ -4581,6 +4585,8 @@ static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
 	case DP_TEST_LINK_PHY_TEST_PATTERN:
 		drm_dbg_kms(&i915->drm, "PHY_PATTERN test requested\n");
 		response = intel_dp_autotest_phy_pattern(intel_dp);
+		/* Ack the request only after reconfiguring the link for test pattern */
+		send_response = false;
 		break;
 	default:
 		drm_dbg_kms(&i915->drm, "Invalid test request '%02x'\n",
@@ -4592,10 +4598,15 @@ static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
 		intel_dp->compliance.test_type = request;
 
 update_status:
-	status = drm_dp_dpcd_writeb(&intel_dp->aux, DP_TEST_RESPONSE, response);
-	if (status <= 0)
-		drm_dbg_kms(&i915->drm,
-			    "Could not write test response to sink\n");
+	if (send_response) {
+		status = drm_dp_dpcd_writeb(&intel_dp->aux, DP_TEST_RESPONSE, response);
+		if (status <= 0)
+			drm_dbg_kms(&i915->drm,
+				    "Could not write test response to sink\n");
+		return true;
+	}
+
+	return false;
 }
 
 static void
@@ -5072,10 +5083,14 @@ static void intel_dp_check_device_service_irq(struct intel_dp *intel_dp)
 			      DP_DEVICE_SERVICE_IRQ_VECTOR, &val) != 1 || !val)
 		return;
 
-	drm_dp_dpcd_writeb(&intel_dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, val);
+	if (val & DP_AUTOMATED_TEST_REQUEST) {
+		if (!intel_dp_handle_test_request(intel_dp))
+			/* Defer ACK until test link configuration is done */
+			val &= ~DP_AUTOMATED_TEST_REQUEST;
+	}
 
-	if (val & DP_AUTOMATED_TEST_REQUEST)
-		intel_dp_handle_test_request(intel_dp);
+	if (val)
+		drm_dp_dpcd_writeb(&intel_dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, val);
 
 	if (val & DP_CP_IRQ)
 		intel_hdcp_handle_cp_irq(intel_dp->attached_connector);
