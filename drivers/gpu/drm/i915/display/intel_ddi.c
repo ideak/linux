@@ -3170,6 +3170,22 @@ static void intel_ddi_set_idle_link_train(struct intel_dp *intel_dp,
 			"Timed out waiting for DP idle patterns\n");
 }
 
+void intel_ddi_enable_dp_port(struct intel_dp *intel_dp,
+			      const struct intel_crtc_state *crtc_state)
+{
+	intel_ddi_prepare_link_retrain(intel_dp, crtc_state);
+	intel_ddi_set_idle_link_train(intel_dp, crtc_state);
+	intel_ddi_set_link_train(intel_dp, crtc_state, DP_TRAINING_PATTERN_DISABLE);
+}
+
+void intel_ddi_disable_dp_port(struct intel_dp *intel_dp,
+			       const struct intel_crtc_state *crtc_state)
+{
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+
+	intel_disable_ddi_buf(encoder, crtc_state);
+}
+
 static bool intel_ddi_is_audio_enabled(struct drm_i915_private *dev_priv,
 				       enum transcoder cpu_transcoder)
 {

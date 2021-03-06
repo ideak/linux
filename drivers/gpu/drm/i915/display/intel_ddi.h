@@ -39,6 +39,10 @@ void intel_wait_ddi_buf_idle(struct drm_i915_private *dev_priv,
 			     enum port port);
 void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port);
 bool intel_ddi_get_hw_state(struct intel_encoder *encoder, enum pipe *pipe);
+void intel_ddi_enable_dp_port(struct intel_dp *intel_dp,
+			      const struct intel_crtc_state *crtc_state);
+void intel_ddi_disable_dp_port(struct intel_dp *intel_dp,
+			       const struct intel_crtc_state *crtc_state);
 void intel_ddi_enable_transcoder_func(struct intel_encoder *encoder,
 				      const struct intel_crtc_state *crtc_state);
 void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state);
