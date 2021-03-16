@@ -4875,6 +4875,8 @@ static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,
 
 	*crtc_mask = 0;
 
+	drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
+
 	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
 	for_each_intel_connector_iter(connector, &conn_iter) {
 		struct drm_connector_state *conn_state =
@@ -4882,13 +4884,16 @@ static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,
 		struct intel_crtc_state *crtc_state;
 		struct intel_crtc *crtc;
 
+		drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
 		if (!intel_dp_has_connector(intel_dp, conn_state))
 			continue;
 
+		drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
 		crtc = to_intel_crtc(conn_state->crtc);
 		if (!crtc)
 			continue;
 
+		drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
 		ret = drm_modeset_lock(&crtc->base.mutex, ctx);
 		if (ret)
 			break;
@@ -4897,14 +4902,17 @@ static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,
 
 		drm_WARN_ON(&i915->drm, !intel_crtc_has_dp_encoder(crtc_state));
 
+		drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
 		if (!crtc_state->hw.active)
 			continue;
 
+		drm_dbg_kms(&i915->drm, "%d\n", __LINE__);
 		if (conn_state->commit &&
 		    !try_wait_for_completion(&conn_state->commit->hw_done))
 			continue;
 
 		*crtc_mask |= drm_crtc_mask(&crtc->base);
+		drm_dbg_kms(&i915->drm, "%d crtc_mask: %02x\n", __LINE__, *crtc_mask);
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
@@ -4920,6 +4928,7 @@ static int intel_dp_do_phy_test(struct intel_encoder *encoder,
 	u32 crtc_mask;
 	int ret;
 
+	drm_dbg_kms(&dev_priv->drm, "%d\n", __LINE__);
 	ret = drm_modeset_lock(&dev_priv->drm.mode_config.connection_mutex,
 			       ctx);
 	if (ret)
@@ -4993,10 +5002,15 @@ intel_dp_hotplug(struct intel_encoder *encoder,
 		 struct intel_connector *connector)
 {
 	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	struct drm_modeset_acquire_ctx ctx;
 	enum intel_hotplug_state state;
 	int ret;
 
+	drm_dbg_kms(&i915->drm, "%d test_active %d test_type %ld\n",
+		    __LINE__,
+		    intel_dp->compliance.test_active,
+		    intel_dp->compliance.test_type);
 	if (intel_dp->compliance.test_active &&
 	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
 		intel_dp_phy_test(encoder);
@@ -5054,6 +5068,12 @@ static void intel_dp_check_device_service_irq(struct intel_dp *intel_dp)
 
 	if (val)
 		drm_dp_dpcd_writeb(&intel_dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, val);
+
+	drm_dbg_kms(&i915->drm, "%d val %02x test_active %d test_type %ld\n",
+		    __LINE__,
+		    val,
+		    intel_dp->compliance.test_active,
+		    intel_dp->compliance.test_type);
 
 	if (val & DP_CP_IRQ)
 		intel_hdcp_handle_cp_irq(intel_dp->attached_connector);

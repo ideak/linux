@@ -4174,6 +4174,11 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 	enum intel_hotplug_state state;
 	int ret;
 
+
+	drm_dbg_kms(&i915->drm, "%d test_active %d test_type %ld\n",
+		    __LINE__,
+		    intel_dp->compliance.test_active,
+		    intel_dp->compliance.test_type);
 	if (intel_dp->compliance.test_active &&
 	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
 		intel_dp_phy_test(encoder);
