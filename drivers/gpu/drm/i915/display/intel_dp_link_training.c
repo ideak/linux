@@ -779,6 +779,77 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 					       DP_TRAINING_PATTERN_DISABLE);
 }
 
+static bool intel_dp_can_link_train_fallback_for_edp(struct intel_dp *intel_dp,
+						     int link_rate,
+						     u8 lane_count)
+{
+	const struct drm_display_mode *fixed_mode =
+		intel_dp->attached_connector->panel.fixed_mode;
+	int mode_rate, max_rate;
+
+	mode_rate = intel_dp_link_required(fixed_mode->clock, 18);
+	max_rate = intel_dp_max_data_rate(link_rate, lane_count);
+	if (mode_rate > max_rate)
+		return false;
+
+	return true;
+}
+
+static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
+						   int link_rate, u8 lane_count)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	int index;
+
+	/*
+	 * TODO: Enable fallback on MST links once MST link compute can handle
+	 * the fallback params.
+	 */
+	if (intel_dp->is_mst) {
+		drm_err(&i915->drm, "Link Training Unsuccessful\n");
+		return -1;
+	}
+
+	if (intel_dp_is_edp(intel_dp) && !intel_dp->use_max_params) {
+		drm_dbg_kms(&i915->drm,
+			    "Retrying Link training for eDP with max parameters\n");
+		intel_dp->use_max_params = true;
+		return 0;
+	}
+
+	index = intel_dp_rate_index(intel_dp->common_rates,
+				    intel_dp->num_common_rates,
+				    link_rate);
+	if (index > 0) {
+		if (intel_dp_is_edp(intel_dp) &&
+		    !intel_dp_can_link_train_fallback_for_edp(intel_dp,
+							      intel_dp->common_rates[index - 1],
+							      lane_count)) {
+			drm_dbg_kms(&i915->drm,
+				    "Retrying Link training for eDP with same parameters\n");
+			return 0;
+		}
+		intel_dp->max_link_rate = intel_dp->common_rates[index - 1];
+		intel_dp->max_link_lane_count = lane_count;
+	} else if (lane_count > 1) {
+		if (intel_dp_is_edp(intel_dp) &&
+		    !intel_dp_can_link_train_fallback_for_edp(intel_dp,
+							      intel_dp_max_common_rate(intel_dp),
+							      lane_count >> 1)) {
+			drm_dbg_kms(&i915->drm,
+				    "Retrying Link training for eDP with same parameters\n");
+			return 0;
+		}
+		intel_dp->max_link_rate = intel_dp_max_common_rate(intel_dp);
+		intel_dp->max_link_lane_count = lane_count >> 1;
+	} else {
+		drm_err(&i915->drm, "Link Training Unsuccessful\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static bool
 intel_dp_link_train_phy(struct intel_dp *intel_dp,
 			const struct intel_crtc_state *crtc_state,
