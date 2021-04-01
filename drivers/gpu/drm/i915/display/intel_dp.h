@@ -68,6 +68,9 @@ void intel_dp_mst_suspend(struct drm_i915_private *dev_priv);
 void intel_dp_mst_resume(struct drm_i915_private *dev_priv);
 int intel_dp_max_link_rate(struct intel_dp *intel_dp);
 int intel_dp_max_lane_count(struct intel_dp *intel_dp);
+int intel_dp_max_common_rate(struct intel_dp *intel_dp);
+int intel_dp_max_common_lane_count(struct intel_dp *intel_dp);
+int intel_dp_rate_index(const int *rates, int len, int rate);
 int intel_dp_rate_select(struct intel_dp *intel_dp, int rate);
 
 void intel_edp_drrs_enable(struct intel_dp *intel_dp,

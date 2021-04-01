@@ -167,13 +167,13 @@ static int intel_dp_common_len_rate_limit(const struct intel_dp *intel_dp,
 }
 
 /* Theoretical max between source and sink */
-static int intel_dp_max_common_rate(struct intel_dp *intel_dp)
+int intel_dp_max_common_rate(struct intel_dp *intel_dp)
 {
 	return intel_dp->common_rates[intel_dp->num_common_rates - 1];
 }
 
 /* Theoretical max between source and sink */
-static int intel_dp_max_common_lane_count(struct intel_dp *intel_dp)
+int intel_dp_max_common_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	int source_max = dig_port->max_lanes;
@@ -356,7 +356,7 @@ static int intersect_rates(const int *source_rates, int source_len,
 }
 
 /* return index of rate in rates array, or -1 if not found */
-static int intel_dp_rate_index(const int *rates, int len, int rate)
+int intel_dp_rate_index(const int *rates, int len, int rate)
 {
 	int i;
 
