@@ -81,18 +81,27 @@ bool drm_dp_channel_eq_ok(const u8 link_status[DP_LINK_STATUS_SIZE],
 }
 EXPORT_SYMBOL(drm_dp_channel_eq_ok);
 
+u8 drm_dp_clock_recovery_done_lanes(const u8 link_status[DP_LINK_STATUS_SIZE],
+				    int lane_count)
+{
+	int lane;
+	u8 ret = 0;
+
+	for (lane = 0; lane < lane_count; lane++) {
+		u8 lane_status = dp_get_lane_status(link_status, lane);
+
+		if (lane_status & DP_LANE_CR_DONE)
+			ret |= 1 << lane;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(drm_dp_clock_recovery_done_lanes);
+
 bool drm_dp_clock_recovery_ok(const u8 link_status[DP_LINK_STATUS_SIZE],
 			      int lane_count)
 {
-	int lane;
-	u8 lane_status;
-
-	for (lane = 0; lane < lane_count; lane++) {
-		lane_status = dp_get_lane_status(link_status, lane);
-		if ((lane_status & DP_LANE_CR_DONE) == 0)
-			return false;
-	}
-	return true;
+	return drm_dp_clock_recovery_done_lanes(link_status, lane_count) == (1 << lane_count) - 1;
 }
 EXPORT_SYMBOL(drm_dp_clock_recovery_ok);
 
