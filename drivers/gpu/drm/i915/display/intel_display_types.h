@@ -1511,6 +1511,7 @@ struct intel_dp {
 	u8 lane_count;
 	u8 sink_count;
 	bool link_trained;
+	int link_train_fallback_count;
 	bool has_hdmi_sink;
 	bool has_audio;
 	bool reset_link_params;

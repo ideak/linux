@@ -672,17 +672,23 @@ intel_dp_link_training_channel_equalization_delay(struct intel_dp *intel_dp,
  * Perform the link training channel equalization phase on the given DP PHY
  * using one of training pattern 2, 3 or 4 depending on the source and
  * sink capabilities.
+ *
+ * Return the result of the equalization phase and the mask of lanes
+ * indicating a clock recovery done status.
  */
 static bool
 intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp,
 					    const struct intel_crtc_state *crtc_state,
-					    enum drm_dp_phy dp_phy)
+					    enum drm_dp_phy dp_phy,
+					    u8 *cr_done_lanes)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	int tries;
 	u32 training_pattern;
 	u8 link_status[DP_LINK_STATUS_SIZE];
 	bool channel_eq = false;
+
+	*cr_done_lanes = 0;
 
 	training_pattern = intel_dp_training_pattern(intel_dp, crtc_state, dp_phy);
 	/* Scrambling is disabled for TPS2/3 and enabled for TPS4 */
@@ -707,8 +713,9 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp,
 		}
 
 		/* Make sure clock is still ok */
-		if (!drm_dp_clock_recovery_ok(link_status,
-					      crtc_state->lane_count)) {
+		*cr_done_lanes = drm_dp_clock_recovery_done_lanes(link_status,
+								  crtc_state->lane_count);
+		if (*cr_done_lanes != (1 << crtc_state->lane_count) - 1) {
 			intel_dp_dump_link_status(&i915->drm, link_status);
 			drm_dbg_kms(&i915->drm,
 				    "Clock recovery check failed, cannot "
@@ -779,75 +786,158 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 					       DP_TRAINING_PATTERN_DISABLE);
 }
 
-static bool intel_dp_can_link_train_fallback_for_edp(struct intel_dp *intel_dp,
-						     int link_rate,
-						     u8 lane_count)
+static bool intel_dp_retrain_same_config_if_edp(struct intel_dp *intel_dp,
+						int link_rate,
+						u8 lane_count)
 {
-	const struct drm_display_mode *fixed_mode =
-		intel_dp->attached_connector->panel.fixed_mode;
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	const struct drm_display_mode *fixed_mode;
 	int mode_rate, max_rate;
+
+	if (!intel_dp_is_edp(intel_dp))
+		return false;
+
+	fixed_mode = intel_dp->attached_connector->panel.fixed_mode;
 
 	mode_rate = intel_dp_link_required(fixed_mode->clock, 18);
 	max_rate = intel_dp_max_data_rate(link_rate, lane_count);
-	if (mode_rate > max_rate)
+	if (mode_rate > max_rate) {
+		drm_dbg_kms(&i915->drm,
+			    "Retrying Link training for eDP with same parameters\n");
+
+		return true;
+	}
+
+	return false;
+}
+
+static bool intel_dp_reduce_link_lane_count(struct intel_dp *intel_dp, int new_link_rate, int current_lane_count)
+{
+	int new_lane_count;
+
+	if (current_lane_count == 1)
 		return false;
+
+	new_lane_count = current_lane_count >> 1;
+
+	if (intel_dp_retrain_same_config_if_edp(intel_dp,
+						new_link_rate,
+						new_lane_count))
+		return true;
+
+	intel_dp->max_link_rate = new_link_rate;
+	intel_dp->max_link_lane_count = new_lane_count;
 
 	return true;
 }
 
-static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
-						   int link_rate, u8 lane_count)
+static bool intel_dp_reduce_link_rate(struct intel_dp *intel_dp, int current_link_rate, int new_lane_count)
+{
+	int index = intel_dp_rate_index(intel_dp->common_rates,
+					intel_dp->num_common_rates,
+					current_link_rate);
+	int new_link_rate;
+
+	if (index == 0)
+		return false;
+
+	new_link_rate = intel_dp->common_rates[index - 1];
+
+	if (intel_dp_retrain_same_config_if_edp(intel_dp,
+						new_link_rate,
+						new_lane_count))
+		return true;
+
+	intel_dp->max_link_rate = intel_dp->common_rates[index - 1];
+	intel_dp->max_link_lane_count = new_lane_count;
+
+	return true;
+}
+
+enum intel_dp_link_training_fallback_mode {
+	INTEL_DP_REDUCE_LINK_RATE_FIRST,
+	INTEL_DP_REDUCE_LINK_LANE_COUNT_FIRST,
+};
+
+static bool
+intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
+					int link_rate, u8 lane_count,
+					enum intel_dp_link_training_fallback_mode mode)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
-	int index;
 
 	/*
-	 * TODO: Enable fallback on MST links once MST link compute can handle
-	 * the fallback params.
+	 * TODO:
+	 * - Enable fallback on MST links once MST link compute can handle
+	 *   the fallback params.
+	 * - Throttle retries (for instance for eDP fallback with the same link config).
 	 */
 	if (intel_dp->is_mst) {
-		drm_err(&i915->drm, "Link Training Unsuccessful\n");
-		return -1;
+		drm_err(&i915->drm, "Link Training Unsuccessful, retraining disabled for MST\n");
+
+		return false;
 	}
 
 	if (intel_dp_is_edp(intel_dp) && !intel_dp->use_max_params) {
 		drm_dbg_kms(&i915->drm,
 			    "Retrying Link training for eDP with max parameters\n");
 		intel_dp->use_max_params = true;
-		return 0;
+
+		return true;
 	}
 
-	index = intel_dp_rate_index(intel_dp->common_rates,
-				    intel_dp->num_common_rates,
-				    link_rate);
-	if (index > 0) {
-		if (intel_dp_is_edp(intel_dp) &&
-		    !intel_dp_can_link_train_fallback_for_edp(intel_dp,
-							      intel_dp->common_rates[index - 1],
-							      lane_count)) {
-			drm_dbg_kms(&i915->drm,
-				    "Retrying Link training for eDP with same parameters\n");
-			return 0;
-		}
-		intel_dp->max_link_rate = intel_dp->common_rates[index - 1];
-		intel_dp->max_link_lane_count = lane_count;
-	} else if (lane_count > 1) {
-		if (intel_dp_is_edp(intel_dp) &&
-		    !intel_dp_can_link_train_fallback_for_edp(intel_dp,
-							      intel_dp_max_common_rate(intel_dp),
-							      lane_count >> 1)) {
-			drm_dbg_kms(&i915->drm,
-				    "Retrying Link training for eDP with same parameters\n");
-			return 0;
-		}
-		intel_dp->max_link_rate = intel_dp_max_common_rate(intel_dp);
-		intel_dp->max_link_lane_count = lane_count >> 1;
+	if (mode == INTEL_DP_REDUCE_LINK_RATE_FIRST) {
+		if (intel_dp_reduce_link_rate(intel_dp,
+					      link_rate,
+					      lane_count))
+			return true;
+
+		return intel_dp_reduce_link_lane_count(intel_dp,
+						       intel_dp_max_common_rate(intel_dp),
+						       lane_count);
 	} else {
-		drm_err(&i915->drm, "Link Training Unsuccessful\n");
-		return -1;
+		if (intel_dp_reduce_link_lane_count(intel_dp,
+						    link_rate,
+						    lane_count))
+			return true;
+
+		return intel_dp_reduce_link_rate(intel_dp,
+						 link_rate,
+						 intel_dp_max_common_lane_count(intel_dp));
+	}
+}
+
+static void
+intel_dp_schedule_fallback_link_training(struct intel_dp *intel_dp,
+					 const struct intel_crtc_state *crtc_state,
+					 enum intel_dp_link_training_fallback_mode mode)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	struct intel_connector *intel_connector = intel_dp->attached_connector;
+
+	if (intel_dp->hobl_active) {
+		drm_dbg_kms(&i915->drm,
+			    "Link Training failed with HOBL active, not enabling it from now on");
+		intel_dp->hobl_failed = true;
+	} else if (!intel_dp_get_link_train_fallback_values(intel_dp,
+							    crtc_state->port_clock,
+							    crtc_state->lane_count,
+							    mode)) {
+		drm_dbg_kms(&i915->drm,
+			    "[CONNECTOR:%d:%s] No link training fallback possible, give up.\n",
+			    intel_connector->base.base.id,
+			    intel_connector->base.name);
+		return;
 	}
 
-	return 0;
+	drm_dbg_kms(&i915->drm,
+		    "[CONNECTOR:%d:%s] Link Training fallback max link rate = %d, max lane count = %d",
+		    intel_connector->base.base.id,
+		    intel_connector->base.name,
+		    intel_dp->max_link_rate, intel_dp->max_link_lane_count);
+
+	/* Schedule a Hotplug Uevent to userspace to start modeset */
+	schedule_work(&intel_connector->modeset_retry_work);
 }
 
 static bool
@@ -856,14 +946,23 @@ intel_dp_link_train_phy(struct intel_dp *intel_dp,
 			enum drm_dp_phy dp_phy)
 {
 	struct intel_connector *intel_connector = intel_dp->attached_connector;
+	enum intel_dp_link_training_fallback_mode fallback_mode;
 	char phy_name[10];
 	bool ret = false;
+	u8 cr_done_lanes;
 
-	if (!intel_dp_link_training_clock_recovery(intel_dp, crtc_state, dp_phy))
-		goto out;
+	if (!intel_dp_link_training_clock_recovery(intel_dp, crtc_state, dp_phy)) {
+		fallback_mode = INTEL_DP_REDUCE_LINK_RATE_FIRST;
 
-	if (!intel_dp_link_training_channel_equalization(intel_dp, crtc_state, dp_phy))
 		goto out;
+	}
+
+	if (!intel_dp_link_training_channel_equalization(intel_dp, crtc_state, dp_phy, &cr_done_lanes)) {
+		fallback_mode = cr_done_lanes ? INTEL_DP_REDUCE_LINK_LANE_COUNT_FIRST :
+						INTEL_DP_REDUCE_LINK_RATE_FIRST;
+
+		goto out;
+	}
 
 	ret = true;
 
@@ -876,30 +975,18 @@ out:
 		    crtc_state->port_clock, crtc_state->lane_count,
 		    intel_dp_phy_name(dp_phy, phy_name, sizeof(phy_name)));
 
+	if (ret) {
+		intel_dp->link_train_fallback_count = 0;
+	} else if (intel_dp->link_train_fallback_count < 20) {
+		intel_dp->link_train_fallback_count++;
+		intel_dp_schedule_fallback_link_training(intel_dp, crtc_state, fallback_mode);
+	}
+
 	return ret;
 }
 
-static void intel_dp_schedule_fallback_link_training(struct intel_dp *intel_dp,
-						     const struct intel_crtc_state *crtc_state)
-{
-	struct intel_connector *intel_connector = intel_dp->attached_connector;
-
-	if (intel_dp->hobl_active) {
-		drm_dbg_kms(&dp_to_i915(intel_dp)->drm,
-			    "Link Training failed with HOBL active, not enabling it from now on");
-		intel_dp->hobl_failed = true;
-	} else if (intel_dp_get_link_train_fallback_values(intel_dp,
-							   crtc_state->port_clock,
-							   crtc_state->lane_count)) {
-		return;
-	}
-
-	/* Schedule a Hotplug Uevent to userspace to start modeset */
-	schedule_work(&intel_connector->modeset_retry_work);
-}
-
 /* Perform the link training on all LTTPRs and the DPRX on a link. */
-static bool
+static void
 intel_dp_link_train_all_phys(struct intel_dp *intel_dp,
 			     const struct intel_crtc_state *crtc_state,
 			     int lttpr_count)
@@ -924,8 +1011,6 @@ intel_dp_link_train_all_phys(struct intel_dp *intel_dp,
 
 	if (intel_dp->set_idle_link_train)
 		intel_dp->set_idle_link_train(intel_dp, crtc_state);
-
-	return ret;
 }
 
 /**
@@ -951,6 +1036,5 @@ void intel_dp_start_link_train(struct intel_dp *intel_dp,
 		/* Still continue with enabling the port and link training. */
 		lttpr_count = 0;
 
-	if (!intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count))
-		intel_dp_schedule_fallback_link_training(intel_dp, crtc_state);
+	intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count);
 }

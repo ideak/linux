@@ -4182,6 +4182,8 @@ intel_dp_detect(struct drm_connector *connector,
 		/* Initial max link rate */
 		intel_dp->max_link_rate = intel_dp_max_common_rate(intel_dp);
 
+		intel_dp->link_train_fallback_count = 0;
+
 		intel_dp->reset_link_params = false;
 	}
 
