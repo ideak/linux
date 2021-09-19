@@ -266,7 +266,7 @@ intel_dp_aux_xfer(struct intel_dp *intel_dp,
 		send_ctl |= aux_send_ctl_flags;
 
 		/* Must try at least 3 times according to DP spec */
-		for (try = 0; try < 5; try++) {
+		for (try = 0; try < 3; try++) {
 			/* Load the send data into the aux channel data registers */
 			for (i = 0; i < send_bytes; i += 4)
 				intel_uncore_write(uncore,

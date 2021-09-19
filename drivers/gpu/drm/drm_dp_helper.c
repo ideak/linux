@@ -268,7 +268,7 @@ static int drm_dp_dpcd_access(struct drm_dp_aux *aux, u8 request,
 	 * aux i2c transactions but real world devices this wasn't
 	 * sufficient, bump to 32 which makes Dell 4k monitors happier.
 	 */
-	for (retry = 0; retry < 32; retry++) {
+	for (retry = 0; retry < 7; retry++) {
 		if (ret != 0 && ret != -ETIMEDOUT) {
 			usleep_range(AUX_RETRY_INTERVAL,
 				     AUX_RETRY_INTERVAL + 100);
