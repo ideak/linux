@@ -750,6 +750,9 @@ static void __intel_tc_port_lock(struct intel_digital_port *dig_port,
 		intel_tc_port_update_mode(dig_port, required_lanes,
 					  false);
 
+	drm_WARN_ON(&i915->drm,
+		    dig_port->tc_mode == TC_PORT_DP_ALT &&
+		    !tc_phy_is_owned(dig_port));
 }
 
 void intel_tc_port_lock(struct intel_digital_port *dig_port)
