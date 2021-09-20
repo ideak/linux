@@ -747,8 +747,7 @@ static void __intel_tc_port_lock(struct intel_digital_port *dig_port,
 	cancel_delayed_work(&dig_port->tc_disconnect_phy_work);
 
 	if (!dig_port->tc_link_refcount)
-		intel_tc_port_update_mode(dig_port, required_lanes,
-					  false);
+		intel_tc_port_update_mode(dig_port, required_lanes, false);
 
 	drm_WARN_ON(&i915->drm,
 		    dig_port->tc_mode == TC_PORT_DP_ALT &&
@@ -814,6 +813,12 @@ void intel_tc_port_put_link(struct intel_digital_port *dig_port)
 	intel_tc_port_lock(dig_port);
 	--dig_port->tc_link_refcount;
 	intel_tc_port_unlock(dig_port);
+
+	/*
+	 * The PHY disconnect must happen before disabling the PHY PLL during
+	 * modeset disabling.
+	 */
+	intel_tc_port_flush_work(dig_port);
 }
 
 static bool
