@@ -170,7 +170,7 @@ const struct intel_modifier_desc {
 	},
 	{
 		.id = I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS,
-		.display_versions = DISPLAY_VER_MASK(12, 13),
+		.display_versions = DISPLAY_VER_BIT(12),
 		.tiling = I915_TILING_Y,
 
 		.ccs.type = INTEL_CCS_RC,
@@ -180,7 +180,7 @@ const struct intel_modifier_desc {
 	},
 	{
 		.id = I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC,
-		.display_versions = DISPLAY_VER_MASK(12, 13),
+		.display_versions = DISPLAY_VER_BIT(12),
 		.tiling = I915_TILING_Y,
 
 		.ccs.type = INTEL_CCS_RC_CC,
@@ -191,7 +191,39 @@ const struct intel_modifier_desc {
 	},
 	{
 		.id = I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS,
-		.display_versions = DISPLAY_VER_MASK(12, 13),
+		.display_versions = DISPLAY_VER_BIT(12),
+		.tiling = I915_TILING_Y,
+
+		.ccs.type = INTEL_CCS_MC,
+		.ccs.packed_ctrl_planes = BIT(1),
+		.ccs.planar_ctrl_planes = BIT(2) | BIT(3),
+
+		FORMAT_OVERRIDE(gen12_ccs_formats),
+	},
+	{
+		.id = I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS,
+		.display_versions = DISPLAY_VER_BIT(13),
+		.tiling = I915_TILING_Y,
+
+		.ccs.type = INTEL_CCS_RC,
+		.ccs.packed_ctrl_planes = BIT(1),
+
+		FORMAT_OVERRIDE(gen12_ccs_formats),
+	},
+	{
+		.id = I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS_CC,
+		.display_versions = DISPLAY_VER_BIT(13),
+		.tiling = I915_TILING_Y,
+
+		.ccs.type = INTEL_CCS_RC_CC,
+		.ccs.packed_ctrl_planes = BIT(1),
+		.ccs.cc_planes = BIT(2),
+
+		FORMAT_OVERRIDE(gen12_ccs_cc_formats),
+	},
+	{
+		.id = I915_FORMAT_MOD_Y_TILED_ADLP_MC_CCS,
+		.display_versions = DISPLAY_VER_BIT(13),
 		.tiling = I915_TILING_Y,
 
 		.ccs.type = INTEL_CCS_MC,
@@ -571,6 +603,9 @@ intel_tile_width_bytes(const struct drm_framebuffer *fb, int color_plane)
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS_CC:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_MC_CCS:
 		if (intel_fb_is_ccs_ctrl_plane(fb, color_plane) ||
 		    is_gen12_ccs_cc_plane(fb, color_plane))
 			return 64;
@@ -728,6 +763,9 @@ unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
 	case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
 	case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_MC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS:
+	case I915_FORMAT_MOD_Y_TILED_ADLP_RC_CCS_CC:
 		return 16 * 1024;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
