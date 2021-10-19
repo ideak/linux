@@ -853,6 +853,20 @@ static u32 intel_adjust_tile_offset(int *x, int *y,
 	return new_offset;
 }
 
+static u32 intel_adjust_linear_offset(int *x, int *y,
+				      unsigned int cpp,
+				      unsigned int pitch,
+				      u32 old_offset,
+				      u32 new_offset)
+{
+	old_offset += *y * pitch + *x * cpp;
+
+	*y = (old_offset - new_offset) / pitch;
+	*x = ((old_offset - new_offset) - *y * pitch) / cpp;
+
+	return new_offset;
+}
+
 static u32 intel_adjust_aligned_offset(int *x, int *y,
 				       const struct drm_framebuffer *fb,
 				       int color_plane,
@@ -883,10 +897,8 @@ static u32 intel_adjust_aligned_offset(int *x, int *y,
 					 tile_size, pitch_tiles,
 					 old_offset, new_offset);
 	} else {
-		old_offset += *y * pitch + *x * cpp;
-
-		*y = (old_offset - new_offset) / pitch;
-		*x = ((old_offset - new_offset) - *y * pitch) / cpp;
+		intel_adjust_linear_offset(x, y, cpp, pitch,
+					   old_offset, new_offset);
 	}
 
 	return new_offset;
@@ -1361,10 +1373,16 @@ static u32 calc_plane_remap_info(const struct intel_framebuffer *fb, int color_p
 	 * the x/y offsets.  x,y will hold the first pixel of the framebuffer
 	 * plane from the start of the remapped/rotated gtt mapping.
 	 */
-	intel_adjust_tile_offset(&color_plane_info->x, &color_plane_info->y,
-				 tile_width, tile_height,
-				 tile_size, remap_info->dst_stride,
-				 gtt_offset * tile_size, 0);
+	if (!is_surface_linear(&fb->base, color_plane))
+		intel_adjust_tile_offset(&color_plane_info->x, &color_plane_info->y,
+					 tile_width, tile_height,
+					 tile_size, remap_info->dst_stride,
+					 gtt_offset * tile_size, 0);
+	else
+		intel_adjust_linear_offset(&color_plane_info->x, &color_plane_info->y,
+					   fb->base.format->cpp[color_plane],
+					   color_plane_info->stride,
+					   gtt_offset * tile_size, 0);
 
 	return size;
 }
