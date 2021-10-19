@@ -584,6 +584,16 @@ static unsigned int skl_plane_stride_mult(const struct drm_framebuffer *fb,
 		return intel_tile_width_bytes(fb, color_plane);
 }
 
+static u32 adlp_ccs_aux_aligned_stride(const struct intel_plane_state *plane_state,
+				       int color_plane)
+{
+	const struct drm_framebuffer *fb = plane_state->hw.fb;
+	int ccs_aux_plane = main_to_ccs_plane(fb, color_plane);
+	u32 aux_stride = plane_state->view.color_plane[ccs_aux_plane].stride;
+
+	return aux_stride / 64 * 4 * intel_tile_width_bytes(fb, color_plane);
+}
+
 static u32 skl_plane_stride(const struct intel_plane_state *plane_state,
 			    int color_plane)
 {
@@ -593,6 +603,18 @@ static u32 skl_plane_stride(const struct intel_plane_state *plane_state,
 
 	if (color_plane >= fb->format->num_planes)
 		return 0;
+
+	if (IS_ALDERLAKE_P(to_i915(fb->dev)) &&
+	    intel_fb_is_ccs_modifier(fb->modifier)) {
+		u32 ccs_aux_stride = adlp_ccs_aux_aligned_stride(plane_state, color_plane);
+		int tile_width = intel_tile_width_bytes(fb, color_plane);
+
+		drm_WARN_ON(fb->dev,
+			    roundup_pow_of_two(max(ccs_aux_stride, 8u * tile_width)) !=
+			    stride);
+
+		stride = ccs_aux_stride;
+	}
 
 	return stride / skl_plane_stride_mult(fb, color_plane, rotation);
 }
