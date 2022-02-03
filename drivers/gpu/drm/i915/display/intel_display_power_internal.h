@@ -15,10 +15,7 @@ struct i915_power_well_regs;
 
 struct i915_power_well_instance {
 	const char *name;
-	const struct i915_power_domain_list {
-		const enum intel_display_power_domain *list;
-		u8 count;
-	} *domain_list;
+	const intel_power_domain_mask_t *domains;
 	/* unique identifier for this power well */
 	enum i915_power_well_id id;
 	/*
@@ -74,7 +71,6 @@ struct i915_power_well_desc {
 
 struct i915_power_well {
 	const struct i915_power_well_desc *desc;
-	intel_power_domain_mask_t domains;
 	/* power well enable/disable usage count */
 	int count;
 	/* cached hw enabled state */

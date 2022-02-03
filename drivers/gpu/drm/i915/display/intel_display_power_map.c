@@ -22,8 +22,46 @@
 	(const struct i915_power_domain_list) \
 		__LIST(__LIST_INLINE_ELEMS(enum intel_display_power_domain, __VA_ARGS__))
 
-#define I915_DECL_PW_DOMAINS(__name, ...) \
-	static const struct i915_power_domain_list __name = I915_PW_DOMAINS(__VA_ARGS__)
+#define MAX_BITMAP_INIT_BITS	256
+
+#define in_range(__bit, __arr_idx, __arr...)	\
+	((((int)((__arr)[__arr_idx]) - (__bit) >= 0) && ((__arr)[__arr_idx] < ((__bit) + 64))))
+
+#define __bmi0(__bit, __arr_idx, __arr...)	\
+	(ARRAY_SIZE(__arr) <= __arr_idx || !in_range(__bit, __arr_idx, __arr) ? \
+	 0 : \
+	 (1ULL << ((!in_range(__bit, __arr_idx, __arr) ? (__bit) : (__arr)[__arr_idx]) - (__bit))))
+
+#define __bmi1(__bit, __arr_idx, _arr...)	__bmi0(__bit, __arr_idx, _arr) | __bmi0(__bit, (__arr_idx)+1, _arr)
+#define __bmi2(__bit, __arr_idx, _arr...)	__bmi1(__bit, __arr_idx, _arr) | __bmi1(__bit, (__arr_idx)+2, _arr)
+#define __bmi3(__bit, __arr_idx, _arr...)	__bmi2(__bit, __arr_idx, _arr) | __bmi2(__bit, (__arr_idx)+4, _arr)
+#define __bmi4(__bit, __arr_idx, _arr...)	__bmi3(__bit, __arr_idx, _arr) | __bmi3(__bit, (__arr_idx)+8, _arr)
+#define __bmi5(__bit, __arr_idx, _arr...)	__bmi4(__bit, __arr_idx, _arr) | __bmi4(__bit, (__arr_idx)+16, _arr)
+#define __bmi6(__bit, __arr_idx, _arr...)	__bmi5(__bit, __arr_idx, _arr) | __bmi5(__bit, (__arr_idx)+32, _arr)
+#define __bmi7(__bit, __arr_idx, _arr...)	__bmi6(__bit, __arr_idx, _arr) | __bmi6(__bit, (__arr_idx)+64, _arr)
+#define __bmi8(__bit, __arr_idx, _arr...)	__bmi7(__bit, __arr_idx, _arr) | __bmi7(__bit, (__arr_idx)+128, _arr)
+#define __bmi9(__bit, __arr_idx, _arr...)	__bmi8(__bit, __arr_idx, _arr) | __bmi8(__bit, (__arr_idx)+192, _arr)
+
+#define __bmi(__bit, _arr...)			__bmi9(__bit, 0, _arr)
+
+#define __idx1(__type, x)   (x / (sizeof((__type)) * 8))
+#define __idx2(__type, x)   ((x % (sizeof((__type)) * 8)) / (sizeof(((__type))[0]) * 8))
+
+#define idx1(x) __idx1(((intel_power_domain_mask_t *)NULL)->bits, x)
+#define idx2(x) __idx2(((intel_power_domain_mask_t *)NULL)->bits, x)
+
+#define __DECL_BITMAP(__name, __tmp_name1, __tmp_name2, __arr...) \
+static const int __tmp_name1[] = (const int[]){ __arr }; \
+static const intel_power_domain_mask_t (__tmp_name2)[MAX_BITMAP_INIT_BITS / sizeof(intel_power_domain_mask_t) / 8] = {  \
+	[idx1(0)].bits[idx2(0)] = __bmi(0, __tmp_name1), \
+	[idx1(64)].bits[idx2(64)] = __bmi(64, __tmp_name1), \
+	[idx1(128)].bits[idx2(128)] = __bmi(128, __tmp_name1), \
+	[idx1(192)].bits[idx2(192)] = __bmi(192, __tmp_name1), \
+}; \
+static const intel_power_domain_mask_t __name = __tmp_name2[0]
+
+#define I915_DECL_PW_DOMAINS(__name, __arr...) \
+	__DECL_BITMAP(__name, __UNIQUE_ID(__name), __UNIQUE_ID(__name), __arr)
 
 /* Zero-length list assigns all power domains, a NULL list assigns none. */
 #define I915_PW_DOMAINS_NONE	NULL
@@ -33,9 +71,8 @@
 	(const struct i915_power_well_instance_list) \
 		__LIST(__LIST_INLINE_ELEMS(struct i915_power_well_instance, __VA_ARGS__))
 
-#define I915_PW(_name, _domain_list, ...) \
-	{ .name = _name, .domain_list = _domain_list, ## __VA_ARGS__ }
-
+#define I915_PW(_name, _domains, ...) \
+	{ .name = _name, .domains = _domains, ## __VA_ARGS__ }
 
 struct i915_power_well_desc_list {
 	const struct i915_power_well_desc *list;
@@ -1709,24 +1746,6 @@ static const struct i915_power_well_desc_list xelpd_power_wells[] = {
 	I915_PW_DESCRIPTORS(xelpd_power_wells_main),
 };
 
-static void init_power_well_domains(const struct i915_power_well_instance *inst,
-				    struct i915_power_well *power_well)
-{
-	int j;
-
-	if (!inst->domain_list)
-		return;
-
-	if (inst->domain_list->count == 0) {
-		bitmap_fill(power_well->domains.bits, POWER_DOMAIN_NUM);
-
-		return;
-	}
-
-	for (j = 0; j < inst->domain_list->count; j++)
-		set_bit(inst->domain_list->list[j], power_well->domains.bits);
-}
-
 #define for_each_power_well_instance_in_desc_list(_desc_list, _desc_count, _desc, _inst) \
 	for ((_desc) = (_desc_list); (_desc) - (_desc_list) < (_desc_count); (_desc)++) \
 		for ((_inst) = (_desc)->instances->list; \
@@ -1772,8 +1791,6 @@ __set_power_wells(struct i915_power_domains *power_domains,
 		pw->desc = desc;
 		drm_WARN_ON(&i915->drm, overflows_type(inst - desc->instances->list, pw->instance_idx));
 		pw->instance_idx = inst - desc->instances->list;
-
-		init_power_well_domains(inst, pw);
 
 		plt_idx++;
 

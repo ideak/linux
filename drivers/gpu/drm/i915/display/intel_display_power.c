@@ -40,11 +40,11 @@
 
 #define for_each_power_domain_well(__dev_priv, __power_well, __domain)	\
 	for_each_power_well(__dev_priv, __power_well)				\
-		for_each_if(test_bit((__domain), (__power_well)->domains.bits))
+		for_each_if(test_bit((__domain), i915_power_well_instance(__power_well)->domains->bits))
 
 #define for_each_power_domain_well_reverse(__dev_priv, __power_well, __domain) \
 	for_each_power_well_reverse(__dev_priv, __power_well)		        \
-		for_each_if(test_bit((__domain), (__power_well)->domains.bits))
+		for_each_if(test_bit((__domain), i915_power_well_instance(__power_well)->domains->bits))
 
 struct i915_power_well_regs {
 	i915_reg_t bios;
@@ -478,7 +478,7 @@ static int power_well_async_ref_count(struct drm_i915_private *dev_priv,
 	int refs;
 
 	async_put_domains_mask(&dev_priv->power_domains, &domain_mask);
-	bitmap_and(domain_mask.bits, domain_mask.bits, power_well->domains.bits, POWER_DOMAIN_NUM);
+	bitmap_and(domain_mask.bits, domain_mask.bits, i915_power_well_instance(power_well)->domains->bits, POWER_DOMAIN_NUM);
 	refs = bitmap_weight(domain_mask.bits, POWER_DOMAIN_NUM);
 
 	drm_WARN_ON(&dev_priv->drm, refs > power_well->count);
@@ -3839,7 +3839,7 @@ static void intel_power_domains_dump_info(struct drm_i915_private *i915)
 			i915_power_well_instance(power_well)->name,
 			power_well->count);
 
-		for_each_power_domain(domain, &power_well->domains)
+		for_each_power_domain(domain, i915_power_well_instance(power_well)->domains)
 			drm_dbg(&i915->drm, "  %-23s %d\n",
 				intel_display_power_domain_str(domain),
 				power_domains->domain_use_count[domain]);
@@ -3881,7 +3881,7 @@ static void intel_power_domains_verify_state(struct drm_i915_private *i915)
 				power_well->count, enabled);
 
 		domains_count = 0;
-		for_each_power_domain(domain, &power_well->domains)
+		for_each_power_domain(domain, i915_power_well_instance(power_well)->domains)
 			domains_count += power_domains->domain_use_count[domain];
 
 		if (power_well->count != domains_count) {
@@ -3998,7 +3998,7 @@ void intel_display_power_debug(struct drm_i915_private *i915, struct seq_file *m
 			   i915_power_well_instance(power_well)->name,
 			   power_well->count);
 
-		for_each_power_domain(power_domain, &power_well->domains)
+		for_each_power_domain(power_domain, i915_power_well_instance(power_well)->domains)
 			seq_printf(m, "  %-23s %d\n",
 				   intel_display_power_domain_str(power_domain),
 				   power_domains->domain_use_count[power_domain]);
