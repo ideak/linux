@@ -603,6 +603,13 @@ struct intel_connector {
 	 * and active (i.e. dpms ON state). */
 	bool (*get_hw_state)(struct intel_connector *);
 
+	/* Return the DP tunnel used by this connector. */
+	struct intel_dp_tunnel *(*get_dp_tunnel)(struct intel_connector *);
+
+	/* Return the DP link rate required by this connector. */
+	int (*get_dp_link_rate)(struct intel_atomic_state *state,
+				struct intel_connector *);
+
 	/* Panel info for eDP and LVDS */
 	struct intel_panel panel;
 

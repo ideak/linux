@@ -525,6 +525,7 @@ struct intel_display {
 	struct intel_display_params params;
 	struct intel_vbt_data vbt;
 	struct intel_wm wm;
+	struct intel_dp_tunnel_mgr *dp_tunnel_mgr;
 };
 
 #endif /* __INTEL_DISPLAY_CORE_H__ */

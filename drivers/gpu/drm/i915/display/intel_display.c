@@ -73,6 +73,7 @@
 #include "intel_dp.h"
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
+#include "intel_dp_tunnel.h"
 #include "intel_dpll.h"
 #include "intel_dpll_mgr.h"
 #include "intel_dpt.h"
@@ -6419,6 +6420,12 @@ static int intel_atomic_prepare_commit(struct intel_atomic_state *state)
 	if (ret < 0)
 		return ret;
 
+	ret = intel_dp_tunnel_atomic_reserve(state);
+	if (ret < 0) {
+		drm_atomic_helper_cleanup_planes(state->base.dev, &state->base);
+		return ret;
+	}
+
 	for_each_new_intel_crtc_in_state(state, crtc, crtc_state, i) {
 		if (intel_crtc_needs_color_update(crtc_state))
 			intel_color_prepare_commit(crtc_state);
@@ -7045,6 +7052,8 @@ static void intel_atomic_commit_tail(struct intel_atomic_state *state)
 
 	intel_commit_modeset_disables(state);
 
+	intel_dp_tunnel_atomic_commit(state);
+
 	/* FIXME: Eventually get rid of our crtc->config pointer */
 	for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i)
 		crtc->config = new_crtc_state;
@@ -7289,6 +7298,7 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 		for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i)
 			intel_color_cleanup_commit(new_crtc_state);
 
+		intel_dp_tunnel_atomic_cancel_reservations(state);
 		drm_atomic_helper_cleanup_planes(dev, &state->base);
 		intel_runtime_pm_put(&dev_priv->runtime_pm, state->wakeref);
 		return ret;
