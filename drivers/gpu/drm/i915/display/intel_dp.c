@@ -62,6 +62,7 @@
 #include "intel_dp_hdcp.h"
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
+#include "intel_dp_tunnel.h"
 #include "intel_dpio_phy.h"
 #include "intel_dpll.h"
 #include "intel_fifo_underrun.h"
@@ -151,6 +152,22 @@ int intel_dp_link_symbol_clock(int rate)
 	return DIV_ROUND_CLOSEST(rate * 10, intel_dp_link_symbol_size(rate));
 }
 
+static int max_dprx_rate(struct intel_dp *intel_dp)
+{
+	if (intel_dp->tunnel_bw_alloc_enabled)
+		return intel_dp_tunnel_max_dprx_rate(intel_dp->tunnel);
+
+	return drm_dp_bw_code_to_link_rate(intel_dp->dpcd[DP_MAX_LINK_RATE]);
+}
+
+static int max_dprx_lane_count(struct intel_dp *intel_dp)
+{
+	if (intel_dp->tunnel_bw_alloc_enabled)
+		return intel_dp_tunnel_max_dprx_lane_count(intel_dp->tunnel);
+
+	return drm_dp_max_lane_count(intel_dp->dpcd);
+}
+
 static void intel_dp_set_default_sink_rates(struct intel_dp *intel_dp)
 {
 	intel_dp->sink_rates[0] = 162000;
@@ -179,7 +196,7 @@ static void intel_dp_set_dpcd_sink_rates(struct intel_dp *intel_dp)
 	/*
 	 * Sink rates for 8b/10b.
 	 */
-	max_rate = drm_dp_bw_code_to_link_rate(intel_dp->dpcd[DP_MAX_LINK_RATE]);
+	max_rate = max_dprx_rate(intel_dp);
 	max_lttpr_rate = drm_dp_lttpr_max_link_rate(intel_dp->lttpr_common_caps);
 	if (max_lttpr_rate)
 		max_rate = min(max_rate, max_lttpr_rate);
@@ -258,7 +275,7 @@ static void intel_dp_set_max_sink_lane_count(struct intel_dp *intel_dp)
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 	struct intel_encoder *encoder = &intel_dig_port->base;
 
-	intel_dp->max_sink_lane_count = drm_dp_max_lane_count(intel_dp->dpcd);
+	intel_dp->max_sink_lane_count = max_dprx_lane_count(intel_dp);
 
 	switch (intel_dp->max_sink_lane_count) {
 	case 1:
@@ -403,7 +420,7 @@ int intel_dp_effective_data_rate(int pixel_clock, int bpp_x16,
  * rate in units of 10000 bps.
  */
 int
-intel_dp_max_data_rate(int max_link_rate, int max_lanes)
+intel_dp_max_dprx_data_rate(int max_link_rate, int max_lanes)
 {
 	int ch_coding_efficiency =
 		drm_dp_bw_channel_coding_efficiency(drm_dp_is_uhbr_rate(max_link_rate));
@@ -426,6 +443,29 @@ intel_dp_max_data_rate(int max_link_rate, int max_lanes)
 	return DIV_ROUND_DOWN_ULL(mul_u32_u32(max_link_rate_kbps * max_lanes,
 					      ch_coding_efficiency),
 				  1000000 * 8);
+}
+
+/**
+ * intel_dp_max_data_rate: Calculate the maximum rate for the given link params
+ * @max_dprx_rate: Maximum data rate of the DPRX
+ * @max_dprx_lanes: Maximum lane count of the DPRX
+ * @tunnel_bw: Bandwidth of a DP tunnel on the link
+ *
+ * Calculate the maximum data rate for the provided link parameters.
+ * @tunnel_bw is the maximum data rate supported by a DP tunnel if it's present
+ * on the link or INTEL_DP_NO_TUNNEL_BW_LIMIT if there is no tunnel on
+ * the link or the BW allocation mode is not enabled on it.
+ *
+ * Returns the maximum data rate in 10 Kb/s units.
+ */
+int intel_dp_max_data_rate(int max_dprx_rate, int max_dprx_lanes, int tunnel_bw)
+{
+	int max_rate = intel_dp_max_dprx_data_rate(max_dprx_rate, max_dprx_lanes);
+
+	if (tunnel_bw != INTEL_DP_NO_TUNNEL_BW_LIMIT)
+		max_rate = min(max_rate, tunnel_bw);
+
+	return max_rate;
 }
 
 bool intel_dp_can_bigjoiner(struct intel_dp *intel_dp)
@@ -657,7 +697,8 @@ static bool intel_dp_can_link_train_fallback_for_edp(struct intel_dp *intel_dp,
 	int mode_rate, max_rate;
 
 	mode_rate = intel_dp_link_required(fixed_mode->clock, 18);
-	max_rate = intel_dp_max_data_rate(link_rate, lane_count);
+	max_rate = intel_dp_max_data_rate(link_rate, lane_count,
+					  intel_dp_max_tunnel_bw(intel_dp));
 	if (mode_rate > max_rate)
 		return false;
 
@@ -1255,7 +1296,9 @@ intel_dp_mode_valid(struct drm_connector *_connector,
 	max_link_clock = intel_dp_max_link_rate(intel_dp);
 	max_lanes = intel_dp_max_lane_count(intel_dp);
 
-	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes);
+	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes,
+					  intel_dp_max_tunnel_bw(intel_dp));
+
 	mode_rate = intel_dp_link_required(target_clock,
 					   intel_dp_mode_min_output_bpp(connector, mode));
 
@@ -1579,6 +1622,14 @@ static int intel_dp_mode_clock(const struct intel_crtc_state *crtc_state,
 		return adjusted_mode->crtc_clock;
 }
 
+int intel_dp_max_tunnel_bw(struct intel_dp *intel_dp)
+{
+	if (intel_dp->tunnel_bw_alloc_enabled)
+		return intel_dp_tunnel_available_bw(intel_dp->tunnel);
+
+	return INTEL_DP_NO_TUNNEL_BW_LIMIT;
+}
+
 /* Optimize link config in order: max bpp, min clock, min lanes */
 static int
 intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
@@ -1606,7 +1657,9 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 			     lane_count <= limits->max_lane_count;
 			     lane_count <<= 1) {
 				link_avail = intel_dp_max_data_rate(link_rate,
-								    lane_count);
+								    lane_count,
+								    intel_dp_max_tunnel_bw(intel_dp));
+
 
 				if (mode_rate <= link_avail) {
 					pipe_config->lane_count = lane_count;
@@ -2379,7 +2432,7 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 						       limits);
 }
 
-static int intel_dp_config_required_rate(struct intel_crtc_state *crtc_state)
+int intel_dp_config_required_rate(struct intel_crtc_state *crtc_state)
 {
 	const struct drm_display_mode *adjusted_mode =
 		&crtc_state->hw.adjusted_mode;
@@ -2464,7 +2517,8 @@ intel_dp_compute_link_config(struct intel_encoder *encoder,
 		    BPP_X16_ARGS(pipe_config->dsc.compressed_bpp_x16),
 		    intel_dp_config_required_rate(pipe_config),
 		    intel_dp_max_data_rate(pipe_config->port_clock,
-					   pipe_config->lane_count));
+					   pipe_config->lane_count,
+					   intel_dp_max_tunnel_bw(intel_dp)));
 
 	return 0;
 }
@@ -3980,6 +4034,13 @@ intel_dp_has_sink_count(struct intel_dp *intel_dp)
 					  &intel_dp->desc);
 }
 
+static void update_sink_caps(struct intel_dp *intel_dp)
+{
+	intel_dp_set_sink_rates(intel_dp);
+	intel_dp_set_max_sink_lane_count(intel_dp);
+	intel_dp_set_common_rates(intel_dp);
+}
+
 static bool
 intel_dp_get_dpcd(struct intel_dp *intel_dp)
 {
@@ -3996,9 +4057,7 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 		drm_dp_read_desc(&intel_dp->aux, &intel_dp->desc,
 				 drm_dp_is_branch(intel_dp->dpcd));
 
-		intel_dp_set_sink_rates(intel_dp);
-		intel_dp_set_max_sink_lane_count(intel_dp);
-		intel_dp_set_common_rates(intel_dp);
+		update_sink_caps(intel_dp);
 	}
 
 	if (intel_dp_has_sink_count(intel_dp)) {
@@ -4897,15 +4956,19 @@ static bool intel_dp_mst_link_status(struct intel_dp *intel_dp)
  * - %true if pending interrupts were serviced (or no interrupts were
  *   pending) w/o detecting an error condition.
  * - %false if an error condition - like AUX failure or a loss of link - is
- *   detected, which needs servicing from the hotplug work.
+ *   detected, or another condition - like a DP tunnel BW state change - needs
+ *   servicing from the hotplug work.
  */
 static bool
 intel_dp_check_mst_status(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	bool link_ok = true;
+	bool reprobe_needed = false;
 
 	drm_WARN_ON_ONCE(&i915->drm, intel_dp->active_mst_links < 0);
+
+	reprobe_needed = intel_dp_tunnel_handle_irq(i915->display.dp_tunnel_mgr, &intel_dp->aux);
 
 	for (;;) {
 		u8 esi[4] = {};
@@ -4940,7 +5003,7 @@ intel_dp_check_mst_status(struct intel_dp *intel_dp)
 			drm_dp_mst_hpd_irq_send_new_request(&intel_dp->mst_mgr);
 	}
 
-	return link_ok;
+	return link_ok && !reprobe_needed;
 }
 
 static void
@@ -5299,23 +5362,30 @@ static void intel_dp_check_device_service_irq(struct intel_dp *intel_dp)
 		drm_dbg_kms(&i915->drm, "Sink specific irq unhandled\n");
 }
 
-static void intel_dp_check_link_service_irq(struct intel_dp *intel_dp)
+static bool intel_dp_check_link_service_irq(struct intel_dp *intel_dp)
 {
+	bool ret = true;
 	u8 val;
 
 	if (intel_dp->dpcd[DP_DPCD_REV] < 0x11)
-		return;
+		return true;
+
+	if (intel_dp_tunnel_handle_irq(dp_to_i915(intel_dp)->display.dp_tunnel_mgr,
+				       &intel_dp->aux))
+		ret = false;
 
 	if (drm_dp_dpcd_readb(&intel_dp->aux,
 			      DP_LINK_SERVICE_IRQ_VECTOR_ESI0, &val) != 1 || !val)
-		return;
+		return ret;
 
 	if (drm_dp_dpcd_writeb(&intel_dp->aux,
 			       DP_LINK_SERVICE_IRQ_VECTOR_ESI0, val) != 1)
-		return;
+		return ret;
 
 	if (val & HDMI_LINK_STATUS_CHANGED)
 		intel_dp_handle_hdmi_link_status_change(intel_dp);
+
+	return ret;
 }
 
 /*
@@ -5336,6 +5406,7 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 	u8 old_sink_count = intel_dp->sink_count;
+	bool reprobe_needed;
 	bool ret;
 
 	/*
@@ -5358,7 +5429,7 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 	}
 
 	intel_dp_check_device_service_irq(intel_dp);
-	intel_dp_check_link_service_irq(intel_dp);
+	reprobe_needed = intel_dp_check_link_service_irq(intel_dp);
 
 	/* Handle CEC interrupts, if any */
 	drm_dp_cec_irq(&intel_dp->aux);
@@ -5385,10 +5456,10 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 		 * FIXME get rid of the ad-hoc phy test modeset code
 		 * and properly incorporate it into the normal modeset.
 		 */
-		return false;
+		reprobe_needed = true;
 	}
 
-	return true;
+	return reprobe_needed;
 }
 
 /* XXX this is probably wrong for multiple downstream ports */
@@ -5647,6 +5718,125 @@ intel_dp_detect_dsc_caps(struct intel_dp *intel_dp, struct intel_connector *conn
 					  connector);
 }
 
+static void detect_dp_tunnel(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	struct intel_connector *connector = intel_dp->attached_connector;
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	struct intel_encoder *encoder = &dig_port->base;
+
+	if (intel_dp_is_edp(intel_dp))
+		return;
+
+	if (!intel_dp->tunnel)
+		intel_dp->tunnel = intel_dp_tunnel_detect(i915->display.dp_tunnel_mgr, &intel_dp->aux);
+
+	if (!intel_dp->tunnel)
+		return;
+
+	if (intel_dp_tunnel_has_bw_alloc_errors(intel_dp->tunnel))
+		goto disable_bw_alloc;
+
+	if (!intel_dp->tunnel_bw_alloc_enabled) {
+		intel_dp->tunnel_bw_alloc_enabled = intel_dp_tunnel_enable_bw_alloc(intel_dp->tunnel);
+		update_sink_caps(intel_dp);
+
+		return;
+	}
+
+	if (!intel_dp_tunnel_update_state(intel_dp->tunnel))
+		goto disable_bw_alloc;
+
+	return;
+
+disable_bw_alloc:
+	if (intel_dp->tunnel_bw_alloc_enabled) {
+		drm_dbg_kms(&i915->drm,
+			    "[CONNECTOR:%d:%s][ENCODER:%d:%s] DPTUN: Disabling DP tunnel BW allocation mode, due to errors.\n",
+			    connector->base.base.id, connector->base.name,
+			    encoder->base.base.id, encoder->base.name);
+
+		intel_dp_tunnel_disable_bw_alloc(intel_dp->tunnel);
+		intel_dp->tunnel_bw_alloc_enabled = false;
+		update_sink_caps(intel_dp);
+	}
+}
+
+static void cleanup_dp_tunnel(struct intel_dp *intel_dp)
+{
+	if (!intel_dp->tunnel)
+		return;
+
+	intel_dp_tunnel_destroy(intel_dp->tunnel);
+	intel_dp->tunnel = NULL;
+	intel_dp->tunnel_bw_alloc_enabled = false;
+}
+
+void intel_dp_suspend_tunnels(struct drm_i915_private *i915)
+{
+	struct intel_encoder *encoder;
+	int ret;
+
+	if (!HAS_DISPLAY(i915))
+		return;
+
+	ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex,
+			       NULL);
+	drm_WARN_ON(&i915->drm, ret);
+
+	for_each_intel_dp(&i915->drm, encoder) {
+		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+		struct intel_connector *connector = intel_dp->attached_connector;
+
+		if (!intel_dp->tunnel)
+			continue;
+
+		drm_dbg_kms(&i915->drm, "[CONNECTOR:%d:%s][ENCODER:%d:%s] DPTUN: suspend\n",
+			    connector->base.base.id, connector->base.name,
+			    encoder->base.base.id, encoder->base.name);
+
+		intel_dp_tunnel_suspend(intel_dp->tunnel);
+
+		intel_dp->tunnel_bw_alloc_enabled = false;
+	}
+
+	drm_modeset_unlock(&i915->drm.mode_config.connection_mutex);
+}
+
+void intel_dp_resume_tunnels(struct drm_i915_private *i915)
+{
+	struct intel_encoder *encoder;
+	int ret;
+
+	if (!HAS_DISPLAY(i915))
+		return;
+
+	ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex,
+			       NULL);
+	drm_WARN_ON(&i915->drm, ret);
+
+	for_each_intel_dp(&i915->drm, encoder) {
+		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+		struct intel_connector *connector = intel_dp->attached_connector;
+		bool is_connected;
+
+		if (!intel_dp->tunnel)
+			continue;
+
+		is_connected = intel_digital_port_connected(encoder);
+
+		drm_dbg_kms(&i915->drm, "[CONNECTOR:%d:%s][ENCODER:%d:%s] DPTUN: resume (sink connected: %s)\n",
+			    connector->base.base.id, connector->base.name,
+			    encoder->base.base.id, encoder->base.name,
+			    str_yes_no(is_connected));
+
+		if (intel_dp_tunnel_resume(intel_dp->tunnel, is_connected))
+			intel_dp->tunnel_bw_alloc_enabled = true;
+	}
+
+	drm_modeset_unlock(&i915->drm.mode_config.connection_mutex);
+}
+
 static int
 intel_dp_detect(struct drm_connector *connector,
 		struct drm_modeset_acquire_ctx *ctx,
@@ -5691,8 +5881,12 @@ intel_dp_detect(struct drm_connector *connector,
 							intel_dp->is_mst);
 		}
 
+		cleanup_dp_tunnel(intel_dp);
+
 		goto out;
 	}
+
+	detect_dp_tunnel(intel_dp);
 
 	intel_dp_detect_dsc_caps(intel_dp, intel_connector);
 
@@ -5861,6 +6055,8 @@ void intel_dp_encoder_flush_work(struct drm_encoder *encoder)
 
 	intel_dp_mst_encoder_cleanup(dig_port);
 
+	cleanup_dp_tunnel(intel_dp);
+
 	intel_pps_vdd_off_sync(intel_dp);
 
 	/*
@@ -6014,14 +6210,18 @@ static int intel_dp_connector_atomic_check(struct drm_connector *conn,
 			return ret;
 	}
 
+	if (!intel_connector_needs_modeset(state, conn))
+		return 0;
+
+	ret = intel_dp_tunnel_atomic_add_state(state, intel_dp->tunnel);
+	if (ret < 0)
+		return ret;
+
 	/*
 	 * We don't enable port sync on BDW due to missing w/as and
 	 * due to not having adjusted the modeset sequence appropriately.
 	 */
 	if (DISPLAY_VER(dev_priv) < 9)
-		return 0;
-
-	if (!intel_connector_needs_modeset(state, conn))
 		return 0;
 
 	if (conn->has_tile) {
@@ -6424,6 +6624,28 @@ static void intel_dp_modeset_retry_work_fn(struct work_struct *work)
 	drm_kms_helper_connector_hotplug_event(connector);
 }
 
+static struct intel_dp_tunnel *
+intel_dp_get_tunnel(struct intel_connector *connector)
+{
+	return enc_to_dig_port(intel_attached_encoder(connector))->dp.tunnel;
+}
+
+static int intel_dp_get_link_rate(struct intel_atomic_state *state,
+				  struct intel_connector *connector)
+{
+	struct drm_connector_state *_conn_state =
+		drm_atomic_get_new_connector_state(&state->base, &connector->base);
+	struct intel_crtc_state *crtc_state;
+
+	if (!_conn_state->crtc)
+		return 0;
+
+	crtc_state = intel_atomic_get_new_crtc_state(state,
+						     to_intel_crtc(_conn_state->crtc));
+
+	return intel_dp_config_required_rate(crtc_state);
+}
+
 bool
 intel_dp_init_connector(struct intel_digital_port *dig_port,
 			struct intel_connector *intel_connector)
@@ -6502,6 +6724,9 @@ intel_dp_init_connector(struct intel_digital_port *dig_port,
 		intel_connector->get_hw_state = intel_ddi_connector_get_hw_state;
 	else
 		intel_connector->get_hw_state = intel_connector_get_hw_state;
+
+	intel_connector->get_dp_tunnel = intel_dp_get_tunnel;
+	intel_connector->get_dp_link_rate = intel_dp_get_link_rate;
 
 	if (!intel_edp_init_connector(intel_dp, intel_connector)) {
 		intel_dp_aux_fini(intel_dp);

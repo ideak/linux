@@ -66,6 +66,8 @@ void intel_dp_sink_disable_decompression(struct intel_atomic_state *state,
 void intel_dp_encoder_suspend(struct intel_encoder *intel_encoder);
 void intel_dp_encoder_shutdown(struct intel_encoder *intel_encoder);
 void intel_dp_encoder_flush_work(struct drm_encoder *encoder);
+void intel_dp_resume_tunnels(struct drm_i915_private *i915);
+void intel_dp_suspend_tunnels(struct drm_i915_private *i915);
 int intel_dp_compute_config(struct intel_encoder *encoder,
 			    struct intel_crtc_state *pipe_config,
 			    struct drm_connector_state *conn_state);
@@ -94,6 +96,8 @@ void intel_dp_mst_suspend(struct drm_i915_private *dev_priv);
 void intel_dp_mst_resume(struct drm_i915_private *dev_priv);
 int intel_dp_max_link_rate(struct intel_dp *intel_dp);
 int intel_dp_max_lane_count(struct intel_dp *intel_dp);
+#define INTEL_DP_NO_TUNNEL_BW_LIMIT (-1)
+int intel_dp_max_tunnel_bw(struct intel_dp *intel_dp);
 int intel_dp_rate_select(struct intel_dp *intel_dp, int rate);
 
 void intel_dp_compute_rate(struct intel_dp *intel_dp, int port_clock,
@@ -105,7 +109,9 @@ bool intel_dp_get_colorimetry_status(struct intel_dp *intel_dp);
 int intel_dp_link_required(int pixel_clock, int bpp);
 int intel_dp_effective_data_rate(int pixel_clock, int bpp_x16,
 				 int bw_overhead);
-int intel_dp_max_data_rate(int max_link_rate, int max_lanes);
+int intel_dp_max_dprx_data_rate(int max_link_rate, int max_lanes);
+int intel_dp_max_data_rate(int max_dprx_rate, int max_dprx_lanes, int tunnel_bw);
+int intel_dp_config_required_rate(struct intel_crtc_state *crtc_state);
 bool intel_dp_can_bigjoiner(struct intel_dp *intel_dp);
 bool intel_dp_needs_vsc_sdp(const struct intel_crtc_state *crtc_state,
 			    const struct drm_connector_state *conn_state);

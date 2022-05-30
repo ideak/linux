@@ -41,6 +41,7 @@
 #include "intel_dp.h"
 #include "intel_dp_hdcp.h"
 #include "intel_dp_mst.h"
+#include "intel_dp_tunnel.h"
 #include "intel_dpio_phy.h"
 #include "intel_hdcp.h"
 #include "intel_hotplug.h"
@@ -875,6 +876,12 @@ intel_dp_mst_atomic_check(struct drm_connector *connector,
 	if (ret)
 		return ret;
 
+	if (intel_connector_needs_modeset(state, connector)) {
+		ret = intel_dp_tunnel_atomic_add_state(state, intel_connector->mst_port->tunnel);
+		if (ret < 0)
+			return ret;
+	}
+
 	return drm_dp_atomic_release_time_slots(&state->base,
 						&intel_connector->mst_port->mst_mgr,
 						intel_connector->port);
@@ -1294,7 +1301,9 @@ intel_dp_mst_mode_valid_ctx(struct drm_connector *connector,
 	max_link_clock = intel_dp_max_link_rate(intel_dp);
 	max_lanes = intel_dp_max_lane_count(intel_dp);
 
-	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes);
+	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes,
+					  intel_dp_max_tunnel_bw(intel_dp));
+
 	mode_rate = intel_dp_link_required(mode->clock, min_bpp);
 
 	ret = drm_modeset_lock(&mgr->base.lock, ctx);
@@ -1508,6 +1517,28 @@ static bool detect_dsc_hblank_expansion_quirk(const struct intel_connector *conn
 	return true;
 }
 
+static struct intel_dp_tunnel *
+intel_dp_mst_get_tunnel(struct intel_connector *connector)
+{
+	return connector->mst_port->tunnel;
+}
+
+static int intel_dp_mst_get_link_rate(struct intel_atomic_state *state,
+				      struct intel_connector *connector)
+{
+	struct drm_connector_state *_conn_state =
+		drm_atomic_get_new_connector_state(&state->base, &connector->base);
+	struct intel_crtc_state *crtc_state;
+
+	if (!_conn_state->crtc)
+		return 0;
+
+	crtc_state = intel_atomic_get_new_crtc_state(state,
+						     to_intel_crtc(_conn_state->crtc));
+
+	return intel_dp_config_required_rate(crtc_state);
+}
+
 static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topology_mgr *mgr,
 							struct drm_dp_mst_port *port,
 							const char *pathprop)
@@ -1526,6 +1557,8 @@ static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topolo
 		return NULL;
 
 	intel_connector->get_hw_state = intel_dp_mst_get_hw_state;
+	intel_connector->get_dp_tunnel = intel_dp_mst_get_tunnel;
+	intel_connector->get_dp_link_rate = intel_dp_mst_get_link_rate;
 	intel_connector->mst_port = intel_dp;
 	intel_connector->port = port;
 	drm_dp_mst_get_port_malloc(port);

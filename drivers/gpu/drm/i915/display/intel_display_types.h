@@ -61,6 +61,7 @@ struct intel_ddi_buf_trans;
 struct intel_fbc;
 struct intel_connector;
 struct intel_tc_port;
+struct intel_dp_tunnel;
 
 /*
  * Display related stuff
@@ -1773,6 +1774,9 @@ struct intel_dp {
 
 	/* connector directly attached - won't be use for modeset in mst world */
 	struct intel_connector *attached_connector;
+
+	struct intel_dp_tunnel *tunnel;
+	bool tunnel_bw_alloc_enabled;
 
 	/* mst connector list */
 	struct intel_dp_mst_encoder *mst_encoders[I915_MAX_PIPES];
