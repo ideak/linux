@@ -312,7 +312,8 @@ static void i915_digport_work_func(struct work_struct *work)
 		container_of(work, struct drm_i915_private, display.hotplug.dig_port_work);
 	u32 long_port_mask, short_port_mask;
 	struct intel_encoder *encoder;
-	u32 old_bits = 0;
+	u32 short_event_bits = 0;
+	u32 long_event_bits = 0;
 
 	spin_lock_irq(&dev_priv->irq_lock);
 	long_port_mask = dev_priv->display.hotplug.long_port_mask;
@@ -341,13 +342,17 @@ static void i915_digport_work_func(struct work_struct *work)
 		ret = dig_port->hpd_pulse(dig_port, long_hpd);
 		if (ret == IRQ_NONE) {
 			/* fall back to old school hpd */
-			old_bits |= BIT(encoder->hpd_pin);
+			if (long_hpd)
+				long_event_bits |= BIT(encoder->hpd_pin);
+			else
+				short_event_bits |= BIT(encoder->hpd_pin);
 		}
 	}
 
-	if (old_bits) {
+	if (short_event_bits | long_event_bits) {
 		spin_lock_irq(&dev_priv->irq_lock);
-		dev_priv->display.hotplug.event_bits |= old_bits;
+		dev_priv->display.hotplug.long_event_bits |= long_event_bits;
+		dev_priv->display.hotplug.short_event_bits |= short_event_bits;
 		spin_unlock_irq(&dev_priv->irq_lock);
 		queue_delayed_work(dev_priv->unordered_wq,
 				   &dev_priv->display.hotplug.hotplug_work, 0);
@@ -372,41 +377,18 @@ void intel_hpd_trigger_irq(struct intel_digital_port *dig_port)
 	queue_work(i915->display.hotplug.dp_wq, &i915->display.hotplug.dig_port_work);
 }
 
-/*
- * Handle hotplug events outside the interrupt handler proper.
- */
-static void i915_hotplug_work_func(struct work_struct *work)
+static void handle_hotplug_events(struct drm_i915_private *dev_priv,
+				  u32 hpd_event_bits, u32 hpd_retry_bits,
+				  u32 *changed_bits_ret, u32 *retry_bits_ret,
+				  struct intel_connector **first_changed_connector,
+				  int *changed_connectors)
 {
-	struct drm_i915_private *dev_priv =
-		container_of(work, struct drm_i915_private,
-			     display.hotplug.hotplug_work.work);
 	struct drm_connector_list_iter conn_iter;
 	struct intel_connector *connector;
-	u32 changed = 0, retry = 0;
-	u32 hpd_event_bits;
-	u32 hpd_retry_bits;
-	struct drm_connector *first_changed_connector = NULL;
-	int changed_connectors = 0;
-
-	mutex_lock(&dev_priv->drm.mode_config.mutex);
-	drm_dbg_kms(&dev_priv->drm, "running encoder hotplug functions\n");
-
-	spin_lock_irq(&dev_priv->irq_lock);
-
-	hpd_event_bits = dev_priv->display.hotplug.event_bits;
-	dev_priv->display.hotplug.event_bits = 0;
-	hpd_retry_bits = dev_priv->display.hotplug.retry_bits;
-	dev_priv->display.hotplug.retry_bits = 0;
-
-	/* Enable polling for connectors which had HPD IRQ storms */
-	intel_hpd_irq_storm_switch_to_polling(dev_priv);
-
-	spin_unlock_irq(&dev_priv->irq_lock);
 
 	/* Skip calling encode hotplug handlers if ignore long HPD set*/
 	if (dev_priv->display.hotplug.ignore_long_hpd) {
 		drm_dbg_kms(&dev_priv->drm, "Ignore HPD flag on - skip encoder hotplug handlers\n");
-		mutex_unlock(&dev_priv->drm.mode_config.mutex);
 		return;
 	}
 
@@ -438,29 +420,74 @@ static void i915_hotplug_work_func(struct work_struct *work)
 			case INTEL_HOTPLUG_UNCHANGED:
 				break;
 			case INTEL_HOTPLUG_CHANGED:
-				changed |= hpd_bit;
-				changed_connectors++;
-				if (!first_changed_connector) {
+				*changed_bits_ret |= hpd_bit;
+				(*changed_connectors)++;
+				if (!*first_changed_connector) {
 					drm_connector_get(&connector->base);
-					first_changed_connector = &connector->base;
+					*first_changed_connector = connector;
 				}
 				break;
 			case INTEL_HOTPLUG_RETRY:
-				retry |= hpd_bit;
+				*retry_bits_ret |= hpd_bit;
 				break;
 			}
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
+}
+
+/*
+ * Handle hotplug events outside the interrupt handler proper.
+ */
+static void i915_hotplug_work_func(struct work_struct *work)
+{
+	struct drm_i915_private *dev_priv =
+		container_of(work, struct drm_i915_private,
+			     display.hotplug.hotplug_work.work);
+	struct intel_connector *first_changed_connector = NULL;
+	int changed_connectors = 0;
+	u32 changed = 0, retry = 0;
+	u32 hpd_long_event_bits;
+	u32 hpd_short_event_bits;
+	u32 hpd_retry_bits;
+
+	mutex_lock(&dev_priv->drm.mode_config.mutex);
+
+	drm_dbg_kms(&dev_priv->drm, "running encoder hotplug functions\n");
+
+	spin_lock_irq(&dev_priv->irq_lock);
+
+	hpd_short_event_bits = dev_priv->display.hotplug.short_event_bits;
+	dev_priv->display.hotplug.short_event_bits = 0;
+	hpd_long_event_bits = dev_priv->display.hotplug.long_event_bits;
+	dev_priv->display.hotplug.long_event_bits = 0;
+	hpd_retry_bits = dev_priv->display.hotplug.retry_bits;
+	dev_priv->display.hotplug.retry_bits = 0;
+
+	/* Enable polling for connectors which had HPD IRQ storms */
+	intel_hpd_irq_storm_switch_to_polling(dev_priv);
+
+	spin_unlock_irq(&dev_priv->irq_lock);
+
+	if (hpd_long_event_bits)
+		handle_hotplug_events(dev_priv, hpd_long_event_bits, hpd_retry_bits,
+				      &changed, &retry,
+				      &first_changed_connector, &changed_connectors);
+
+	if (hpd_short_event_bits)
+		handle_hotplug_events(dev_priv, hpd_short_event_bits, hpd_retry_bits,
+				      &changed, &retry,
+				      &first_changed_connector, &changed_connectors);
+
 	mutex_unlock(&dev_priv->drm.mode_config.mutex);
 
 	if (changed_connectors == 1)
-		drm_kms_helper_connector_hotplug_event(first_changed_connector);
+		drm_kms_helper_connector_hotplug_event(&first_changed_connector->base);
 	else if (changed_connectors > 0)
 		drm_kms_helper_hotplug_event(&dev_priv->drm);
 
 	if (first_changed_connector)
-		drm_connector_put(first_changed_connector);
+		drm_connector_put(&first_changed_connector->base);
 
 	/* Remove shared HPD pins that have changed */
 	retry &= ~changed;
@@ -474,7 +501,6 @@ static void i915_hotplug_work_func(struct work_struct *work)
 				 msecs_to_jiffies(HPD_RETRY_DELAY));
 	}
 }
-
 
 /**
  * intel_hpd_irq_handler - main hotplug irq handler
@@ -572,13 +598,14 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 		if (((short_hpd_pulse_mask | long_hpd_pulse_mask) & BIT(pin))) {
 			long_hpd = long_hpd_pulse_mask & BIT(pin);
 		} else {
-			dev_priv->display.hotplug.event_bits |= BIT(pin);
+			dev_priv->display.hotplug.long_event_bits |= BIT(pin);
 			long_hpd = true;
 			queue_hp = true;
 		}
 
 		if (intel_hpd_irq_storm_detect(dev_priv, pin, long_hpd)) {
-			dev_priv->display.hotplug.event_bits &= ~BIT(pin);
+			dev_priv->display.hotplug.long_event_bits &= ~BIT(pin);
+			dev_priv->display.hotplug.short_event_bits &= ~BIT(pin);
 			storm_detected = true;
 			queue_hp = true;
 		}
@@ -835,7 +862,8 @@ void intel_hpd_cancel_work(struct drm_i915_private *dev_priv)
 
 	dev_priv->display.hotplug.long_port_mask = 0;
 	dev_priv->display.hotplug.short_port_mask = 0;
-	dev_priv->display.hotplug.event_bits = 0;
+	dev_priv->display.hotplug.long_event_bits = 0;
+	dev_priv->display.hotplug.short_event_bits = 0;
 	dev_priv->display.hotplug.retry_bits = 0;
 
 	spin_unlock_irq(&dev_priv->irq_lock);

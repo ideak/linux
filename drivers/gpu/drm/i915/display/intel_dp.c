@@ -6049,7 +6049,7 @@ static void intel_dp_oob_hotplug_event(struct drm_connector *connector,
 
 	spin_lock_irq(&i915->irq_lock);
 	if (hpd_high != test_bit(hpd_pin, &i915->display.hotplug.oob_hotplug_last_state)) {
-		i915->display.hotplug.event_bits |= BIT(hpd_pin);
+		i915->display.hotplug.long_event_bits |= BIT(hpd_pin);
 
 		__assign_bit(hpd_pin, &i915->display.hotplug.oob_hotplug_last_state, hpd_high);
 		need_work = true;

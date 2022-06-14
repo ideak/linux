@@ -161,7 +161,8 @@ struct intel_hotplug {
 			HPD_MARK_DISABLED = 2
 		} state;
 	} stats[HPD_NUM_PINS];
-	u32 event_bits;
+	u32 long_event_bits;
+	u32 short_event_bits;
 	u32 retry_bits;
 	struct delayed_work reenable_work;
 
