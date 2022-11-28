@@ -33,6 +33,7 @@
 #include "i915_drv.h"
 #include "intel_audio.h"
 #include "intel_audio_regs.h"
+#include "intel_atomic.h"
 #include "intel_backlight.h"
 #include "intel_combo_phy.h"
 #include "intel_combo_phy_regs.h"
@@ -2976,6 +2977,8 @@ static void intel_disable_ddi(struct intel_atomic_state *state,
 			      const struct intel_crtc_state *old_crtc_state,
 			      const struct drm_connector_state *old_conn_state)
 {
+	cancel_delayed_work(&enc_to_dig_port(encoder)->reset_link_work);
+
 	intel_hdcp_disable(to_intel_connector(old_conn_state->connector));
 
 	if (intel_crtc_has_type(old_crtc_state, INTEL_OUTPUT_HDMI))
@@ -3941,35 +3944,18 @@ static int intel_hdmi_reset_link(struct intel_encoder *encoder,
 	return modeset_pipe(&crtc->base, ctx);
 }
 
-static enum intel_hotplug_state
-intel_ddi_hotplug(struct intel_encoder *encoder,
-		  struct intel_connector *connector)
+static void call_with_modeset_ctx(int (*fn)(struct intel_encoder *encoder,
+					    struct drm_modeset_acquire_ctx *ctx),
+				  struct intel_encoder *encoder)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	struct intel_dp *intel_dp = &dig_port->dp;
-	enum phy phy = intel_port_to_phy(i915, encoder->port);
-	bool is_tc = intel_phy_is_tc(i915, phy);
 	struct drm_modeset_acquire_ctx ctx;
-	enum intel_hotplug_state state;
 	int ret;
-
-	if (intel_dp->compliance.test_active &&
-	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
-		intel_dp_phy_test(encoder);
-		/* just do the PHY test and nothing else */
-		return INTEL_HOTPLUG_UNCHANGED;
-	}
-
-	state = intel_encoder_hotplug(encoder, connector);
 
 	drm_modeset_acquire_init(&ctx, 0);
 
 	for (;;) {
-		if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
-			ret = intel_hdmi_reset_link(encoder, &ctx);
-		else
-			ret = intel_dp_retrain_link(encoder, &ctx);
+		ret = fn(encoder, &ctx);
 
 		if (ret == -EDEADLK) {
 			drm_modeset_backoff(&ctx);
@@ -3981,8 +3967,50 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
-	drm_WARN(encoder->base.dev, ret,
+	drm_WARN(&i915->drm, ret,
 		 "Acquiring modeset locks failed with %i\n", ret);
+}
+
+static void intel_ddi_tc_link_reset_work(struct work_struct *work)
+{
+	struct intel_digital_port *dig_port =
+		container_of(work, struct intel_digital_port, reset_link_work.work);
+	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
+
+	mutex_lock(&i915->drm.mode_config.mutex);
+
+	if (intel_tc_port_link_needs_reset(dig_port))
+		call_with_modeset_ctx(intel_dp_reset_link, &dig_port->base);
+
+	mutex_unlock(&i915->drm.mode_config.mutex);
+}
+
+static enum intel_hotplug_state
+intel_ddi_hotplug(struct intel_encoder *encoder,
+		  struct intel_connector *connector)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	struct intel_dp *intel_dp = &dig_port->dp;
+	enum phy phy = intel_port_to_phy(i915, encoder->port);
+	bool is_tc = intel_phy_is_tc(i915, phy);
+	enum intel_hotplug_state state;
+
+	if (intel_dp->compliance.test_active &&
+	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
+		intel_dp_phy_test(encoder);
+		/* just do the PHY test and nothing else */
+		return INTEL_HOTPLUG_UNCHANGED;
+	}
+
+	state = intel_encoder_hotplug(encoder, connector);
+
+	if (intel_tc_port_link_needs_reset(dig_port))
+		queue_delayed_work(system_unbound_wq, &dig_port->reset_link_work, msecs_to_jiffies(2000));
+	else if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
+		call_with_modeset_ctx(intel_hdmi_reset_link, encoder);
+	else
+		call_with_modeset_ctx(intel_dp_retrain_link, encoder);
 
 	/*
 	 * Unpowered type-c dongles can take some time to boot and be
@@ -4483,6 +4511,8 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 		if (dig_port->dp.mso_link_count)
 			encoder->pipe_mask = intel_ddi_splitter_pipe_mask(dev_priv);
 	}
+
+	INIT_DELAYED_WORK(&dig_port->reset_link_work, intel_ddi_tc_link_reset_work);
 
 	/* In theory we don't need the encoder->type check, but leave it just in
 	 * case we have some really bad VBTs... */

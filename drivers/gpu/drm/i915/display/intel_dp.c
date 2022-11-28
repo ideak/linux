@@ -4028,9 +4028,9 @@ static bool intel_dp_has_connector(struct intel_dp *intel_dp,
 	return false;
 }
 
-static int intel_dp_prep_link_retrain(struct intel_dp *intel_dp,
-				      struct drm_modeset_acquire_ctx *ctx,
-				      u8 *pipe_mask)
+static int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
+				     struct drm_modeset_acquire_ctx *ctx,
+				     u8 *pipe_mask)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	struct drm_connector_list_iter conn_iter;
@@ -4038,9 +4038,6 @@ static int intel_dp_prep_link_retrain(struct intel_dp *intel_dp,
 	int ret = 0;
 
 	*pipe_mask = 0;
-
-	if (!intel_dp_needs_link_retrain(intel_dp))
-		return 0;
 
 	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
 	for_each_intel_connector_iter(connector, &conn_iter) {
@@ -4075,9 +4072,6 @@ static int intel_dp_prep_link_retrain(struct intel_dp *intel_dp,
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
-	if (!intel_dp_needs_link_retrain(intel_dp))
-		*pipe_mask = 0;
-
 	return ret;
 }
 
@@ -4106,11 +4100,17 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 	if (ret)
 		return ret;
 
-	ret = intel_dp_prep_link_retrain(intel_dp, ctx, &pipe_mask);
+	if (!intel_dp_needs_link_retrain(intel_dp))
+		return 0;
+
+	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
 	if (ret)
 		return ret;
 
 	if (pipe_mask == 0)
+		return 0;
+
+	if (!intel_dp_needs_link_retrain(intel_dp))
 		return 0;
 
 	drm_dbg_kms(&dev_priv->drm, "[ENCODER:%d:%s] retraining link\n",
@@ -4158,6 +4158,52 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 	}
 
 	return 0;
+}
+
+int intel_dp_reset_link(struct intel_encoder *encoder,
+			struct drm_modeset_acquire_ctx *ctx)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct drm_atomic_state *state;
+	struct intel_crtc *crtc;
+	u8 pipe_mask;
+	int ret = 0;
+
+	ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex,
+			       ctx);
+	if (ret)
+		return ret;
+
+	ret = intel_dp_get_active_pipes(enc_to_intel_dp(encoder), ctx, &pipe_mask);
+	if (ret)
+		return ret;
+
+	if (!pipe_mask)
+		return 0;
+
+	state = drm_atomic_state_alloc(&i915->drm);
+	if (!state)
+		return -ENOMEM;
+
+	state->acquire_ctx = ctx;
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, crtc, pipe_mask) {
+		struct intel_crtc_state *crtc_state;
+
+		crtc_state = intel_atomic_get_crtc_state(state, crtc);
+		if (IS_ERR(crtc_state)) {
+			ret = PTR_ERR(crtc_state);
+			break;
+		}
+
+		crtc_state->uapi.connectors_changed = true;
+	}
+
+	ret = drm_atomic_commit(state);
+
+	drm_atomic_state_put(state);
+
+	return ret;
 }
 
 static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,

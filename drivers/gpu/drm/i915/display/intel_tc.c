@@ -865,6 +865,21 @@ void intel_tc_port_put_link(struct intel_digital_port *dig_port)
 	intel_tc_port_flush_work(dig_port);
 }
 
+bool intel_tc_port_link_needs_reset(struct intel_digital_port *dig_port)
+{
+	bool ret;
+
+	intel_tc_port_lock(dig_port);
+
+	ret = dig_port->tc_link_refcount &&
+	      intel_tc_port_in_dp_alt_mode(dig_port) &&
+	      intel_tc_port_needs_reset(dig_port);
+
+	intel_tc_port_unlock(dig_port);
+
+	return ret;
+}
+
 static bool
 tc_has_modular_fia(struct drm_i915_private *i915, struct intel_digital_port *dig_port)
 {
