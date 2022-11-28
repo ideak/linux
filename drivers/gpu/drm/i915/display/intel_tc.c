@@ -1335,6 +1335,27 @@ bool intel_tc_port_connected(struct intel_encoder *encoder)
 	return is_connected;
 }
 
+bool intel_tc_port_link_needs_reset(struct intel_digital_port *dig_port)
+{
+	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
+	enum phy phy = intel_port_to_phy(i915, dig_port->base.port);
+	struct intel_tc_port *tc = to_tc_port(dig_port);
+	bool ret;
+
+	if (!intel_phy_is_tc(i915, phy))
+		return false;
+
+	mutex_lock(&tc->lock);
+
+	ret = tc->link_refcount &&
+	      intel_tc_port_in_dp_alt_mode(dig_port) &&
+	      intel_tc_port_needs_reset(tc);
+
+	mutex_unlock(&tc->lock);
+
+	return ret;
+}
+
 static void __intel_tc_port_lock(struct intel_tc_port *tc,
 				 int required_lanes)
 {

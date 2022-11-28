@@ -4250,6 +4250,55 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 	return 0;
 }
 
+int intel_dp_reset_link(struct intel_encoder *encoder,
+			struct drm_modeset_acquire_ctx *ctx)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct drm_atomic_state *_state;
+	struct intel_atomic_state *state;
+	struct intel_crtc *crtc;
+	u8 pipe_mask;
+	int ret = 0;
+
+	ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex,
+			       ctx);
+	if (ret)
+		return ret;
+
+	ret = intel_dp_get_active_pipes(enc_to_intel_dp(encoder), ctx, &pipe_mask);
+	if (ret)
+		return ret;
+
+	if (!pipe_mask)
+		return 0;
+
+	_state = drm_atomic_state_alloc(&i915->drm);
+	if (!_state)
+		return -ENOMEM;
+	state = to_intel_atomic_state(_state);
+
+	state->base.acquire_ctx = ctx;
+	state->internal = true;
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, crtc, pipe_mask) {
+		struct intel_crtc_state *crtc_state;
+
+		crtc_state = intel_atomic_get_crtc_state(&state->base, crtc);
+		if (IS_ERR(crtc_state)) {
+			ret = PTR_ERR(crtc_state);
+			break;
+		}
+
+		crtc_state->uapi.connectors_changed = true;
+	}
+
+	ret = drm_atomic_commit(&state->base);
+
+	drm_atomic_state_put(&state->base);
+
+	return ret;
+}
+
 static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,
 				  struct drm_modeset_acquire_ctx *ctx,
 				  u8 *pipe_mask)

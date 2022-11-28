@@ -3312,6 +3312,8 @@ static void intel_disable_ddi(struct intel_atomic_state *state,
 			      const struct intel_crtc_state *old_crtc_state,
 			      const struct drm_connector_state *old_conn_state)
 {
+	cancel_delayed_work(&enc_to_dig_port(encoder)->reset_link_work);
+
 	intel_hdcp_disable(to_intel_connector(old_conn_state->connector));
 
 	if (intel_crtc_has_type(old_crtc_state, INTEL_OUTPUT_HDMI))
@@ -4220,9 +4222,29 @@ static void intel_ddi_encoder_reset(struct drm_encoder *encoder)
 		intel_tc_port_init_mode(dig_port);
 }
 
+static bool intel_ddi_tc_port_reset_link(struct intel_encoder *encoder)
+{
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+
+	if (!intel_tc_port_link_needs_reset(dig_port))
+		return false;
+
+	queue_delayed_work(system_unbound_wq, &dig_port->reset_link_work, msecs_to_jiffies(2000));
+
+	return true;
+}
+
+static int intel_ddi_encoder_late_register(struct drm_encoder *_encoder)
+{
+	intel_ddi_tc_port_reset_link(to_intel_encoder(_encoder));
+
+	return 0;
+}
+
 static const struct drm_encoder_funcs intel_ddi_funcs = {
 	.reset = intel_ddi_encoder_reset,
 	.destroy = intel_ddi_encoder_destroy,
+	.late_register = intel_ddi_encoder_late_register,
 };
 
 static struct intel_connector *
@@ -4397,6 +4419,25 @@ static void call_with_modeset_ctx(int (*fn)(struct intel_encoder *encoder,
 		 "Acquiring modeset locks failed with %i\n", ret);
 }
 
+static void intel_ddi_tc_link_reset_work(struct work_struct *work)
+{
+	struct intel_digital_port *dig_port =
+		container_of(work, struct intel_digital_port, reset_link_work.work);
+	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
+	struct intel_encoder *encoder = &dig_port->base;
+
+	mutex_lock(&i915->drm.mode_config.mutex);
+
+	if (intel_tc_port_link_needs_reset(dig_port)) {
+		drm_dbg_kms(&i915->drm,
+			    "[ENCODER:%d:%s] TypeC DP-alt sink disconnected, resetting link\n",
+			    encoder->base.base.id, encoder->base.name);
+		call_with_modeset_ctx(intel_dp_reset_link, &dig_port->base);
+	}
+
+	mutex_unlock(&i915->drm.mode_config.mutex);
+}
+
 static enum intel_hotplug_state
 intel_ddi_hotplug(struct intel_encoder *encoder,
 		  struct intel_connector *connector)
@@ -4417,10 +4458,12 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 
 	state = intel_encoder_hotplug(encoder, connector);
 
-	if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
-		call_with_modeset_ctx(intel_hdmi_reset_link, encoder);
-	else
-		call_with_modeset_ctx(intel_dp_retrain_link, encoder);
+	if (!intel_ddi_tc_port_reset_link(encoder)) {
+		if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
+			call_with_modeset_ctx(intel_hdmi_reset_link, encoder);
+		else
+			call_with_modeset_ctx(intel_dp_retrain_link, encoder);
+	}
 
 	/*
 	 * Unpowered type-c dongles can take some time to boot and be
@@ -4955,6 +4998,8 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 		if (dig_port->dp.mso_link_count)
 			encoder->pipe_mask = intel_ddi_splitter_pipe_mask(dev_priv);
 	}
+
+	INIT_DELAYED_WORK(&dig_port->reset_link_work, intel_ddi_tc_link_reset_work);
 
 	/*
 	 * In theory we don't need the encoder->type check,

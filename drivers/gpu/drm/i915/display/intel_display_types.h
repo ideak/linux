@@ -1803,6 +1803,8 @@ struct intel_digital_port {
 
 	struct intel_tc_port *tc;
 
+	struct delayed_work reset_link_work;
+
 	/* protects num_hdcp_streams reference count, hdcp_port_data and hdcp_auth_status */
 	struct mutex hdcp_mutex;
 	/* the number of pipes using HDCP signalling out of this port */

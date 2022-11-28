@@ -26,6 +26,7 @@
 #include "intel_fifo_underrun.h"
 #include "intel_modeset_setup.h"
 #include "intel_pch_display.h"
+#include "intel_tc.h"
 #include "intel_vblank.h"
 #include "intel_wm.h"
 #include "skl_watermark.h"
@@ -253,17 +254,6 @@ intel_sanitize_plane_mapping(struct drm_i915_private *i915)
 	}
 }
 
-static bool intel_crtc_has_encoders(struct intel_crtc *crtc)
-{
-	struct drm_device *dev = crtc->base.dev;
-	struct intel_encoder *encoder;
-
-	for_each_encoder_on_crtc(dev, &crtc->base, encoder)
-		return true;
-
-	return false;
-}
-
 static struct intel_connector *intel_encoder_find_connector(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
@@ -382,6 +372,9 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 {
 	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
 	struct intel_crtc_state *crtc_state = to_intel_crtc_state(crtc->base.state);
+	struct intel_encoder *encoder;
+	bool needs_link_reset = false;
+	bool has_encoder = false;
 
 	if (crtc_state->hw.active) {
 		struct intel_plane *plane;
@@ -401,13 +394,28 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 		intel_color_commit_arm(crtc_state);
 	}
 
+	if (!crtc_state->hw.active ||
+	    intel_crtc_is_bigjoiner_slave(crtc_state))
+		return;
+
+	for_each_encoder_on_crtc(&i915->drm, &crtc->base, encoder) {
+		struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+
+		has_encoder = true;
+
+		if (!dig_port || !intel_tc_port_link_needs_reset(dig_port))
+			continue;
+
+		needs_link_reset = true;
+		break;
+	}
+
 	/*
 	 * Adjust the state of the output pipe according to whether we have
 	 * active connectors/encoders.
 	 * TODO: Add support for MST
 	 */
-	if (crtc_state->hw.active && !intel_crtc_has_encoders(crtc) &&
-	    !intel_crtc_is_bigjoiner_slave(crtc_state))
+	if (!has_encoder || needs_link_reset)
 		disable_crtc_with_slaves(crtc, ctx);
 }
 
