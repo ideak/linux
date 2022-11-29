@@ -748,6 +748,15 @@ intel_dp_dump_link_status(struct intel_dp *intel_dp, enum drm_dp_phy dp_phy,
 		    link_status[3], link_status[4], link_status[5]);
 }
 
+#define intel_dp_link_error(intel_dp, format, ...) \
+	do { \
+		struct drm_i915_private *i915 = dp_to_i915(intel_dp); \
+		if (intel_dp_is_connected(intel_dp)) \
+			drm_err(&i915->drm, format, ## __VA_ARGS__); \
+		else \
+			drm_dbg_kms(&i915->drm, format, ## __VA_ARGS__); \
+	} while(0)
+
 /*
  * Perform the link training clock recovery phase on the given DP PHY using
  * training pattern 1.
@@ -773,7 +782,8 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp,
 	if (!intel_dp_reset_link_train(intel_dp, crtc_state, dp_phy,
 				       DP_TRAINING_PATTERN_1 |
 				       DP_LINK_SCRAMBLING_DISABLE)) {
-		drm_err(&i915->drm, "[ENCODER:%d:%s][%s] Failed to enable link training\n",
+		intel_dp_link_error(intel_dp,
+			"[ENCODER:%d:%s][%s] Failed to enable link training\n",
 			encoder->base.base.id, encoder->base.name,
 			drm_dp_phy_name(dp_phy));
 		return false;
@@ -798,7 +808,8 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp,
 
 		if (drm_dp_dpcd_read_phy_link_status(&intel_dp->aux, dp_phy,
 						     link_status) < 0) {
-			drm_err(&i915->drm, "[ENCODER:%d:%s][%s] Failed to get link status\n",
+			intel_dp_link_error(intel_dp,
+				"[ENCODER:%d:%s][%s] Failed to get link status\n",
 				encoder->base.base.id, encoder->base.name,
 				drm_dp_phy_name(dp_phy));
 			return false;
@@ -834,7 +845,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp,
 		intel_dp_get_adjust_train(intel_dp, crtc_state, dp_phy,
 					  link_status);
 		if (!intel_dp_update_link_train(intel_dp, crtc_state, dp_phy)) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s][%s] Failed to update link training\n",
 				encoder->base.base.id, encoder->base.name,
 				drm_dp_phy_name(dp_phy));
@@ -853,7 +864,7 @@ intel_dp_link_training_clock_recovery(struct intel_dp *intel_dp,
 	}
 
 	intel_dp_dump_link_status(intel_dp, dp_phy, link_status);
-	drm_err(&i915->drm,
+	intel_dp_link_error(intel_dp,
 		"[ENCODER:%d:%s][%s] Failed clock recovery %d times, giving up!\n",
 		encoder->base.base.id, encoder->base.name,
 		drm_dp_phy_name(dp_phy), max_cr_tries);
@@ -948,7 +959,7 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp,
 	/* channel equalization */
 	if (!intel_dp_set_link_train(intel_dp, crtc_state, dp_phy,
 				     training_pattern)) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s][%s] Failed to start channel equalization\n",
 			encoder->base.base.id, encoder->base.name,
 			drm_dp_phy_name(dp_phy));
@@ -960,7 +971,7 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp,
 
 		if (drm_dp_dpcd_read_phy_link_status(&intel_dp->aux, dp_phy,
 						     link_status) < 0) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s][%s] Failed to get link status\n",
 				encoder->base.base.id, encoder->base.name,
 				drm_dp_phy_name(dp_phy));
@@ -993,7 +1004,7 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp,
 		intel_dp_get_adjust_train(intel_dp, crtc_state, dp_phy,
 					  link_status);
 		if (!intel_dp_update_link_train(intel_dp, crtc_state, dp_phy)) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s][%s] Failed to update link training\n",
 				encoder->base.base.id, encoder->base.name,
 				drm_dp_phy_name(dp_phy));
@@ -1177,7 +1188,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 	 */
 	if (!intel_dp_reset_link_train(intel_dp, crtc_state, DP_PHY_DPRX,
 				       DP_TRAINING_PATTERN_1)) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Failed to start 128b/132b TPS1\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1187,7 +1198,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 	/* Read the initial TX FFE settings. */
 	if (drm_dp_dpcd_read_link_status(&intel_dp->aux, link_status) < 0) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Failed to read TX FFE presets\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1196,7 +1207,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 	/* Update signal levels and training set as requested. */
 	intel_dp_get_adjust_train(intel_dp, crtc_state, DP_PHY_DPRX, link_status);
 	if (!intel_dp_update_link_train(intel_dp, crtc_state, DP_PHY_DPRX)) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Failed to set initial TX FFE settings\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1205,7 +1216,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 	/* Start transmitting 128b/132b TPS2. */
 	if (!intel_dp_set_link_train(intel_dp, crtc_state, DP_PHY_DPRX,
 				     DP_TRAINING_PATTERN_2)) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Failed to start 128b/132b TPS2\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1224,7 +1235,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 		delay_us = drm_dp_128b132b_read_aux_rd_interval(&intel_dp->aux);
 
 		if (drm_dp_dpcd_read_link_status(&intel_dp->aux, link_status) < 0) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Failed to read link status\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1232,7 +1243,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 		if (drm_dp_128b132b_link_training_failed(link_status)) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Downstream link training failure\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1247,7 +1258,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 		if (timeout) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Lane channel eq timeout\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1259,7 +1270,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 		/* Update signal levels and training set as requested. */
 		intel_dp_get_adjust_train(intel_dp, crtc_state, DP_PHY_DPRX, link_status);
 		if (!intel_dp_update_link_train(intel_dp, crtc_state, DP_PHY_DPRX)) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Failed to update TX FFE settings\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1268,7 +1279,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 	if (try == max_tries) {
 		intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Max loop count reached\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1279,7 +1290,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 			timeout = true; /* try one last time after deadline */
 
 		if (drm_dp_dpcd_read_link_status(&intel_dp->aux, link_status) < 0) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Failed to read link status\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1287,14 +1298,14 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 		if (drm_dp_128b132b_link_training_failed(link_status)) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Downstream link training failure\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
 		}
 
 		if (drm_dp_128b132b_eq_interlane_align_done(link_status)) {
-			drm_dbg_kms(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				    "[ENCODER:%d:%s] Interlane align done\n",
 				    encoder->base.base.id, encoder->base.name);
 			break;
@@ -1302,7 +1313,7 @@ intel_dp_128b132b_lane_eq(struct intel_dp *intel_dp,
 
 		if (timeout) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Interlane align timeout\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1329,7 +1340,7 @@ intel_dp_128b132b_lane_cds(struct intel_dp *intel_dp,
 
 	if (drm_dp_dpcd_writeb(&intel_dp->aux, DP_TRAINING_PATTERN_SET,
 			       DP_TRAINING_PATTERN_2_CDS) != 1) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] Failed to start 128b/132b TPS2 CDS\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
@@ -1347,7 +1358,7 @@ intel_dp_128b132b_lane_cds(struct intel_dp *intel_dp,
 		usleep_range(2000, 3000);
 
 		if (drm_dp_dpcd_read_link_status(&intel_dp->aux, link_status) < 0) {
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Failed to read link status\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1364,7 +1375,7 @@ intel_dp_128b132b_lane_cds(struct intel_dp *intel_dp,
 
 		if (drm_dp_128b132b_link_training_failed(link_status)) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] Downstream link training failure\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1372,7 +1383,7 @@ intel_dp_128b132b_lane_cds(struct intel_dp *intel_dp,
 
 		if (timeout) {
 			intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
-			drm_err(&i915->drm,
+			intel_dp_link_error(intel_dp,
 				"[ENCODER:%d:%s] CDS timeout\n",
 				encoder->base.base.id, encoder->base.name);
 			return false;
@@ -1400,7 +1411,7 @@ intel_dp_128b132b_link_train(struct intel_dp *intel_dp,
 	bool passed = false;
 
 	if (wait_for(intel_dp_128b132b_intra_hop(intel_dp, crtc_state) == 0, 500)) {
-		drm_err(&i915->drm,
+		intel_dp_link_error(intel_dp,
 			"[ENCODER:%d:%s] 128b/132b intra-hop not clear\n",
 			encoder->base.base.id, encoder->base.name);
 		return false;
