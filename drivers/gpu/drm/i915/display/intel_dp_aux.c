@@ -6,6 +6,7 @@
 #include "i915_drv.h"
 #include "i915_trace.h"
 #include "intel_display_types.h"
+#include "intel_dp.h"
 #include "intel_dp_aux.h"
 #include "intel_pps.h"
 #include "intel_tc.h"
@@ -202,6 +203,10 @@ intel_dp_aux_xfer(struct intel_dp *intel_dp,
 	int try, clock = 0;
 	u32 status;
 	bool vdd;
+
+	if (!intel_dp_is_edp(intel_dp) &&
+	    !intel_digital_port_connected(&dig_port->base))
+		return -ENXIO;
 
 	ch_ctl = intel_dp->aux_ch_ctl_reg(intel_dp);
 	for (i = 0; i < ARRAY_SIZE(ch_data); i++)

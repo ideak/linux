@@ -96,6 +96,7 @@ void intel_read_dp_sdp(struct intel_encoder *encoder,
 		       struct intel_crtc_state *crtc_state,
 		       unsigned int type);
 bool intel_digital_port_connected(struct intel_encoder *encoder);
+bool intel_dp_is_connected(struct intel_dp *intel_dp);
 
 static inline unsigned int intel_dp_unused_lane_mask(int lane_count)
 {
