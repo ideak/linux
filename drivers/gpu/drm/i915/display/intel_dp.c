@@ -4954,13 +4954,7 @@ static int intel_modeset_affected_transcoders(struct intel_atomic_state *state, 
 		if (!(transcoders & BIT(crtc_state->cpu_transcoder)))
 			continue;
 
-		crtc_state->uapi.mode_changed = true;
-
-		ret = drm_atomic_add_affected_connectors(&state->base, &crtc->base);
-		if (ret)
-			return ret;
-
-		ret = drm_atomic_add_affected_planes(&state->base, &crtc->base);
+		ret = intel_atomic_modeset_pipe(state, crtc, "port syncing");
 		if (ret)
 			return ret;
 

@@ -56,4 +56,9 @@ int intel_atomic_setup_scalers(struct drm_i915_private *dev_priv,
 			       struct intel_crtc *intel_crtc,
 			       struct intel_crtc_state *crtc_state);
 
+int intel_atomic_modeset_pipe(struct intel_atomic_state *state,
+			      struct intel_crtc *crtc, const char *reason);
+int intel_atomic_modeset_all_pipes(struct intel_atomic_state *state,
+				   const char *reason);
+
 #endif /* __INTEL_ATOMIC_H__ */

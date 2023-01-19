@@ -540,3 +540,63 @@ intel_atomic_get_crtc_state(struct drm_atomic_state *state,
 
 	return to_intel_crtc_state(crtc_state);
 }
+
+int intel_atomic_modeset_pipe(struct intel_atomic_state *state,
+			      struct intel_crtc *crtc, const char *reason)
+{
+	struct drm_i915_private *i915 = to_i915(state->base.dev);
+	struct intel_crtc_state *crtc_state;
+	int ret;
+
+	drm_dbg_kms(&i915->drm, "[CRTC:%d:%s] Full modeset due to %s\n",
+		    crtc->base.base.id, crtc->base.name, reason);
+
+	crtc_state = intel_atomic_get_crtc_state(&state->base, crtc);
+	if (IS_ERR(crtc_state))
+		return PTR_ERR(crtc_state);
+
+	crtc_state->uapi.mode_changed = true;
+
+	ret = drm_atomic_add_affected_connectors(&state->base, &crtc->base);
+	if (ret)
+		return ret;
+
+	ret = intel_atomic_add_affected_planes(state, crtc);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int intel_atomic_modeset_all_pipes(struct intel_atomic_state *state,
+				   const char *reason)
+{
+	struct drm_i915_private *dev_priv = to_i915(state->base.dev);
+	struct intel_crtc *crtc;
+
+	/*
+	 * Add all pipes to the state, and force
+	 * a modeset on all the active ones.
+	 */
+	for_each_intel_crtc(&dev_priv->drm, crtc) {
+		struct intel_crtc_state *crtc_state;
+		int ret;
+
+		crtc_state = intel_atomic_get_crtc_state(&state->base, crtc);
+		if (IS_ERR(crtc_state))
+			return PTR_ERR(crtc_state);
+
+		if (!crtc_state->hw.active ||
+		    intel_crtc_needs_modeset(crtc_state))
+			continue;
+
+		ret = intel_atomic_modeset_pipe(state, crtc, reason);
+		if (ret)
+			return ret;
+
+		crtc_state->update_pipe = false;
+		crtc_state->update_planes |= crtc_state->active_planes;
+	}
+
+	return 0;
+}
