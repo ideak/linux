@@ -541,6 +541,38 @@ intel_atomic_get_crtc_state(struct drm_atomic_state *state,
 	return to_intel_crtc_state(crtc_state);
 }
 
+static int intel_atomic_add_affected_mst_states(struct intel_atomic_state *state,
+						struct intel_crtc *crtc)
+{
+	struct drm_i915_private *i915 = to_i915(state->base.dev);
+	struct drm_connector *_connector;
+	struct drm_connector_state *old_conn_state;
+	struct drm_connector_state *new_conn_state;
+	int i;
+
+	for_each_oldnew_connector_in_state(&state->base, _connector, old_conn_state, new_conn_state, i) {
+		struct drm_dp_mst_topology_state *topology_state;
+		struct intel_connector *connector = to_intel_connector(_connector);
+
+		if (old_conn_state->crtc != &crtc->base && new_conn_state->crtc != &crtc->base)
+			continue;
+
+		if (!connector->mst_port)
+			continue;
+
+		topology_state = drm_atomic_get_mst_topology_state(&state->base, &connector->mst_port->mst_mgr);
+		if (IS_ERR(topology_state))
+			return PTR_ERR(topology_state);
+
+		topology_state->pending_crtc_mask |= drm_crtc_mask(&crtc->base);
+
+		if (drm_WARN_ON(&i915->drm, !drm_atomic_get_mst_payload_state(topology_state, connector->port)))
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
 int intel_atomic_modeset_pipe(struct intel_atomic_state *state,
 			      struct intel_crtc *crtc, const char *reason)
 {
@@ -558,6 +590,10 @@ int intel_atomic_modeset_pipe(struct intel_atomic_state *state,
 	crtc_state->uapi.mode_changed = true;
 
 	ret = drm_atomic_add_affected_connectors(&state->base, &crtc->base);
+	if (ret)
+		return ret;
+
+	ret = intel_atomic_add_affected_mst_states(state, crtc);
 	if (ret)
 		return ret;
 
