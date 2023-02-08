@@ -4171,7 +4171,7 @@ static int intel_dp_prep_link_retrain(struct intel_dp *intel_dp,
 	return ret;
 }
 
-static bool intel_dp_is_connected(struct intel_dp *intel_dp)
+bool intel_dp_is_connected(struct intel_dp *intel_dp)
 {
 	struct intel_connector *connector = intel_dp->attached_connector;
 

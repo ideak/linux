@@ -33,6 +33,7 @@ static void lt_msg(struct intel_connector *connector, struct intel_dp *intel_dp,
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
 	char conn_str[128] = {};
+	const char *discon_str = "";
 	struct va_format vaf;
 	va_list args;
 
@@ -44,6 +45,11 @@ static void lt_msg(struct intel_connector *connector, struct intel_dp *intel_dp,
 		snprintf(conn_str, sizeof(conn_str), "[CONNECTOR:%d:%s]",
 			 connector->base.base.id, connector->base.name);
 
+	if (is_error && !intel_dp_is_connected(intel_dp)) {
+		discon_str = " (sink disconnected)";
+		is_error = false;
+	}
+
 	if (is_error)
 		drm_err(&i915->drm, "%s[ENCODER:%d:%s][%s] %pV\n",
 			conn_str,
@@ -51,11 +57,12 @@ static void lt_msg(struct intel_connector *connector, struct intel_dp *intel_dp,
 			drm_dp_phy_name(dp_phy),
 			&vaf);
 	else
-		drm_dbg(&i915->drm, "%s[ENCODER:%d:%s][%s] %pV\n",
+		drm_dbg(&i915->drm, "%s[ENCODER:%d:%s][%s] %pV%s\n",
 			conn_str,
 			encoder->base.base.id, encoder->base.name,
 			drm_dp_phy_name(dp_phy),
-			&vaf);
+			&vaf,
+			discon_str);
 }
 
 #define lt_err(intel_dp, dp_phy, format, ...) \
