@@ -110,6 +110,12 @@ struct i915_power_well_desc {
 	 * Thunderbolt mode.
 	 */
 	u16 is_tc_tbt:1;
+
+	/*
+	 * Power well specific timeout, if it's different than the 1ms
+	 * default.
+	 */
+	u16 timeout_ms;
 };
 
 struct i915_power_well {

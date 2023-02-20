@@ -252,25 +252,28 @@ static void hsw_wait_for_power_well_enable(struct drm_i915_private *dev_priv,
 {
 	const struct i915_power_well_regs *regs = power_well->desc->ops->regs;
 	int pw_idx = i915_power_well_instance(power_well)->hsw.idx;
+	int timeout_ms = power_well->desc->timeout_ms;
 
 	/*
 	 * For some power wells we're not supposed to watch the status bit for
 	 * an ack, but rather just wait a fixed amount of time and then
 	 * proceed.  This is only used on DG2.
 	 */
-	if (IS_DG2(dev_priv) && power_well->desc->fixed_enable_delay) {
+	if (power_well->desc->fixed_enable_delay) {
 		usleep_range(600, 1200);
 		return;
 	}
 
-	/* Timeout for PW1:10 us, AUX:not specified, other PWs:20 us. */
+	/* Default timeout for PW1:10 us, AUX:not specified, other PWs:20 us. */
+	if (!timeout_ms)
+		timeout_ms = 1;
+
 	if (intel_de_wait_for_set(dev_priv, regs->driver,
-				  HSW_PWR_WELL_CTL_STATE(pw_idx), 1)) {
+				  HSW_PWR_WELL_CTL_STATE(pw_idx), timeout_ms)) {
 		drm_dbg_kms(&dev_priv->drm, "%s power well enable timeout\n",
 			    intel_power_well_name(power_well));
 
 		drm_WARN_ON(&dev_priv->drm, !timeout_expected);
-
 	}
 }
 
