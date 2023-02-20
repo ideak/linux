@@ -391,6 +391,19 @@ static void hsw_power_well_disable(struct drm_i915_private *dev_priv,
 	hsw_wait_for_power_well_disable(dev_priv, power_well);
 }
 
+static bool intel_port_is_edp(struct drm_i915_private *i915, enum port port)
+{
+	struct intel_encoder *encoder;
+
+	for_each_intel_encoder(&i915->drm, encoder) {
+		if (encoder->type == INTEL_OUTPUT_EDP &&
+		    encoder->port == port)
+			return true;
+	}
+
+	return false;
+}
+
 static void
 icl_combo_phy_aux_power_well_enable(struct drm_i915_private *dev_priv,
 				    struct i915_power_well *power_well)
@@ -416,7 +429,7 @@ icl_combo_phy_aux_power_well_enable(struct drm_i915_private *dev_priv,
 
 	/* Display WA #1178: icl */
 	if (pw_idx >= ICL_PW_CTL_IDX_AUX_A && pw_idx <= ICL_PW_CTL_IDX_AUX_B &&
-	    !intel_bios_is_port_edp(dev_priv, (enum port)phy)) {
+	    !intel_port_is_edp(dev_priv, (enum port)phy)) {
 		val = intel_de_read(dev_priv, ICL_AUX_ANAOVRD1(pw_idx));
 		val |= ICL_AUX_ANAOVRD1_ENABLE | ICL_AUX_ANAOVRD1_LDO_BYPASS;
 		intel_de_write(dev_priv, ICL_AUX_ANAOVRD1(pw_idx), val);
@@ -1033,9 +1046,9 @@ static bool i9xx_always_on_power_well_enabled(struct drm_i915_private *dev_priv,
 static void i830_pipes_power_well_enable(struct drm_i915_private *dev_priv,
 					 struct i915_power_well *power_well)
 {
-	if ((intel_de_read(dev_priv, PIPECONF(PIPE_A)) & PIPECONF_ENABLE) == 0)
+	if ((intel_de_read(dev_priv, TRANSCONF(PIPE_A)) & TRANSCONF_ENABLE) == 0)
 		i830_enable_pipe(dev_priv, PIPE_A);
-	if ((intel_de_read(dev_priv, PIPECONF(PIPE_B)) & PIPECONF_ENABLE) == 0)
+	if ((intel_de_read(dev_priv, TRANSCONF(PIPE_B)) & TRANSCONF_ENABLE) == 0)
 		i830_enable_pipe(dev_priv, PIPE_B);
 }
 
@@ -1049,8 +1062,8 @@ static void i830_pipes_power_well_disable(struct drm_i915_private *dev_priv,
 static bool i830_pipes_power_well_enabled(struct drm_i915_private *dev_priv,
 					  struct i915_power_well *power_well)
 {
-	return intel_de_read(dev_priv, PIPECONF(PIPE_A)) & PIPECONF_ENABLE &&
-		intel_de_read(dev_priv, PIPECONF(PIPE_B)) & PIPECONF_ENABLE;
+	return intel_de_read(dev_priv, TRANSCONF(PIPE_A)) & TRANSCONF_ENABLE &&
+		intel_de_read(dev_priv, TRANSCONF(PIPE_B)) & TRANSCONF_ENABLE;
 }
 
 static void i830_pipes_power_well_sync_hw(struct drm_i915_private *dev_priv,
