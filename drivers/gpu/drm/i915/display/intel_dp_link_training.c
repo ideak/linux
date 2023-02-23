@@ -1432,6 +1432,29 @@ static void write_dpcd_debug(struct intel_dp *intel_dp)
 	drm_dp_dpcd_write(&intel_dp->aux, DP_SOURCE_DEBUG, buf, sizeof(buf));
 }
 
+static void dump_dprx_parameters(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	u8 buf[DP_DEVICE_SPECIFIC_RECEIVER_PARAMETERS_SIZE];
+	int offset;
+
+	for (offset = 0; offset < sizeof(buf); offset += 16) {
+		int block_size = min_t(int, 16, sizeof(buf) - offset);
+
+		if (drm_dp_dpcd_read(&intel_dp->aux,
+				     DP_DEVICE_SPECIFIC_RECEIVER_PARAMETERS + offset,
+				     &buf[offset], block_size) < 0) {
+			drm_dbg_kms(&i915->drm, "reading receiver parameters failed (offset %d)\n",
+				    offset);
+			return;
+		}
+	}
+
+	print_hex_dump(KERN_DEBUG, "  DPRX params ",
+		       DUMP_PREFIX_OFFSET, 16, 1,
+		       buf, sizeof(buf), false);
+}
+
 /**
  * intel_dp_start_link_train - start link training
  * @intel_dp: DP struct
@@ -1464,6 +1487,8 @@ void intel_dp_start_link_train(struct intel_dp *intel_dp,
 		passed = intel_dp_128b132b_link_train(intel_dp, crtc_state, lttpr_count);
 	else
 		passed = intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count);
+
+	dump_dprx_parameters(intel_dp);
 
 	if (!passed)
 		intel_dp_schedule_fallback_link_training(intel_dp, crtc_state);
