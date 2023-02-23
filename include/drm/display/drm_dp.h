@@ -931,6 +931,8 @@
 
 /* Source Device-specific */
 #define DP_SOURCE_OUI			    0x300
+#define   DP_SOURCE_DEBUG		    0x3fe
+#define   DP_SOURCE_DEBUG_SIZE		    2
 
 /* Sink Device-specific */
 #define DP_SINK_OUI			    0x400

@@ -1420,6 +1420,18 @@ intel_dp_128b132b_link_train(struct intel_dp *intel_dp,
 	return passed;
 }
 
+static void write_dpcd_debug(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	u8 buf[DP_SOURCE_DEBUG_SIZE];
+
+	buf[0] = ++intel_dp->dpcd_debug;
+	buf[1] = ktime_get() & 0xff;
+	drm_dbg_kms(&i915->drm, "Link training debug sequence: %*ph\n",
+		    (int)sizeof(buf), buf);
+	drm_dp_dpcd_write(&intel_dp->aux, DP_SOURCE_DEBUG, buf, sizeof(buf));
+}
+
 /**
  * intel_dp_start_link_train - start link training
  * @intel_dp: DP struct
@@ -1443,6 +1455,8 @@ void intel_dp_start_link_train(struct intel_dp *intel_dp,
 	if (lttpr_count < 0)
 		/* Still continue with enabling the port and link training. */
 		lttpr_count = 0;
+
+	write_dpcd_debug(intel_dp);
 
 	intel_dp_prepare_link_train(intel_dp, crtc_state);
 
