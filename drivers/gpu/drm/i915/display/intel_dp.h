@@ -33,6 +33,9 @@ void intel_edp_fixup_vbt_bpp(struct intel_encoder *encoder, int pipe_bpp);
 void intel_dp_adjust_compliance_config(struct intel_dp *intel_dp,
 				       struct intel_crtc_state *pipe_config,
 				       struct link_config_limits *limits);
+void intel_dp_compliance_reset(struct intel_dp *intel_dp);
+void intel_dp_compliance_init(struct intel_dp *intel_dp);
+void intel_dp_compliance_cleanup(struct intel_dp *intel_dp);
 bool intel_dp_limited_color_range(const struct intel_crtc_state *crtc_state,
 				  const struct drm_connector_state *conn_state);
 int intel_dp_min_bpp(enum intel_output_format output_format);

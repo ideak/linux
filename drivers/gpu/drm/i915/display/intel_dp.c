@@ -3826,8 +3826,6 @@ static u8 intel_dp_autotest_video_pattern(struct intel_dp *intel_dp)
 	intel_dp->compliance.test_data.video_pattern = test_pattern;
 	intel_dp->compliance.test_data.hdisplay = be16_to_cpu(h_width);
 	intel_dp->compliance.test_data.vdisplay = be16_to_cpu(v_height);
-	/* Set test active flag here so userspace doesn't interrupt things */
-	intel_dp->compliance.test_active = true;
 
 	return DP_TEST_ACK;
 }
@@ -3871,9 +3869,6 @@ static u8 intel_dp_autotest_edid(struct intel_dp *intel_dp)
 		test_result = DP_TEST_ACK | DP_TEST_EDID_CHECKSUM_WRITE;
 		intel_dp->compliance.test_data.edid = INTEL_DP_RESOLUTION_PREFERRED;
 	}
-
-	/* Set test active flag here so userspace doesn't interrupt things */
-	intel_dp->compliance.test_active = true;
 
 	return test_result;
 }
@@ -4009,21 +4004,16 @@ static u8 intel_dp_autotest_phy_pattern(struct intel_dp *intel_dp)
 		return DP_TEST_NAK;
 	}
 
-	/* Set test active flag here so userspace doesn't interrupt things */
-	intel_dp->compliance.test_active = true;
-
 	return DP_TEST_ACK;
 }
 
-static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
+static void intel_dp_compliance_handle_request(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	u8 response = DP_TEST_NAK;
 	u8 request = 0;
-	int status;
 
-	status = drm_dp_dpcd_readb(&intel_dp->aux, DP_TEST_REQUEST, &request);
-	if (status <= 0) {
+	if (drm_dp_dpcd_readb(&intel_dp->aux, DP_TEST_REQUEST, &request) <= 0) {
 		drm_dbg_kms(&i915->drm,
 			    "Could not read test request from sink\n");
 		goto update_status;
@@ -4052,14 +4042,56 @@ static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
 		break;
 	}
 
-	if (response & DP_TEST_ACK)
-		intel_dp->compliance.test_type = request;
-
 update_status:
-	status = drm_dp_dpcd_writeb(&intel_dp->aux, DP_TEST_RESPONSE, response);
-	if (status <= 0)
+	if (drm_dp_dpcd_writeb(&intel_dp->aux, DP_TEST_RESPONSE, response) <= 0)
 		drm_dbg_kms(&i915->drm,
 			    "Could not write test response to sink\n");
+
+	if (!(response & DP_TEST_ACK))
+		return;
+
+	if (request == DP_TEST_LINK_PHY_TEST_PATTERN)
+		intel_dp_phy_test(&dp_to_dig_port(intel_dp)->base);
+
+	reinit_completion(&intel_dp->compliance_event);
+
+	intel_dp->compliance.test_type = request;
+	intel_dp->compliance.test_active = true;
+
+	drm_kms_helper_hotplug_event(&i915->drm);
+
+	wait_for_completion(&intel_dp->compliance_event);
+
+	memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
+}
+
+static void intel_dp_compliance_work(struct work_struct *work)
+{
+	struct intel_dp *intel_dp = container_of(work, struct intel_dp, compliance_work);
+
+	intel_dp_compliance_handle_request(intel_dp);
+}
+
+static void intel_dp_handle_test_request(struct intel_dp *intel_dp)
+{
+	schedule_work(&intel_dp->compliance_work);
+}
+
+void intel_dp_compliance_reset(struct intel_dp *intel_dp)
+{
+	complete(&intel_dp->compliance_event);
+}
+
+void intel_dp_compliance_init(struct intel_dp *intel_dp)
+{
+	init_completion(&intel_dp->compliance_event);
+	INIT_WORK(&intel_dp->compliance_work, intel_dp_compliance_work);
+}
+
+void intel_dp_compliance_cleanup(struct intel_dp *intel_dp)
+{
+	intel_dp_compliance_reset(intel_dp);
+	flush_work(&intel_dp->compliance_work);
 }
 
 static bool intel_dp_link_ok(struct intel_dp *intel_dp,
@@ -4566,15 +4598,8 @@ static void intel_dp_check_link_service_irq(struct intel_dp *intel_dp)
 static bool
 intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
-	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 	u8 old_sink_count = intel_dp->sink_count;
 	bool ret;
-
-	/*
-	 * Clearing compliance test variables to allow capturing
-	 * of values for next automated test request.
-	 */
-	memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
 
 	/*
 	 * Now read the DPCD to see if it's actually running
@@ -4600,25 +4625,6 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 		return false;
 
 	intel_psr_short_pulse(intel_dp);
-
-	switch (intel_dp->compliance.test_type) {
-	case DP_TEST_LINK_TRAINING:
-		drm_dbg_kms(&dev_priv->drm,
-			    "Link Training Compliance Test requested\n");
-		/* Send a Hotplug Uevent to userspace to start modeset */
-		drm_kms_helper_hotplug_event(&dev_priv->drm);
-		break;
-	case DP_TEST_LINK_PHY_TEST_PATTERN:
-		drm_dbg_kms(&dev_priv->drm,
-			    "PHY test pattern Compliance Test requested\n");
-		/*
-		 * Schedule long hpd to do the test
-		 *
-		 * FIXME get rid of the ad-hoc phy test modeset code
-		 * and properly incorporate it into the normal modeset.
-		 */
-		return false;
-	}
 
 	return true;
 }
@@ -4897,7 +4903,7 @@ intel_dp_detect(struct drm_connector *connector,
 		status = connector_status_disconnected;
 
 	if (status == connector_status_disconnected) {
-		memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
+		intel_dp_compliance_reset(intel_dp);
 		memset(intel_dp->dsc_dpcd, 0, sizeof(intel_dp->dsc_dpcd));
 
 		if (intel_dp->is_mst) {
@@ -5092,6 +5098,8 @@ void intel_dp_encoder_flush_work(struct drm_encoder *encoder)
 {
 	struct intel_digital_port *dig_port = enc_to_dig_port(to_intel_encoder(encoder));
 	struct intel_dp *intel_dp = &dig_port->dp;
+
+	intel_dp_compliance_cleanup(intel_dp);
 
 	intel_dp_mst_encoder_cleanup(dig_port);
 

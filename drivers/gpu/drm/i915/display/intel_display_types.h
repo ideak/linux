@@ -1782,6 +1782,8 @@ struct intel_dp {
 	 * TODO: Move the following to intel_crtc_state once PHY testing
 	 * support is added to atomic commit.
 	 */
+	struct work_struct compliance_work;
+	struct completion compliance_event;
 	u8 compliance_phy_test_pipes;
 	struct intel_dp_compliance compliance;
 

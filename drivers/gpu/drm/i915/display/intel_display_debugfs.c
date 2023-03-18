@@ -844,10 +844,12 @@ static ssize_t i915_displayport_test_active_write(struct file *file,
 			/* To prevent erroneous activation of the compliance
 			 * testing code, only accept an actual value of 1 here
 			 */
-			if (val == 1)
+			if (val == 1) {
 				intel_dp->compliance.test_active = true;
-			else
+			} else {
 				intel_dp->compliance.test_active = false;
+				complete(&intel_dp->compliance_event);
+			}
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
