@@ -936,6 +936,11 @@ static int i915_displayport_test_data_show(struct seq_file *m, void *data)
 
 			switch (intel_dp->compliance.test_type) {
 			case DP_TEST_LINK_TRAINING:
+				seq_printf(m,
+					   "Number of lanes: %d\n"
+					   "Link rate: %d\n",
+					   intel_dp->compliance.test_lane_count,
+					   intel_dp->compliance.test_link_rate);
 				break;
 			case DP_TEST_LINK_EDID_READ:
 				seq_printf(m, "%lx\n",
