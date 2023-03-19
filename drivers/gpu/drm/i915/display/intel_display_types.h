@@ -1601,6 +1601,7 @@ struct intel_dp_compliance_data {
 };
 
 struct intel_dp_compliance {
+#define DP_TEST_LINK_NONE 0
 	unsigned long test_type;
 	struct intel_dp_compliance_data test_data;
 	bool test_active;

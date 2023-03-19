@@ -865,6 +865,7 @@ static int i915_displayport_test_active_show(struct seq_file *m, void *data)
 	struct drm_connector *connector;
 	struct drm_connector_list_iter conn_iter;
 	struct intel_dp *intel_dp;
+	bool test_active = false;
 
 	drm_connector_list_iter_begin(&dev_priv->drm, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
@@ -880,14 +881,16 @@ static int i915_displayport_test_active_show(struct seq_file *m, void *data)
 
 		if (encoder && connector->status == connector_status_connected) {
 			intel_dp = enc_to_intel_dp(encoder);
-			if (intel_dp->compliance.test_active)
-				seq_puts(m, "1");
-			else
-				seq_puts(m, "0");
-		} else
-			seq_puts(m, "0");
+
+			if (intel_dp->compliance.test_active) {
+				test_active = true;
+				break;
+			}
+		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
+
+	seq_printf(m, "%d\n", test_active ? 1 : 0);
 
 	return 0;
 }
@@ -914,6 +917,7 @@ static int i915_displayport_test_data_show(struct seq_file *m, void *data)
 	struct drm_connector *connector;
 	struct drm_connector_list_iter conn_iter;
 	struct intel_dp *intel_dp;
+	bool test_found = false;
 
 	drm_connector_list_iter_begin(&dev_priv->drm, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
@@ -929,20 +933,23 @@ static int i915_displayport_test_data_show(struct seq_file *m, void *data)
 
 		if (encoder && connector->status == connector_status_connected) {
 			intel_dp = enc_to_intel_dp(encoder);
-			if (intel_dp->compliance.test_type ==
-			    DP_TEST_LINK_EDID_READ)
-				seq_printf(m, "%lx",
+
+			switch (intel_dp->compliance.test_type) {
+			case DP_TEST_LINK_TRAINING:
+				break;
+			case DP_TEST_LINK_EDID_READ:
+				seq_printf(m, "%lx\n",
 					   intel_dp->compliance.test_data.edid);
-			else if (intel_dp->compliance.test_type ==
-				 DP_TEST_LINK_VIDEO_PATTERN) {
+				break;
+			case DP_TEST_LINK_VIDEO_PATTERN:
 				seq_printf(m, "hdisplay: %d\n",
 					   intel_dp->compliance.test_data.hdisplay);
 				seq_printf(m, "vdisplay: %d\n",
 					   intel_dp->compliance.test_data.vdisplay);
 				seq_printf(m, "bpc: %u\n",
 					   intel_dp->compliance.test_data.bpc);
-			} else if (intel_dp->compliance.test_type ==
-				   DP_TEST_LINK_PHY_TEST_PATTERN) {
+				break;
+			case DP_TEST_LINK_PHY_TEST_PATTERN:
 				seq_printf(m, "pattern: %d\n",
 					   intel_dp->compliance.test_data.phytest.phy_pattern);
 				seq_printf(m, "Number of lanes: %d\n",
@@ -951,11 +958,22 @@ static int i915_displayport_test_data_show(struct seq_file *m, void *data)
 					   intel_dp->compliance.test_data.phytest.link_rate);
 				seq_printf(m, "level: %02x\n",
 					   intel_dp->train_set[0]);
+				break;
+			case DP_TEST_LINK_NONE:
+				continue;
+			default:
+				MISSING_CASE(intel_dp->compliance.test_type);
+				continue;
 			}
-		} else
-			seq_puts(m, "0");
+
+			test_found = true;
+			break;
+		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
+
+	if (!test_found)
+		seq_puts(m, "0\n");
 
 	return 0;
 }
@@ -967,6 +985,7 @@ static int i915_displayport_test_type_show(struct seq_file *m, void *data)
 	struct drm_connector *connector;
 	struct drm_connector_list_iter conn_iter;
 	struct intel_dp *intel_dp;
+	unsigned long test_type = DP_TEST_LINK_NONE;
 
 	drm_connector_list_iter_begin(&dev_priv->drm, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
@@ -982,11 +1001,16 @@ static int i915_displayport_test_type_show(struct seq_file *m, void *data)
 
 		if (encoder && connector->status == connector_status_connected) {
 			intel_dp = enc_to_intel_dp(encoder);
-			seq_printf(m, "%02lx\n", intel_dp->compliance.test_type);
-		} else
-			seq_puts(m, "0");
+
+			if (intel_dp->compliance.test_type != DP_TEST_LINK_NONE) {
+				test_type = intel_dp->compliance.test_type;
+				break;
+			}
+		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
+
+	seq_printf(m, "%02lx\n", test_type);
 
 	return 0;
 }
