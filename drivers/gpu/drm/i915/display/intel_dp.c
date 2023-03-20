@@ -3952,6 +3952,7 @@ static void intel_dp_process_phy_request(struct intel_dp *intel_dp,
 	struct drm_dp_phy_test_params *data =
 		&intel_dp->compliance.test_data.phytest;
 	u8 link_status[DP_LINK_STATUS_SIZE];
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 
 	if (drm_dp_dpcd_read_phy_link_status(&intel_dp->aux, DP_PHY_DPRX,
 					     link_status) < 0) {
@@ -3972,6 +3973,29 @@ static void intel_dp_process_phy_request(struct intel_dp *intel_dp,
 
 	drm_dp_set_phy_test_pattern(&intel_dp->aux, data,
 				    link_status[DP_DPCD_REV]);
+
+	intel_dp->compliance_phy_test_pipes |= BIT(crtc->pipe);
+}
+
+void intel_dp_disable_phy_test(struct intel_encoder *encoder,
+			       const struct intel_crtc_state *old_crtc_state)
+{
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+	struct drm_dp_phy_test_params *test_data =
+			&intel_dp->compliance.test_data.phytest;
+	struct intel_crtc *crtc = to_intel_crtc(old_crtc_state->uapi.crtc);
+
+	if (!(intel_dp->compliance_phy_test_pipes & BIT(crtc->pipe)))
+		return;
+
+	intel_dp->compliance_phy_test_pipes &= ~BIT(crtc->pipe);
+
+	test_data->phy_pattern = DP_PHY_TEST_PATTERN_NONE;
+
+	drm_dp_set_phy_test_pattern(&intel_dp->aux,
+				    test_data,
+				    intel_dp->dpcd[DP_DPCD_REV]);
+	intel_dp_phy_pattern_update(intel_dp, old_crtc_state);
 }
 
 static u8 intel_dp_autotest_phy_pattern(struct intel_dp *intel_dp)

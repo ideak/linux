@@ -3273,6 +3273,8 @@ static void intel_disable_ddi_dp(struct intel_atomic_state *state,
 
 	intel_dp->link_trained = false;
 
+	intel_dp_disable_phy_test(encoder, old_crtc_state);
+
 	intel_audio_codec_disable(encoder, old_crtc_state, old_conn_state);
 
 	intel_psr_disable(intel_dp, old_crtc_state);

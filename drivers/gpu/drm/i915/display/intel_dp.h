@@ -141,6 +141,8 @@ void intel_dp_check_frl_training(struct intel_dp *intel_dp);
 void intel_dp_pcon_dsc_configure(struct intel_dp *intel_dp,
 				 const struct intel_crtc_state *crtc_state);
 void intel_dp_phy_test(struct intel_encoder *encoder);
+void intel_dp_disable_phy_test(struct intel_encoder *encoder,
+			       const struct intel_crtc_state *old_crtc_state);
 
 void intel_dp_wait_source_oui(struct intel_dp *intel_dp);
 

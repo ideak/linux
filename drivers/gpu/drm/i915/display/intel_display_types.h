@@ -1778,6 +1778,11 @@ struct intel_dp {
 			  const struct intel_crtc_state *crtc_state);
 
 	/* Displayport compliance testing */
+	/*
+	 * TODO: Move the following to intel_crtc_state once PHY testing
+	 * support is added to atomic commit.
+	 */
+	u8 compliance_phy_test_pipes;
 	struct intel_dp_compliance compliance;
 
 	/* Downstream facing port caps */

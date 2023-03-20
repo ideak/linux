@@ -570,6 +570,12 @@ static void intel_mst_disable_dp(struct intel_atomic_state *state,
 	drm_dbg_kms(&i915->drm, "active links %d\n",
 		    intel_dp->active_mst_links);
 
+	/*
+	 * PHY test gets enabled on the primary encoder, so disable the test
+	 * using that.
+	 */
+	intel_dp_disable_phy_test(&dig_port->base, old_crtc_state);
+
 	intel_hdcp_disable(intel_mst->connector);
 
 	drm_dp_remove_payload(&intel_dp->mst_mgr, new_mst_state,
