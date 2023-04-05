@@ -18,25 +18,6 @@
 #define MB_WRITE_COMMITTED      true
 #define MB_WRITE_UNCOMMITTED    false
 
-#define XELPDP_LANE_POWERDOWN_UPDATE(lane)	((lane) & INTEL_CX0_LANE0 ? \
-							  XELPDP_LANE0_POWERDOWN_UPDATE : \
-							  XELPDP_LANE1_POWERDOWN_UPDATE)
-#define XELPDP_LANE_POWERDOWN_NEW_STATE(lane, state)	((lane) & INTEL_CX0_LANE0 ? \
-                                                           XELPDP_LANE0_POWERDOWN_NEW_STATE(state) : \
-                                                           XELPDP_LANE1_POWERDOWN_NEW_STATE(state))
-#define XELPDP_LANE_PCLK_REFCLK_REQUEST(lane)	((lane) & INTEL_CX0_LANE0 ? \
-                                                          XELPDP_LANE0_PCLK_REFCLK_REQUEST : \
-                                                          XELPDP_LANE1_PCLK_REFCLK_REQUEST)
-#define XELPDP_LANE_PCLK_REFCLK_ACK(lane)	((lane) & INTEL_CX0_LANE0 ? \
-                                                          XELPDP_LANE0_PCLK_REFCLK_ACK : \
-                                                          XELPDP_LANE1_PCLK_REFCLK_ACK)
-#define XELPDP_LANE_PCLK_PLL_REQUEST(lane)	 ((lane) & INTEL_CX0_LANE0 ? \
-                                                          XELPDP_LANE0_PCLK_PLL_REQUEST : \
-                                                          XELPDP_LANE1_PCLK_PLL_REQUEST)
-#define XELPDP_LANE_PCLK_PLL_ACK(lane)		 ((lane) & INTEL_CX0_LANE0 ? \
-                                                          XELPDP_LANE0_PCLK_PLL_ACK : \
-                                                          XELPDP_LANE1_PCLK_PLL_ACK)
-
 bool intel_is_c10phy(struct drm_i915_private *dev_priv, enum phy phy)
 {
 	if (IS_METEORLAKE(dev_priv) && (phy < PHY_C))
@@ -47,12 +28,11 @@ bool intel_is_c10phy(struct drm_i915_private *dev_priv, enum phy phy)
 
 static int lane_mask_to_lane(u8 lane_mask)
 {
-	if (lane_mask & INTEL_CX0_LANE0)
+	if (WARN_ON((lane_mask & ~INTEL_CX0_BOTH_LANES) ||
+		    hweight8(lane_mask) != 1))
 		return 0;
-	else if (lane_mask & INTEL_CX0_LANE1)
-		return 1;
 
-	return -EINVAL;
+	return ilog2(lane_mask);
 }
 
 static void
@@ -92,9 +72,7 @@ static void intel_clear_response_ready_flag(struct drm_i915_private *i915,
 					    enum port port, int lane)
 {
 	intel_de_rmw(i915, XELPDP_PORT_P2M_MSGBUS_STATUS(port, lane),
-		     XELPDP_PORT_P2M_RESPONSE_READY, 0);
-	intel_de_rmw(i915, XELPDP_PORT_P2M_MSGBUS_STATUS(port, lane),
-		     XELPDP_PORT_P2M_ERROR_SET, 0);
+		     0, XELPDP_PORT_P2M_RESPONSE_READY | XELPDP_PORT_P2M_ERROR_SET);
 }
 
 static void intel_cx0_bus_reset(struct drm_i915_private *i915, enum port port, int lane)
@@ -210,13 +188,7 @@ static u8 __intel_cx0_read(struct drm_i915_private *i915, enum port port,
 static u8 intel_cx0_read(struct drm_i915_private *i915, enum port port,
 			 u8 lane_mask, u16 addr)
 {
-	enum phy phy = intel_port_to_phy(i915, port);
 	int lane = lane_mask_to_lane(lane_mask);
-
-	if (lane < 0) {
-		drm_err_once(&i915->drm, "Incorrect lane for PHY %c\n", phy_name(phy));
-		return lane;
-	}
 
 	return __intel_cx0_read(i915, port, lane, addr);
 }
@@ -248,7 +220,7 @@ static int __intel_cx0_write_once(struct drm_i915_private *i915, enum port port,
 	if (intel_de_wait_for_clear(i915, XELPDP_PORT_M2P_MSGBUS_CTL(port, lane),
 				    XELPDP_PORT_M2P_TRANSACTION_PENDING,
 				    XELPDP_MSGBUS_TIMEOUT_SLOW)) {
-		drm_dbg_kms(&i915->drm, "PHY %c Timeout waiting for previous transaction to complete. Resetting the bus.\n", phy_name(phy));
+		drm_dbg_kms(&i915->drm, "PHY %c Timeout waiting for write to complete. Resetting the bus.\n", phy_name(phy));
 		intel_cx0_bus_reset(i915, port, lane);
 		return -ETIMEDOUT;
 	}
@@ -326,12 +298,6 @@ void intel_cx0_phy_set_signal_levels(struct intel_encoder *encoder,
 				     const struct intel_crtc_state *crtc_state)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	bool lane_reversal = dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
-	u8 master_lane = lane_reversal ? INTEL_CX0_LANE1 :
-					 INTEL_CX0_LANE0;
-	u8 follower_lane = lane_reversal ? INTEL_CX0_LANE0 :
-					   INTEL_CX0_LANE1;
 	const struct intel_ddi_buf_trans *trans;
 	intel_wakeref_t wakeref;
 	int n_entries, ln;
@@ -343,7 +309,8 @@ void intel_cx0_phy_set_signal_levels(struct intel_encoder *encoder,
 		return;
 
 	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
-		      0, C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+		      0, C10_VDR_CTRL_MSGBUS_ACCESS,
+		      MB_WRITE_COMMITTED);
 
 	for (ln = 0; ln < 4; ln++) {
 		int level = intel_ddi_level(encoder, crtc_state, ln);
@@ -368,15 +335,12 @@ void intel_cx0_phy_set_signal_levels(struct intel_encoder *encoder,
 
 	/* Write Override enables in 0xD71 */
 	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_OVRD,
-			PHY_C10_VDR_OVRD_TX1 | PHY_C10_VDR_OVRD_TX2,
-			PHY_C10_VDR_OVRD_TX1 | PHY_C10_VDR_OVRD_TX2,
+			0, PHY_C10_VDR_OVRD_TX1 | PHY_C10_VDR_OVRD_TX2,
 			MB_WRITE_COMMITTED);
-	intel_cx0_write(i915, encoder->port, follower_lane, PHY_C10_VDR_CONTROL(1),
-			C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
-			MB_WRITE_COMMITTED);
-	intel_cx0_write(i915, encoder->port, master_lane, PHY_C10_VDR_CONTROL(1),
-			C10_VDR_CTRL_MASTER_LANE | C10_VDR_CTRL_MSGBUS_ACCESS |
-			C10_VDR_CTRL_UPDATE_CFG, MB_WRITE_COMMITTED);
+
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_UPDATE_CFG,
+		      MB_WRITE_COMMITTED);
 
 	intel_cx0_phy_transaction_end(encoder, wakeref);
 }
@@ -660,35 +624,33 @@ intel_c10_mpllb_tables_get(struct intel_crtc_state *crtc_state,
 }
 
 static void intel_c10mpllb_update_pll(struct intel_crtc_state *crtc_state,
-				      struct intel_encoder *encoder,
-				      struct intel_c10mpllb_state *pll_state)
+				      struct intel_encoder *encoder)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
-        bool use_ssc = false;
+	struct intel_cx0pll_state *pll_state = &crtc_state->cx0pll_state;
 	int i;
 
-        if (intel_crtc_has_dp_encoder(crtc_state)) {
-                intel_dp = enc_to_intel_dp(encoder);
-                use_ssc = (intel_dp->dpcd[DP_MAX_DOWNSPREAD] &
-                          DP_MAX_DOWNSPREAD_0_5);
+	if (intel_crtc_has_dp_encoder(crtc_state)) {
+		if (intel_panel_use_ssc(i915)) {
+			struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 
-                if (!intel_panel_use_ssc(i915))
-                        use_ssc = false;
+			pll_state->ssc_enabled =
+				(intel_dp->dpcd[DP_MAX_DOWNSPREAD] & DP_MAX_DOWNSPREAD_0_5);
+		}
 	}
 
-	/* If not using ssc pll[4] through pll[8] must be 0*/
-	for (i = 0; i < ARRAY_SIZE(pll_state->pll); i++) {
-		if (!use_ssc && (i > 3 && i < 9))
-			pll_state->pll[i] = 0;
-	}
+	if (pll_state->ssc_enabled)
+		return;
+
+	drm_WARN_ON(&i915->drm, ARRAY_SIZE(pll_state->c10.pll) < 9);
+	for (i = 4; i < 9; i++)
+		pll_state->c10.pll[i] = 0;
 }
 
 static int intel_c10mpllb_calc_state(struct intel_crtc_state *crtc_state,
 				     struct intel_encoder *encoder)
 {
 	const struct intel_c10mpllb_state * const *tables;
-	struct intel_c10mpllb_state *pll_state;
 	int i;
 
 	tables = intel_c10_mpllb_tables_get(crtc_state, encoder);
@@ -697,10 +659,9 @@ static int intel_c10mpllb_calc_state(struct intel_crtc_state *crtc_state,
 
 	for (i = 0; tables[i]; i++) {
 		if (crtc_state->port_clock == tables[i]->clock) {
-			crtc_state->c10mpllb_state = *tables[i];
-			pll_state = &crtc_state->c10mpllb_state;
-			intel_c10mpllb_update_pll(crtc_state, encoder,
-						  pll_state);
+			crtc_state->cx0pll_state.c10 = *tables[i];
+			intel_c10mpllb_update_pll(crtc_state, encoder);
+
 			return 0;
 		}
 	}
@@ -723,11 +684,7 @@ void intel_c10mpllb_readout_hw_state(struct intel_encoder *encoder,
 				     struct intel_c10mpllb_state *pll_state)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	bool lane_reversal = dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
-	u8 lane = lane_reversal ? INTEL_CX0_LANE1 :
-				  INTEL_CX0_LANE0;
-	enum phy phy = intel_port_to_phy(i915, encoder->port);
+	u8 lane = INTEL_CX0_LANE0;
 	intel_wakeref_t wakeref;
 	int i;
 
@@ -737,8 +694,9 @@ void intel_c10mpllb_readout_hw_state(struct intel_encoder *encoder,
 	 * According to C10 VDR Register programming Sequence we need
 	 * to do this to read PHY internal registers from MsgBus.
 	 */
-	intel_cx0_rmw(i915, encoder->port, lane, PHY_C10_VDR_CONTROL(1), 0,
-		      C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, encoder->port, lane, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_MSGBUS_ACCESS,
+		      MB_WRITE_COMMITTED);
 
 	for (i = 0; i < ARRAY_SIZE(pll_state->pll); i++)
 		pll_state->pll[i] = intel_cx0_read(i915, encoder->port, lane,
@@ -747,14 +705,6 @@ void intel_c10mpllb_readout_hw_state(struct intel_encoder *encoder,
 	pll_state->cmn = intel_cx0_read(i915, encoder->port, lane, PHY_C10_VDR_CMN(0));
 	pll_state->tx = intel_cx0_read(i915, encoder->port, lane, PHY_C10_VDR_TX(0));
 
-	if (pll_state->tx != C10_TX0_TX_MPLLB_SEL ||
-	    pll_state->cmn != (C10_CMN0_REF_RANGE | C10_CMN0_REF_CLK_MPLLB_DIV))
-		drm_dbg_kms(&i915->drm, "Unexpected tx: %x or cmn: %x for phy: %c.\n",
-			    pll_state->tx, pll_state->cmn, phy_name(phy));
-
-	intel_cx0_rmw(i915, encoder->port, lane, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MSGBUS_ACCESS, 0, MB_WRITE_COMMITTED);
-
 	intel_cx0_phy_transaction_end(encoder, wakeref);
 }
 
@@ -762,21 +712,18 @@ static void intel_c10_pll_program(struct drm_i915_private *i915,
 				  const struct intel_crtc_state *crtc_state,
 				  struct intel_encoder *encoder)
 {
-	const struct intel_c10mpllb_state *pll_state = &crtc_state->c10mpllb_state;
-	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	bool lane_reversal = dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
-	u8 follower_lane = lane_reversal ? INTEL_CX0_LANE0 :
-					   INTEL_CX0_LANE1;
-
+	const struct intel_c10mpllb_state *pll_state = &crtc_state->cx0pll_state.c10;
 	int i;
 
-	intel_cx0_write(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
-			C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_MSGBUS_ACCESS,
+		      MB_WRITE_COMMITTED);
 	/* Custom width needs to be programmed to 0 for both the phy lanes */
-	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES,
-		      PHY_C10_VDR_CUSTOM_WIDTH, C10_VDR_CUSTOM_WIDTH, 0, MB_WRITE_COMMITTED);
-	intel_cx0_rmw(i915, encoder->port, follower_lane, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MASTER_LANE, C10_VDR_CTRL_UPDATE_CFG,
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CUSTOM_WIDTH,
+		      C10_VDR_CUSTOM_WIDTH_MASK, C10_VDR_CUSTOM_WIDTH_8_10,
+		      MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_UPDATE_CFG,
 		      MB_WRITE_COMMITTED);
 
 	/* Program the pll values only for the master lane */
@@ -787,9 +734,10 @@ static void intel_c10_pll_program(struct drm_i915_private *i915,
 
 	intel_cx0_write(i915, encoder->port, INTEL_CX0_LANE0, PHY_C10_VDR_CMN(0), pll_state->cmn, MB_WRITE_COMMITTED);
 	intel_cx0_write(i915, encoder->port, INTEL_CX0_LANE0, PHY_C10_VDR_TX(0), pll_state->tx, MB_WRITE_COMMITTED);
+
 	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_LANE0, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MSGBUS_ACCESS, C10_VDR_CTRL_MASTER_LANE |
-		      C10_VDR_CTRL_UPDATE_CFG, MB_WRITE_COMMITTED);
+		      0, C10_VDR_CTRL_MASTER_LANE | C10_VDR_CTRL_UPDATE_CFG,
+		      MB_WRITE_COMMITTED);
 }
 
 void intel_c10mpllb_dump_hw_state(struct drm_i915_private *dev_priv,
@@ -854,8 +802,6 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 					 bool lane_reversal)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_dp *intel_dp;
-	bool ssc_enabled;
 	u32 val = 0;
 
 	intel_de_rmw(i915, XELPDP_PORT_BUF_CTL1(encoder->port), XELPDP_PORT_REVERSAL,
@@ -868,20 +814,8 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 	val |= XELPDP_DDI_CLOCK_SELECT(XELPDP_DDI_CLOCK_SELECT_MAXPCLK);
 
 	/* TODO: HDMI FRL */
-	if (intel_crtc_has_dp_encoder(crtc_state)) {
-		intel_dp = enc_to_intel_dp(encoder);
-		ssc_enabled = (intel_dp->dpcd[DP_MAX_DOWNSPREAD] &
-			      DP_MAX_DOWNSPREAD_0_5);
-
-		if (intel_dp_is_edp(intel_dp) && !intel_panel_use_ssc(i915))
-			ssc_enabled = false;
-
-		if (!intel_panel_use_ssc(i915))
-			ssc_enabled = false;
-
-		/* TODO: DP2.0 10G and 20G rates enable MPLLA*/
-		val |= ssc_enabled ? XELPDP_SSC_ENABLE_PLLB : 0;
-	}
+	/* TODO: DP2.0 10G and 20G rates enable MPLLA*/
+	val |= crtc_state->cx0pll_state.ssc_enabled ? XELPDP_SSC_ENABLE_PLLB : 0;
 
 	intel_de_rmw(i915, XELPDP_PORT_CLOCK_CTL(encoder->port),
 		     XELPDP_LANE1_PHY_CLOCK_SELECT | XELPDP_FORWARD_CLOCK_UNGATE |
@@ -891,10 +825,10 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 
 static u32 intel_cx0_get_powerdown_update(u8 lane_mask)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_POWERDOWN_UPDATE(lane);
 
 	return val;
@@ -902,10 +836,10 @@ static u32 intel_cx0_get_powerdown_update(u8 lane_mask)
 
 static u32 intel_cx0_get_powerdown_state(u8 lane_mask, u8 state)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_POWERDOWN_NEW_STATE(lane, state);
 
 	return val;
@@ -916,21 +850,25 @@ static void intel_cx0_powerdown_change_sequence(struct drm_i915_private *i915,
 						u8 lane_mask, u8 state)
 {
 	enum phy phy = intel_port_to_phy(i915, port);
+	int lane;
 
 	intel_de_rmw(i915, XELPDP_PORT_BUF_CTL2(port),
-		     XELPDP_LANE0_POWERDOWN_NEW_STATE_MASK | XELPDP_LANE1_POWERDOWN_NEW_STATE_MASK,
+		     intel_cx0_get_powerdown_state(INTEL_CX0_BOTH_LANES, XELPDP_LANE_POWERDOWN_NEW_STATE_MASK),
 		     intel_cx0_get_powerdown_state(lane_mask, state));
 
-        /* Wait for pending transactions.*/
-        if (intel_de_wait_for_clear(i915, XELPDP_PORT_M2P_MSGBUS_CTL(port, lane_mask_to_lane(lane_mask)),
-                                    XELPDP_PORT_M2P_TRANSACTION_PENDING,
-                                    XELPDP_MSGBUS_TIMEOUT_SLOW)) {
-                drm_dbg_kms(&i915->drm, "PHY %c Timeout waiting for previous transaction to complete. Reset the bus.\n", phy_name(phy));
-                intel_cx0_bus_reset(i915, port, lane_mask_to_lane(lane_mask));
-        }
+	/* Wait for pending transactions.*/
+	for_each_cx0_lane_in_mask(lane_mask, lane)
+		if (intel_de_wait_for_clear(i915, XELPDP_PORT_M2P_MSGBUS_CTL(port, lane),
+					    XELPDP_PORT_M2P_TRANSACTION_PENDING,
+					    XELPDP_MSGBUS_TIMEOUT_SLOW)) {
+			drm_dbg_kms(&i915->drm,
+				    "PHY %c Timeout waiting for previous transaction to complete. Reset the bus.\n",
+				    phy_name(phy));
+			intel_cx0_bus_reset(i915, port, lane);
+		}
 
 	intel_de_rmw(i915, XELPDP_PORT_BUF_CTL2(port),
-		     XELPDP_LANE0_POWERDOWN_UPDATE | XELPDP_LANE1_POWERDOWN_UPDATE,
+		     intel_cx0_get_powerdown_update(INTEL_CX0_BOTH_LANES),
 		     intel_cx0_get_powerdown_update(lane_mask));
 
 	/* Update Timeout Value */
@@ -955,10 +893,10 @@ static void intel_cx0_setup_powerdown(struct drm_i915_private *i915, enum port p
 
 static u32 intel_cx0_get_pclk_refclk_request(u8 lane_mask)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_PCLK_REFCLK_REQUEST(lane);
 
 	return val;
@@ -966,10 +904,10 @@ static u32 intel_cx0_get_pclk_refclk_request(u8 lane_mask)
 
 static u32 intel_cx0_get_pclk_refclk_ack(u8 lane_mask)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_PCLK_REFCLK_ACK(lane);
 
 	return val;
@@ -991,12 +929,14 @@ static void intel_cx0_phy_lane_reset(struct drm_i915_private *i915, enum port po
 			 phy_name(phy), XELPDP_PORT_BUF_SOC_READY_TIMEOUT_US);
 
 	intel_de_rmw(i915, XELPDP_PORT_BUF_CTL2(port),
-		     XELPDP_LANE0_PIPE_RESET | XELPDP_LANE1_PIPE_RESET,
-		     XELPDP_LANE0_PIPE_RESET | XELPDP_LANE1_PIPE_RESET);
+		     XELPDP_LANE_PIPE_RESET(0) | XELPDP_LANE_PIPE_RESET(1),
+		     XELPDP_LANE_PIPE_RESET(0) | XELPDP_LANE_PIPE_RESET(1));
 
 	if (__intel_de_wait_for_register(i915, XELPDP_PORT_BUF_CTL2(port),
-					 XELPDP_LANE0_PHY_CURRENT_STATUS | XELPDP_LANE1_PHY_CURRENT_STATUS,
-					 XELPDP_LANE0_PHY_CURRENT_STATUS | XELPDP_LANE1_PHY_CURRENT_STATUS,
+					 XELPDP_LANE_PHY_CURRENT_STATUS(0) |
+					 XELPDP_LANE_PHY_CURRENT_STATUS(1),
+					 XELPDP_LANE_PHY_CURRENT_STATUS(0) |
+					 XELPDP_LANE_PHY_CURRENT_STATUS(1),
 					 XELPDP_PORT_RESET_START_TIMEOUT_US, 0, NULL))
 		drm_warn(&i915->drm, "PHY %c failed to bring out of Lane reset after %dus.\n",
 			 phy_name(phy), XELPDP_PORT_RESET_START_TIMEOUT_US);
@@ -1017,11 +957,12 @@ static void intel_cx0_phy_lane_reset(struct drm_i915_private *i915, enum port po
 	intel_cx0_setup_powerdown(i915, port);
 
 	intel_de_rmw(i915, XELPDP_PORT_BUF_CTL2(port),
-		     XELPDP_LANE0_PIPE_RESET | XELPDP_LANE1_PIPE_RESET, 0);
+		     XELPDP_LANE_PIPE_RESET(0) | XELPDP_LANE_PIPE_RESET(1),
+		     0);
 
 	if (intel_de_wait_for_clear(i915, XELPDP_PORT_BUF_CTL2(port),
-				    XELPDP_LANE0_PHY_CURRENT_STATUS |
-				    XELPDP_LANE1_PHY_CURRENT_STATUS,
+				    XELPDP_LANE_PHY_CURRENT_STATUS(0) |
+				    XELPDP_LANE_PHY_CURRENT_STATUS(1),
 				    XELPDP_PORT_RESET_END_TIMEOUT))
 		drm_warn(&i915->drm, "PHY %c failed to bring out of Lane reset after %dms.\n",
 			 phy_name(phy), XELPDP_PORT_RESET_END_TIMEOUT);
@@ -1035,12 +976,9 @@ static void intel_c10_program_phy_lane(struct drm_i915_private *i915,
 	bool dp_alt_mode = intel_tc_port_in_dp_alt_mode(enc_to_dig_port(encoder));
 	enum port port = encoder->port;
 
-	intel_cx0_rmw(i915, port, INTEL_CX0_LANE1, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
-		      C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
-	intel_cx0_rmw(i915, port, INTEL_CX0_LANE0, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
-		      C10_VDR_CTRL_MASTER_LANE  | C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_MSGBUS_ACCESS,
+		      MB_WRITE_COMMITTED);
 
 	/* TODO: DP-alt MFD case where only one PHY lane should be programmed. */
 	l0t1 = intel_cx0_read(i915, port, INTEL_CX0_LANE0, PHY_CX0_TX_CONTROL(1, 2));
@@ -1048,32 +986,48 @@ static void intel_c10_program_phy_lane(struct drm_i915_private *i915,
 	l1t1 = intel_cx0_read(i915, port, INTEL_CX0_LANE1, PHY_CX0_TX_CONTROL(1, 2));
 	l1t2 = intel_cx0_read(i915, port, INTEL_CX0_LANE1, PHY_CX0_TX_CONTROL(2, 2));
 
+	l0t1 |= CONTROL2_DISABLE_SINGLE_TX;
+	l0t2 |= CONTROL2_DISABLE_SINGLE_TX;
+	l1t1 |= CONTROL2_DISABLE_SINGLE_TX;
+	l1t2 |= CONTROL2_DISABLE_SINGLE_TX;
+
 	if (lane_reversal) {
 		switch (lane_count) {
-		case 1:
-			l1t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
-			break;
-		case 2:
-			l0t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
-			break;
-		case 3:
+		case 4:
 			l0t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			fallthrough;
+		case 3:
+			l0t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			fallthrough;
+		case 2:
+			l1t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			fallthrough;
+		case 1:
+			l1t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
 			break;
+		default:
+			MISSING_CASE(lane_count);
 		}
 	} else {
 		switch (lane_count) {
+		case 4:
+			l1t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			fallthrough;
+		case 3:
+			l1t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			fallthrough;
+		case 2:
+			l0t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			l0t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			break;
 		case 1:
 			if (dp_alt_mode)
-				l0t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
-			else
 				l0t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
+			else
+				l0t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
 			break;
-		case 2:
-			l1t1 &= ~CONTROL2_DISABLE_SINGLE_TX;
-			break;
-		case 3:
-			l1t2 &= ~CONTROL2_DISABLE_SINGLE_TX;
-			break;
+		default:
+			MISSING_CASE(lane_count);
 		}
 	}
 
@@ -1083,24 +1037,21 @@ static void intel_c10_program_phy_lane(struct drm_i915_private *i915,
 	intel_cx0_write(i915, port, INTEL_CX0_LANE0, PHY_CX0_TX_CONTROL(2, 2),
 			l0t2, MB_WRITE_COMMITTED);
 	intel_cx0_write(i915, port, INTEL_CX0_LANE1, PHY_CX0_TX_CONTROL(1, 2),
-                        l1t1, MB_WRITE_COMMITTED);
+			l1t1, MB_WRITE_COMMITTED);
 	intel_cx0_write(i915, port, INTEL_CX0_LANE1, PHY_CX0_TX_CONTROL(2, 2),
-                        l1t2, MB_WRITE_COMMITTED);
+			l1t2, MB_WRITE_COMMITTED);
 
-	intel_cx0_rmw(i915, port, INTEL_CX0_LANE1, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_UPDATE_CFG | C10_VDR_CTRL_MSGBUS_ACCESS,
-		      C10_VDR_CTRL_UPDATE_CFG, MB_WRITE_COMMITTED);
-	intel_cx0_rmw(i915, port, INTEL_CX0_LANE0, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_UPDATE_CFG | C10_VDR_CTRL_MSGBUS_ACCESS,
-		      C10_VDR_CTRL_MASTER_LANE | C10_VDR_CTRL_UPDATE_CFG, MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_UPDATE_CFG,
+		      MB_WRITE_COMMITTED);
 }
 
 static u32 intel_cx0_get_pclk_pll_request(u8 lane_mask)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_PCLK_PLL_REQUEST(lane);
 
 	return val;
@@ -1108,10 +1059,10 @@ static u32 intel_cx0_get_pclk_pll_request(u8 lane_mask)
 
 static u32 intel_cx0_get_pclk_pll_ack(u8 lane_mask)
 {
-	int val = 0;
+	u32 val = 0;
 	int lane = 0;
 
-	for_each_cx0_lane_in_mask(lane, lane_mask)
+	for_each_cx0_lane_in_mask(lane_mask, lane)
 		val |= XELPDP_LANE_PCLK_PLL_ACK(lane);
 
 	return val;
@@ -1163,6 +1114,7 @@ static void intel_c10pll_enable(struct intel_encoder *encoder,
 	 */
 	intel_de_write(i915, DDI_CLK_VALFREQ(encoder->port),
 		       crtc_state->port_clock);
+
 	/*
 	 * 8. Set PORT_CLOCK_CTL register PCLK PLL Request
 	 * LN<Lane for maxPCLK> to "1" to enable PLL.
@@ -1266,13 +1218,11 @@ void intel_c10mpllb_state_verify(struct intel_atomic_state *state,
 {
 	struct drm_i915_private *i915 = to_i915(state->base.dev);
 	struct intel_c10mpllb_state mpllb_hw_state = { 0 };
-	struct intel_c10mpllb_state *mpllb_sw_state = &new_crtc_state->c10mpllb_state;
+	struct intel_c10mpllb_state *mpllb_sw_state = &new_crtc_state->cx0pll_state.c10;
 	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->uapi.crtc);
 	struct intel_encoder *encoder;
-	struct intel_dp *intel_dp;
 	enum phy phy;
 	int i;
-	bool use_ssc = false;
 
 	if (DISPLAY_VER(i915) < 14)
 		return;
@@ -1282,15 +1232,6 @@ void intel_c10mpllb_state_verify(struct intel_atomic_state *state,
 
 	encoder = intel_get_crtc_new_encoder(state, new_crtc_state);
 	phy = intel_port_to_phy(i915, encoder->port);
-
-	if (intel_crtc_has_dp_encoder(new_crtc_state)) {
-		intel_dp = enc_to_intel_dp(encoder);
-		use_ssc = (intel_dp->dpcd[DP_MAX_DOWNSPREAD] &
-			  DP_MAX_DOWNSPREAD_0_5);
-
-		if (!intel_panel_use_ssc(i915))
-			use_ssc = false;
-	}
 
 	if (!intel_is_c10phy(i915, phy))
 		return;
@@ -1305,4 +1246,14 @@ void intel_c10mpllb_state_verify(struct intel_atomic_state *state,
 				crtc->base.base.id, crtc->base.name,
 				i, expected, mpllb_hw_state.pll[i]);
 	}
+
+	I915_STATE_WARN(mpllb_hw_state.tx != mpllb_sw_state->tx,
+			"[CRTC:%d:%s] mismatch in C10MPLLB: Register TX0 (expected 0x%02x, found 0x%02x)",
+			crtc->base.base.id, crtc->base.name,
+			mpllb_sw_state->tx, mpllb_hw_state.tx);
+
+	I915_STATE_WARN(mpllb_hw_state.cmn != mpllb_sw_state->cmn,
+			"[CRTC:%d:%s] mismatch in C10MPLLB: Register CMN0 (expected 0x%02x, found 0x%02x)",
+			crtc->base.base.id, crtc->base.name,
+			mpllb_sw_state->cmn, mpllb_hw_state.cmn);
 }

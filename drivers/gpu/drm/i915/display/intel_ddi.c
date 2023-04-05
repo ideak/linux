@@ -3879,9 +3879,9 @@ static void mtl_ddi_get_config(struct intel_encoder *encoder,
 
 	drm_WARN_ON(&i915->drm, !intel_is_c10phy(i915, phy));
 
-	intel_c10mpllb_readout_hw_state(encoder, &crtc_state->c10mpllb_state);
-	intel_c10mpllb_dump_hw_state(i915, &crtc_state->c10mpllb_state);
-	crtc_state->port_clock = intel_c10mpllb_calc_port_clock(encoder, &crtc_state->c10mpllb_state);
+	intel_c10mpllb_readout_hw_state(encoder, &crtc_state->cx0pll_state.c10);
+	intel_c10mpllb_dump_hw_state(i915, &crtc_state->cx0pll_state.c10);
+	crtc_state->port_clock = intel_c10mpllb_calc_port_clock(encoder, &crtc_state->cx0pll_state.c10);
 
 	intel_ddi_get_config(encoder, crtc_state);
 }
