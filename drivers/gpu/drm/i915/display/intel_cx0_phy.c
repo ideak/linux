@@ -6,6 +6,8 @@
 #include "i915_reg.h"
 #include "intel_cx0_phy.h"
 #include "intel_cx0_phy_regs.h"
+#include "intel_ddi.h"
+#include "intel_ddi_buf_trans.h"
 #include "intel_de.h"
 #include "intel_display_types.h"
 #include "intel_dp.h"
@@ -318,6 +320,65 @@ static void intel_cx0_rmw(struct drm_i915_private *i915, enum port port,
 
 	for_each_cx0_lane_in_mask(lane_mask, lane)
 		__intel_cx0_rmw(i915, port, lane, addr, clear, set, committed);
+}
+
+void intel_cx0_phy_set_signal_levels(struct intel_encoder *encoder,
+				     const struct intel_crtc_state *crtc_state)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	bool lane_reversal = dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
+	u8 master_lane = lane_reversal ? INTEL_CX0_LANE1 :
+					 INTEL_CX0_LANE0;
+	u8 follower_lane = lane_reversal ? INTEL_CX0_LANE0 :
+					   INTEL_CX0_LANE1;
+	const struct intel_ddi_buf_trans *trans;
+	intel_wakeref_t wakeref;
+	int n_entries, ln;
+
+	wakeref = intel_cx0_phy_transaction_begin(encoder);
+
+	trans = encoder->get_buf_trans(encoder, crtc_state, &n_entries);
+	if (drm_WARN_ON_ONCE(&i915->drm, !trans))
+		return;
+
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
+		      0, C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+
+	for (ln = 0; ln < 4; ln++) {
+		int level = intel_ddi_level(encoder, crtc_state, ln);
+		int lane, tx;
+
+		lane = ln / 2;
+		tx = ln % 2 + 1;
+
+		intel_cx0_rmw(i915, encoder->port, lane + 1, PHY_CX0_VDR_OVRD_CONTROL(lane, tx, 0),
+				C10_PHY_OVRD_LEVEL_MASK,
+				C10_PHY_OVRD_LEVEL(trans->entries[level].snps.pre_cursor),
+				MB_WRITE_COMMITTED);
+		intel_cx0_rmw(i915, encoder->port, lane + 1, PHY_CX0_VDR_OVRD_CONTROL(lane, tx, 1),
+				C10_PHY_OVRD_LEVEL_MASK,
+				C10_PHY_OVRD_LEVEL(trans->entries[level].snps.vswing),
+				MB_WRITE_COMMITTED);
+		intel_cx0_rmw(i915, encoder->port, lane + 1, PHY_CX0_VDR_OVRD_CONTROL(lane, tx, 2),
+				C10_PHY_OVRD_LEVEL_MASK,
+				C10_PHY_OVRD_LEVEL(trans->entries[level].snps.post_cursor),
+				MB_WRITE_COMMITTED);
+	}
+
+	/* Write Override enables in 0xD71 */
+	intel_cx0_rmw(i915, encoder->port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_OVRD,
+			PHY_C10_VDR_OVRD_TX1 | PHY_C10_VDR_OVRD_TX2,
+			PHY_C10_VDR_OVRD_TX1 | PHY_C10_VDR_OVRD_TX2,
+			MB_WRITE_COMMITTED);
+	intel_cx0_write(i915, encoder->port, follower_lane, PHY_C10_VDR_CONTROL(1),
+			C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
+			MB_WRITE_COMMITTED);
+	intel_cx0_write(i915, encoder->port, master_lane, PHY_C10_VDR_CONTROL(1),
+			C10_VDR_CTRL_MASTER_LANE | C10_VDR_CTRL_MSGBUS_ACCESS |
+			C10_VDR_CTRL_UPDATE_CFG, MB_WRITE_COMMITTED);
+
+	intel_cx0_phy_transaction_end(encoder, wakeref);
 }
 
 /*
@@ -809,8 +870,11 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 	/* TODO: HDMI FRL */
 	if (intel_crtc_has_dp_encoder(crtc_state)) {
 		intel_dp = enc_to_intel_dp(encoder);
-		ssc_enabled = intel_dp->dpcd[DP_MAX_DOWNSPREAD] &
-			      DP_MAX_DOWNSPREAD_0_5;
+		ssc_enabled = (intel_dp->dpcd[DP_MAX_DOWNSPREAD] &
+			      DP_MAX_DOWNSPREAD_0_5);
+
+		if (intel_dp_is_edp(intel_dp) && !intel_panel_use_ssc(i915))
+			ssc_enabled = false;
 
 		if (!intel_panel_use_ssc(i915))
 			ssc_enabled = false;
@@ -818,11 +882,11 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 		/* TODO: DP2.0 10G and 20G rates enable MPLLA*/
 		val |= ssc_enabled ? XELPDP_SSC_ENABLE_PLLB : 0;
 	}
+
 	intel_de_rmw(i915, XELPDP_PORT_CLOCK_CTL(encoder->port),
-		     XELPDP_LANE1_PHY_CLOCK_SELECT |
-		     XELPDP_FORWARD_CLOCK_UNGATE |
+		     XELPDP_LANE1_PHY_CLOCK_SELECT | XELPDP_FORWARD_CLOCK_UNGATE |
 		     XELPDP_DDI_CLOCK_SELECT_MASK |
-		     XELPDP_SSC_ENABLE_PLLB, val);
+		     XELPDP_SSC_ENABLE_PLLA | XELPDP_SSC_ENABLE_PLLB, val);
 }
 
 static u32 intel_cx0_get_powerdown_update(u8 lane_mask)
@@ -971,9 +1035,12 @@ static void intel_c10_program_phy_lane(struct drm_i915_private *i915,
 	bool dp_alt_mode = intel_tc_port_in_dp_alt_mode(enc_to_dig_port(encoder));
 	enum port port = encoder->port;
 
-	intel_cx0_rmw(i915, port, INTEL_CX0_BOTH_LANES, PHY_C10_VDR_CONTROL(1),
-		      C10_VDR_CTRL_MSGBUS_ACCESS, C10_VDR_CTRL_MSGBUS_ACCESS,
-		      MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, port, INTEL_CX0_LANE1, PHY_C10_VDR_CONTROL(1),
+		      C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
+		      C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
+	intel_cx0_rmw(i915, port, INTEL_CX0_LANE0, PHY_C10_VDR_CONTROL(1),
+		      C10_VDR_CTRL_MSGBUS_ACCESS | C10_VDR_CTRL_UPDATE_CFG,
+		      C10_VDR_CTRL_MASTER_LANE  | C10_VDR_CTRL_MSGBUS_ACCESS, MB_WRITE_COMMITTED);
 
 	/* TODO: DP-alt MFD case where only one PHY lane should be programmed. */
 	l0t1 = intel_cx0_read(i915, port, INTEL_CX0_LANE0, PHY_CX0_TX_CONTROL(1, 2));
@@ -1176,7 +1243,8 @@ static void intel_c10pll_disable(struct intel_encoder *encoder)
 
 	/* 7. Program PORT_CLOCK_CTL register to disable and gate clocks. */
 	intel_de_rmw(i915, XELPDP_PORT_CLOCK_CTL(encoder->port),
-		     XELPDP_DDI_CLOCK_SELECT_MASK |
+		     XELPDP_DDI_CLOCK_SELECT_MASK, 0);
+	intel_de_rmw(i915, XELPDP_PORT_CLOCK_CTL(encoder->port),
 		     XELPDP_FORWARD_CLOCK_UNGATE, 0);
 }
 
