@@ -30,6 +30,8 @@
 #include "intel_wm.h"
 #include "skl_watermark.h"
 
+static void intel_crtc_copy_hw_to_uapi_state(struct intel_crtc_state *crtc_state);
+
 static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 					struct drm_modeset_acquire_ctx *ctx)
 {
@@ -88,13 +90,17 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 	crtc->active = false;
 	crtc->base.enabled = false;
 
-	drm_WARN_ON(&i915->drm,
-		    drm_atomic_set_mode_for_crtc(&crtc_state->uapi, NULL) < 0);
-	crtc_state->uapi.active = false;
 	crtc_state->uapi.connector_mask = 0;
 	crtc_state->uapi.encoder_mask = 0;
+
 	intel_crtc_free_hw_state(crtc_state);
 	memset(&crtc_state->hw, 0, sizeof(crtc_state->hw));
+	crtc_state->pre_csc_lut = NULL;
+	crtc_state->post_csc_lut = NULL;
+	intel_crtc_copy_hw_to_uapi_state(crtc_state);
+
+	drm_WARN_ON(&i915->drm,
+		    drm_atomic_set_mode_for_crtc(&crtc_state->uapi, NULL) < 0);
 
 	for_each_encoder_on_crtc(&i915->drm, &crtc->base, encoder)
 		encoder->base.crtc = NULL;
