@@ -4370,35 +4370,18 @@ static int intel_hdmi_reset_link(struct intel_encoder *encoder,
 	return modeset_pipe(&crtc->base, ctx);
 }
 
-static enum intel_hotplug_state
-intel_ddi_hotplug(struct intel_encoder *encoder,
-		  struct intel_connector *connector)
+static void call_with_modeset_ctx(int (*fn)(struct intel_encoder *encoder,
+					    struct drm_modeset_acquire_ctx *ctx),
+				  struct intel_encoder *encoder)
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
-	struct intel_dp *intel_dp = &dig_port->dp;
-	enum phy phy = intel_port_to_phy(i915, encoder->port);
-	bool is_tc = intel_phy_is_tc(i915, phy);
 	struct drm_modeset_acquire_ctx ctx;
-	enum intel_hotplug_state state;
 	int ret;
-
-	if (intel_dp->compliance.test_active &&
-	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
-		intel_dp_phy_test(encoder);
-		/* just do the PHY test and nothing else */
-		return INTEL_HOTPLUG_UNCHANGED;
-	}
-
-	state = intel_encoder_hotplug(encoder, connector);
 
 	drm_modeset_acquire_init(&ctx, 0);
 
 	for (;;) {
-		if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
-			ret = intel_hdmi_reset_link(encoder, &ctx);
-		else
-			ret = intel_dp_retrain_link(encoder, &ctx);
+		ret = fn(encoder, &ctx);
 
 		if (ret == -EDEADLK) {
 			drm_modeset_backoff(&ctx);
@@ -4410,8 +4393,34 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
-	drm_WARN(encoder->base.dev, ret,
+	drm_WARN(&i915->drm, ret,
 		 "Acquiring modeset locks failed with %i\n", ret);
+}
+
+static enum intel_hotplug_state
+intel_ddi_hotplug(struct intel_encoder *encoder,
+		  struct intel_connector *connector)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	struct intel_dp *intel_dp = &dig_port->dp;
+	enum phy phy = intel_port_to_phy(i915, encoder->port);
+	bool is_tc = intel_phy_is_tc(i915, phy);
+	enum intel_hotplug_state state;
+
+	if (intel_dp->compliance.test_active &&
+	    intel_dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
+		intel_dp_phy_test(encoder);
+		/* just do the PHY test and nothing else */
+		return INTEL_HOTPLUG_UNCHANGED;
+	}
+
+	state = intel_encoder_hotplug(encoder, connector);
+
+	if (connector->base.connector_type == DRM_MODE_CONNECTOR_HDMIA)
+		call_with_modeset_ctx(intel_hdmi_reset_link, encoder);
+	else
+		call_with_modeset_ctx(intel_dp_retrain_link, encoder);
 
 	/*
 	 * Unpowered type-c dongles can take some time to boot and be
