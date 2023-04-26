@@ -50,10 +50,39 @@ static void set_encoder_for_connector(struct intel_connector *connector,
 	}
 }
 
+static void reset_encoder_connector_state(struct intel_encoder *encoder)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_connector *connector;
+	struct drm_connector_list_iter conn_iter;
+
+	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
+	for_each_intel_connector_iter(connector, &conn_iter) {
+		if (connector->base.encoder != &encoder->base)
+			continue;
+
+		set_encoder_for_connector(connector, NULL);
+
+		connector->base.dpms = DRM_MODE_DPMS_OFF;
+		connector->base.encoder = NULL;
+	}
+	drm_connector_list_iter_end(&conn_iter);
+}
+
+static void reset_crtc_encoder_state(struct intel_crtc *crtc)
+{
+	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_encoder *encoder;
+
+	for_each_encoder_on_crtc(&i915->drm, &crtc->base, encoder) {
+		reset_encoder_connector_state(encoder);
+		encoder->base.crtc = NULL;
+	}
+}
+
 static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 					struct drm_modeset_acquire_ctx *ctx)
 {
-	struct intel_encoder *encoder;
 	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
 	struct intel_bw_state *bw_state =
 		to_intel_bw_state(i915->display.bw.obj.state);
@@ -65,9 +94,8 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 		to_intel_crtc_state(crtc->base.state);
 	struct intel_plane *plane;
 	struct drm_atomic_state *state;
-	struct intel_crtc_state *temp_crtc_state;
+	struct intel_crtc *temp_crtc;
 	enum pipe pipe = crtc->pipe;
-	int ret;
 
 	if (!crtc_state->hw.active)
 		return;
@@ -92,10 +120,17 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 	to_intel_atomic_state(state)->internal = true;
 
 	/* Everything's already locked, -EDEADLK can't happen. */
-	temp_crtc_state = intel_atomic_get_crtc_state(state, crtc);
-	ret = drm_atomic_add_affected_connectors(state, &crtc->base);
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc,
+					 BIT(pipe) |
+					 intel_crtc_bigjoiner_slave_pipes(crtc_state)) {
+		struct intel_crtc_state *temp_crtc_state =
+			intel_atomic_get_crtc_state(state, temp_crtc);
+		int ret;
 
-	drm_WARN_ON(&i915->drm, IS_ERR(temp_crtc_state) || ret);
+		ret = drm_atomic_add_affected_connectors(state, &temp_crtc->base);
+
+		drm_WARN_ON(&i915->drm, IS_ERR(temp_crtc_state) || ret);
+	}
 
 	i915->display.funcs.display->crtc_disable(to_intel_atomic_state(state), crtc);
 
@@ -120,8 +155,7 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 	drm_WARN_ON(&i915->drm,
 		    drm_atomic_set_mode_for_crtc(&crtc_state->uapi, NULL) < 0);
 
-	for_each_encoder_on_crtc(&i915->drm, &crtc->base, encoder)
-		encoder->base.crtc = NULL;
+	reset_crtc_encoder_state(crtc);
 
 	intel_fbc_disable(crtc);
 	intel_update_watermarks(i915);
@@ -272,6 +306,77 @@ static void intel_sanitize_fifo_underrun_reporting(const struct intel_crtc_state
 					   !HAS_GMCH(i915));
 }
 
+static u32 get_transcoder_pipes(struct drm_i915_private *i915, u32 transcoder_mask)
+{
+	struct intel_crtc *slave_crtc;
+	u32 pipes = 0;
+
+	for_each_intel_crtc(&i915->drm, slave_crtc) {
+		struct intel_crtc_state *slave_crtc_state =
+			to_intel_crtc_state(slave_crtc->base.state);
+
+		if (slave_crtc_state->cpu_transcoder == INVALID_TRANSCODER)
+			continue;
+
+		if (transcoder_mask & BIT(slave_crtc_state->cpu_transcoder))
+			pipes |= BIT(slave_crtc->pipe);
+	}
+
+	return pipes;
+}
+
+static u32 get_bigjoiner_slave_pipes(struct drm_i915_private *i915, u32 master_pipes)
+{
+	struct intel_crtc *master_crtc;
+	u32 pipes = 0;
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, master_crtc, master_pipes) {
+		struct intel_crtc_state *master_crtc_state =
+			to_intel_crtc_state(master_crtc->base.state);
+
+		pipes |= intel_crtc_bigjoiner_slave_pipes(master_crtc_state);
+	}
+
+	return pipes;
+}
+
+static void kill_bigjoiner_slave_noatomic(struct intel_crtc *master_crtc)
+{
+	struct drm_i915_private *i915 = to_i915(master_crtc->base.dev);
+	struct intel_crtc_state *master_crtc_state =
+		to_intel_crtc_state(master_crtc->base.state);
+	struct intel_crtc *slave_crtc;
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, slave_crtc,
+					 intel_crtc_bigjoiner_slave_pipes(master_crtc_state)) {
+		struct intel_crtc_state *slave_crtc_state =
+			to_intel_crtc_state(slave_crtc->base.state);
+
+		slave_crtc_state->bigjoiner_pipes = 0;
+	}
+
+	master_crtc_state->bigjoiner_pipes = 0;
+}
+
+static void disable_crtc_with_slaves(struct intel_crtc *crtc,
+				     struct drm_modeset_acquire_ctx *ctx)
+{
+	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_crtc_state *crtc_state = to_intel_crtc_state(crtc->base.state);
+	u32 bigjoiner_masters = BIT(crtc->pipe) |
+				get_transcoder_pipes(i915, crtc_state->sync_mode_slaves_mask);
+	u32 bigjoiner_slaves = get_bigjoiner_slave_pipes(i915, bigjoiner_masters);
+	struct intel_crtc *temp_crtc;
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_slaves)
+		intel_crtc_disable_noatomic(temp_crtc, ctx);
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_masters) {
+		intel_crtc_disable_noatomic(temp_crtc, ctx);
+		kill_bigjoiner_slave_noatomic(temp_crtc);
+	}
+}
+
 static void intel_sanitize_crtc(struct intel_crtc *crtc,
 				struct drm_modeset_acquire_ctx *ctx)
 {
@@ -299,10 +404,11 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 	/*
 	 * Adjust the state of the output pipe according to whether we have
 	 * active connectors/encoders.
+	 * TODO: Add support for MST
 	 */
 	if (crtc_state->hw.active && !intel_crtc_has_encoders(crtc) &&
 	    !intel_crtc_is_bigjoiner_slave(crtc_state))
-		intel_crtc_disable_noatomic(crtc, ctx);
+		disable_crtc_with_slaves(crtc, ctx);
 }
 
 static bool has_bogus_dpll_config(const struct intel_crtc_state *crtc_state)
