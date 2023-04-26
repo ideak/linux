@@ -85,12 +85,6 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 					struct drm_modeset_acquire_ctx *ctx)
 {
 	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
-	struct intel_bw_state *bw_state =
-		to_intel_bw_state(i915->display.bw.obj.state);
-	struct intel_cdclk_state *cdclk_state =
-		to_intel_cdclk_state(i915->display.cdclk.obj.state);
-	struct intel_dbuf_state *dbuf_state =
-		to_intel_dbuf_state(i915->display.dbuf.obj.state);
 	struct intel_crtc_state *crtc_state =
 		to_intel_crtc_state(crtc->base.state);
 	struct intel_plane *plane;
@@ -135,6 +129,14 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 
 	i915->display.funcs.display->crtc_disable(to_intel_atomic_state(state), crtc);
 
+	if (crtc_state->shared_dpll) {
+		struct intel_shared_dpll *pll =
+			intel_get_shared_dpll_by_id(i915, crtc_state->shared_dpll->info->id);
+
+		pll->state.pipe_mask &= ~BIT(pipe);
+		pll->active_mask &= ~BIT(pipe);
+	}
+
 	drm_atomic_state_put(state);
 
 	drm_dbg_kms(&i915->drm,
@@ -144,24 +146,30 @@ static void intel_crtc_disable_noatomic(struct intel_crtc *crtc,
 	crtc->active = false;
 	crtc->base.enabled = false;
 
-	crtc_state->uapi.connector_mask = 0;
-	crtc_state->uapi.encoder_mask = 0;
-
-	intel_crtc_free_hw_state(crtc_state);
-	memset(&crtc_state->hw, 0, sizeof(crtc_state->hw));
-	crtc_state->pre_csc_lut = NULL;
-	crtc_state->post_csc_lut = NULL;
-	intel_crtc_copy_hw_to_uapi_state(crtc_state);
-
-	drm_WARN_ON(&i915->drm,
-		    drm_atomic_set_mode_for_crtc(&crtc_state->uapi, NULL) < 0);
-
-	reset_crtc_encoder_state(crtc);
-
 	intel_fbc_disable(crtc);
 	intel_update_watermarks(i915);
 
 	intel_display_power_put_all_in_set(i915, &crtc->enabled_power_domains);
+}
+
+static void intel_crtc_reset_atomic_state(struct intel_crtc *crtc)
+{
+	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_bw_state *bw_state =
+		to_intel_bw_state(i915->display.bw.obj.state);
+	struct intel_cdclk_state *cdclk_state =
+		to_intel_cdclk_state(i915->display.cdclk.obj.state);
+	struct intel_dbuf_state *dbuf_state =
+		to_intel_dbuf_state(i915->display.dbuf.obj.state);
+	struct intel_crtc_state *crtc_state =
+		to_intel_crtc_state(crtc->base.state);
+	enum pipe pipe = crtc->pipe;
+
+	__drm_atomic_helper_crtc_destroy_state(&crtc_state->uapi);
+	intel_crtc_free_hw_state(crtc_state);
+	intel_crtc_state_reset(crtc_state, crtc);
+
+	reset_crtc_encoder_state(crtc);
 
 	cdclk_state->min_cdclk[pipe] = 0;
 	cdclk_state->min_voltage_level[pipe] = 0;
@@ -330,24 +338,6 @@ static u32 get_bigjoiner_slave_pipes(struct drm_i915_private *i915, u32 master_p
 	return pipes;
 }
 
-static void kill_bigjoiner_slave_noatomic(struct intel_crtc *master_crtc)
-{
-	struct drm_i915_private *i915 = to_i915(master_crtc->base.dev);
-	struct intel_crtc_state *master_crtc_state =
-		to_intel_crtc_state(master_crtc->base.state);
-	struct intel_crtc *slave_crtc;
-
-	for_each_intel_crtc_in_pipe_mask(&i915->drm, slave_crtc,
-					 intel_crtc_bigjoiner_slave_pipes(master_crtc_state)) {
-		struct intel_crtc_state *slave_crtc_state =
-			to_intel_crtc_state(slave_crtc->base.state);
-
-		slave_crtc_state->bigjoiner_pipes = 0;
-	}
-
-	master_crtc_state->bigjoiner_pipes = 0;
-}
-
 static void disable_crtc_with_slaves(struct intel_crtc *crtc,
 				     struct drm_modeset_acquire_ctx *ctx)
 {
@@ -361,10 +351,11 @@ static void disable_crtc_with_slaves(struct intel_crtc *crtc,
 	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_slaves)
 		intel_crtc_disable_noatomic(temp_crtc, ctx);
 
-	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_masters) {
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_masters)
 		intel_crtc_disable_noatomic(temp_crtc, ctx);
-		kill_bigjoiner_slave_noatomic(temp_crtc);
-	}
+
+	for_each_intel_crtc_in_pipe_mask(&i915->drm, temp_crtc, bigjoiner_masters | bigjoiner_slaves)
+		intel_crtc_reset_atomic_state(temp_crtc);
 }
 
 static void intel_sanitize_crtc(struct intel_crtc *crtc,
