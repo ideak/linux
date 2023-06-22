@@ -3873,6 +3873,16 @@ static u8 intel_dp_autotest_edid(struct intel_dp *intel_dp)
 	return test_result;
 }
 
+static void le32_bytes_to_cpu_array(const u8 *b, int len, u32 *out)
+{
+	int words = DIV_ROUND_UP(len, 4);
+
+	memset(out, 0, words * 4);
+	memcpy(out, b, len);
+
+	le32_to_cpu_array(out, words);
+}
+
 static void intel_dp_phy_pattern_update(struct intel_dp *intel_dp,
 					const struct intel_crtc_state *crtc_state)
 {
@@ -3882,7 +3892,7 @@ static void intel_dp_phy_pattern_update(struct intel_dp *intel_dp,
 			&intel_dp->compliance.test_data.phytest;
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	enum pipe pipe = crtc->pipe;
-	u32 pattern_val;
+	u32 pattern[3];
 
 	switch (data->phy_pattern) {
 	case DP_PHY_TEST_PATTERN_NONE:
@@ -3906,19 +3916,15 @@ static void intel_dp_phy_pattern_update(struct intel_dp *intel_dp,
 			       DDI_DP_COMP_CTL_ENABLE | DDI_DP_COMP_CTL_PRBS7);
 		break;
 	case DP_PHY_TEST_PATTERN_80BIT_CUSTOM:
-		/*
-		 * FIXME: Ideally pattern should come from DPCD 0x250. As
-		 * current firmware of DPR-100 could not set it, so hardcoding
-		 * now for complaince test.
-		 */
+		BUILD_BUG_ON(ALIGN(sizeof(data->custom80), 4) != sizeof(pattern));
+		le32_bytes_to_cpu_array(data->custom80, sizeof(data->custom80), pattern);
+
 		drm_dbg_kms(&dev_priv->drm,
-			    "Set 80Bit Custom Phy Test Pattern 0x3e0f83e0 0x0f83e0f8 0x0000f83e\n");
-		pattern_val = 0x3e0f83e0;
-		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 0), pattern_val);
-		pattern_val = 0x0f83e0f8;
-		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 1), pattern_val);
-		pattern_val = 0x0000f83e;
-		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 2), pattern_val);
+			    "Set 80Bit Custom Phy Test Pattern %08x %08x %08x\n",
+			    pattern[0], pattern[1], pattern[2]);
+		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 0), pattern[0]);
+		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 1), pattern[1]);
+		intel_de_write(dev_priv, DDI_DP_COMP_PAT(pipe, 2), pattern[2]);
 		intel_de_write(dev_priv, DDI_DP_COMP_CTL(pipe),
 			       DDI_DP_COMP_CTL_ENABLE |
 			       DDI_DP_COMP_CTL_CUSTOM80);
@@ -3930,10 +3936,9 @@ static void intel_dp_phy_pattern_update(struct intel_dp *intel_dp,
 		 * now for complaince test.
 		 */
 		drm_dbg_kms(&dev_priv->drm, "Set HBR2 compliance Phy Test Pattern\n");
-		pattern_val = 0xFB;
 		intel_de_write(dev_priv, DDI_DP_COMP_CTL(pipe),
 			       DDI_DP_COMP_CTL_ENABLE | DDI_DP_COMP_CTL_HBR2 |
-			       pattern_val);
+			       0xFB);
 		break;
 	default:
 		WARN(1, "Invalid Phy Test Pattern\n");
