@@ -6,6 +6,7 @@
 #ifndef __INTEL_RUNTIME_PM_H__
 #define __INTEL_RUNTIME_PM_H__
 
+#include <linux/pm_runtime.h>
 #include <linux/types.h>
 
 #include "intel_wakeref.h"
@@ -229,5 +230,10 @@ static inline void print_intel_runtime_pm_wakeref(struct intel_runtime_pm *rpm,
 {
 }
 #endif
+
+static inline void intel_runtime_pm_suspend(struct intel_runtime_pm *rpm)
+{
+	pm_runtime_suspend(rpm->kdev);
+}
 
 #endif /* __INTEL_RUNTIME_PM_H__ */

@@ -911,7 +911,7 @@ out:
 	 * Make sure the refs for power wells enabled during detect are
 	 * dropped to avoid a new detect cycle triggered by HPD polling.
 	 */
-	intel_display_power_flush_work(dev_priv);
+	intel_display_power_flush_work_and_suspend(dev_priv);
 
 	return status;
 }

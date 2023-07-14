@@ -786,6 +786,24 @@ out_verify:
 }
 
 /**
+ * intel_display_power_flush_work_and_suspend - flushes the async display power disabling work and suspend
+ * @i915: i915 device instance
+ *
+ * Flushes any pending work that was scheduled by a preceding
+ * intel_display_power_put_async() call, completing the disabling of the
+ * corresponding power domains and suspends the device if there are no
+ * runtime pm references remain held.
+ *
+ * Note that the work handler function may still be running after this
+ * function returns.
+ */
+void intel_display_power_flush_work_and_suspend(struct drm_i915_private *i915)
+{
+	intel_display_power_flush_work(i915);
+	intel_runtime_pm_suspend(&i915->runtime_pm);
+}
+
+/**
  * intel_display_power_flush_work_sync - flushes and syncs the async display power disabling work
  * @i915: i915 device instance
  *
