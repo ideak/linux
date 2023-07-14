@@ -25,6 +25,7 @@
 
 #include "i915_drv.h"
 #include "i915_irq.h"
+#include "intel_display_power.h"
 #include "intel_display_types.h"
 #include "intel_hotplug.h"
 #include "intel_hotplug_irq.h"
@@ -657,8 +658,15 @@ static void i915_hpd_poll_init_work(struct work_struct *work)
 	 * We might have missed any hotplugs that happened while we were
 	 * in the middle of disabling polling
 	 */
-	if (!enabled)
+	if (!enabled) {
 		drm_helper_hpd_irq_event(&dev_priv->drm);
+
+		/*
+		 * Make sure the refs for power wells enabled during detect are
+		 * dropped to avoid a new detect cycle triggered by HPD polling.
+		 */
+		intel_display_power_flush_work_and_suspend(dev_priv);
+	}
 }
 
 /**
