@@ -4721,22 +4721,31 @@ EXPORT_SYMBOL(drm_dp_check_act_status);
  * drm_dp_calc_pbn_mode() - Calculate the PBN for a mode.
  * @clock: dot clock
  * @bpp: bpp as .4 binary fixed point
+ * @fec: calculate PBN with FEC overhead
  *
  * This uses the formula in the spec to calculate the PBN value for a mode.
  */
-int drm_dp_calc_pbn_mode(int clock, int bpp)
+int drm_dp_calc_pbn_mode(int clock, int bpp, bool fec)
 {
 	/*
-	 * margin 5300ppm + 300ppm ~ 0.6% as per spec, factor is 1.006
+	 * Overheads:
+	 * - SSC downspread and ref clock variation margin:
+	 *     5300ppm + 300ppm ~ 0.6% as per spec, factor is 1.006
+	 * - FEC symbol insertions:
+	 *     2.4% as per spec, factor is 1.024
+	 *
 	 * The unit of 54/64Mbytes/sec is an arbitrary unit chosen based on
 	 * common multiplier to render an integer PBN for all link rate/lane
 	 * counts combinations
 	 * calculate
-	 * peak_kbps *= (1006/1000)
+	 * peak_kbps *= (1006/1000) without FEC, or
+	 * peak_kbps *= (1030/1000) with FEC
 	 * peak_kbps *= (64/54)
-	 * peak_kbps *= 8    convert to bytes
+	 * peak_kbps /= 8    convert to bytes
 	 */
-	return DIV_ROUND_UP_ULL(mul_u32_u32(clock * bpp, 64 * 1006 >> 4),
+	u32 overhead = fec ? 1030 : 1006;
+
+	return DIV_ROUND_UP_ULL(mul_u32_u32(clock * bpp, 64 * overhead >> 4),
 				1000 * 8 * 54 * 1000);
 }
 EXPORT_SYMBOL(drm_dp_calc_pbn_mode);
