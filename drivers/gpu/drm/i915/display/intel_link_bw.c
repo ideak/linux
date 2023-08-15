@@ -22,6 +22,7 @@ void intel_link_bw_init_limits(struct drm_i915_private *i915, struct intel_link_
 {
 	enum pipe pipe;
 
+	limits->force_fec_pipes = 0;
 	limits->min_bpp_pipes = 0;
 	for_each_pipe(i915, pipe)
 		limits->max_bpp_x16[pipe] = INT_MAX;
@@ -166,6 +167,10 @@ static int check_all_link_config(struct intel_atomic_state *state,
 	if (ret)
 		return ret;
 
+	ret = intel_dp_mst_atomic_check_link(state, limits);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
@@ -176,6 +181,12 @@ assert_link_limit_change_valid(struct drm_i915_private *i915,
 {
 	bool bpps_changed = false;
 	enum pipe pipe;
+
+	/* FEC can't be forced off after it was forced on. */
+	if (drm_WARN_ON(&i915->drm,
+			(old_limits->force_fec_pipes & new_limits->force_fec_pipes) !=
+			old_limits->force_fec_pipes))
+		return false;
 
 	for_each_pipe(i915, pipe) {
 		/* The bpp limit can only decrease. */
@@ -191,7 +202,9 @@ assert_link_limit_change_valid(struct drm_i915_private *i915,
 
 	/* At least one limit must change. */
 	if (drm_WARN_ON(&i915->drm,
-			!bpps_changed))
+			!bpps_changed &&
+			new_limits->force_fec_pipes ==
+			old_limits->force_fec_pipes))
 		return false;
 
 	return true;
