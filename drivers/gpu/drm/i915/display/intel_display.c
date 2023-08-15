@@ -4596,7 +4596,8 @@ intel_crtc_prepare_cleared_state(struct intel_atomic_state *state,
 
 static int
 intel_modeset_pipe_config(struct intel_atomic_state *state,
-			  struct intel_crtc *crtc)
+			  struct intel_crtc *crtc,
+			  const struct intel_link_bw_limits *limits)
 {
 	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
 	struct intel_crtc_state *crtc_state =
@@ -4605,7 +4606,6 @@ intel_modeset_pipe_config(struct intel_atomic_state *state,
 	struct drm_connector_state *connector_state;
 	int pipe_src_w, pipe_src_h;
 	int base_bpp, ret, i;
-	bool retry = true;
 
 	crtc_state->cpu_transcoder = (enum transcoder) crtc->pipe;
 
@@ -4627,6 +4627,17 @@ intel_modeset_pipe_config(struct intel_atomic_state *state,
 	ret = compute_baseline_pipe_bpp(state, crtc);
 	if (ret)
 		return ret;
+
+	crtc_state->max_link_bpp_x16 = limits->max_bpp_x16[crtc->pipe];
+
+	if (crtc_state->pipe_bpp > to_bpp_int(crtc_state->max_link_bpp_x16)) {
+		drm_dbg_kms(&i915->drm,
+			    "[CRTC:%d:%s] Link bpp limited to %d.%04d\n",
+			    crtc->base.base.id, crtc->base.name,
+			    to_bpp_int(crtc_state->max_link_bpp_x16),
+			    to_bpp_frac_dec(crtc_state->max_link_bpp_x16));
+		crtc_state->bw_constrained = true;
+	}
 
 	base_bpp = crtc_state->pipe_bpp;
 
@@ -4669,7 +4680,6 @@ intel_modeset_pipe_config(struct intel_atomic_state *state,
 			crtc_state->output_types |= BIT(encoder->type);
 	}
 
-encoder_retry:
 	/* Ensure the port clock defaults are reset when retrying. */
 	crtc_state->port_clock = 0;
 	crtc_state->pixel_multiplier = 1;
@@ -4709,17 +4719,6 @@ encoder_retry:
 	ret = intel_crtc_compute_config(state, crtc);
 	if (ret == -EDEADLK)
 		return ret;
-	if (ret == -EAGAIN) {
-		if (drm_WARN(&i915->drm, !retry,
-			     "[CRTC:%d:%s] loop in pipe configuration computation\n",
-			     crtc->base.base.id, crtc->base.name))
-			return -EINVAL;
-
-		drm_dbg_kms(&i915->drm, "[CRTC:%d:%s] bw constrained, retrying\n",
-			    crtc->base.base.id, crtc->base.name);
-		retry = false;
-		goto encoder_retry;
-	}
 	if (ret < 0) {
 		drm_dbg_kms(&i915->drm, "[CRTC:%d:%s] config failure: %d\n",
 			    crtc->base.base.id, crtc->base.name, ret);
@@ -6161,7 +6160,9 @@ static int intel_bigjoiner_add_affected_crtcs(struct intel_atomic_state *state)
 	return 0;
 }
 
-static int intel_atomic_check_config(struct intel_atomic_state *state)
+int intel_atomic_check_config(struct intel_atomic_state *state,
+			      struct intel_link_bw_limits *limits,
+			      enum pipe *failed_pipe)
 {
 	struct drm_i915_private *i915 = to_i915(state->base.dev);
 	struct intel_crtc_state *new_crtc_state;
@@ -6169,7 +6170,13 @@ static int intel_atomic_check_config(struct intel_atomic_state *state)
 	int ret;
 	int i;
 
+	*failed_pipe = INVALID_PIPE;
+
 	ret = intel_bigjoiner_add_affected_crtcs(state);
+	if (ret)
+		return ret;
+
+	ret = intel_fdi_add_affected_crtcs(state);
 	if (ret)
 		return ret;
 
@@ -6194,7 +6201,7 @@ static int intel_atomic_check_config(struct intel_atomic_state *state)
 		if (!new_crtc_state->hw.enable)
 			continue;
 
-		ret = intel_modeset_pipe_config(state, crtc);
+		ret = intel_modeset_pipe_config(state, crtc, limits);
 		if (ret)
 			break;
 
@@ -6202,6 +6209,9 @@ static int intel_atomic_check_config(struct intel_atomic_state *state)
 		if (ret)
 			break;
 	}
+
+	if (ret)
+		*failed_pipe = crtc->pipe;
 
 	return ret;
 }
@@ -6250,7 +6260,7 @@ int intel_atomic_check(struct drm_device *dev,
 			return ret;
 	}
 
-	ret = intel_atomic_check_config(state);
+	ret = intel_atomic_check_config_and_link(state);
 	if (ret)
 		goto fail;
 
