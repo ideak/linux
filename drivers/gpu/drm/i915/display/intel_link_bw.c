@@ -160,7 +160,12 @@ intel_link_bw_reset_pipe_limit_to_min(struct intel_atomic_state *state,
 static int check_all_link_config(struct intel_atomic_state *state,
 				 struct intel_link_bw_limits *limits)
 {
-	/* TODO: Check all shared display link configurations like FDI */
+	int ret;
+
+	ret = intel_fdi_atomic_check_link(state, limits);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
