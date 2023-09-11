@@ -19,6 +19,7 @@
 #include "intel_fifo_underrun.h"
 #include "intel_hdmi.h"
 #include "intel_hotplug.h"
+#include "intel_link_bw.h"
 #include "intel_sdvo.h"
 #include "vlv_sideband.h"
 
@@ -135,7 +136,7 @@ static int g4x_hdmi_compute_config(struct intel_encoder *encoder,
 
 	if (HAS_PCH_SPLIT(i915)) {
 		crtc_state->has_pch_encoder = true;
-		if (!intel_atomic_compute_pipe_bpp(crtc_state))
+		if (!intel_link_bw_compute_pipe_bpp(crtc_state))
 			return -EINVAL;
 	}
 

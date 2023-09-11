@@ -87,6 +87,7 @@
 #include "intel_frontbuffer.h"
 #include "intel_hdmi.h"
 #include "intel_hotplug.h"
+#include "intel_link_bw.h"
 #include "intel_lvds.h"
 #include "intel_lvds_regs.h"
 #include "intel_modeset_setup.h"
@@ -6213,6 +6214,54 @@ int intel_atomic_check_config(struct intel_atomic_state *state,
 
 	if (ret)
 		*failed_pipe = crtc->pipe;
+
+	return ret;
+}
+
+/**
+ * intel_atomic_check_config_and_link - compute CRTC configs, resolving any BW limits
+ * @state: atomic state
+ *
+ * Compute the configuration of all CRTCs in @state and resolve any BW
+ * limitations on links shared by these CRTCs.
+ *
+ * Return 0 in case of success, or a negative error code otherwise.
+ */
+static int intel_atomic_check_config_and_link(struct intel_atomic_state *state)
+{
+	struct drm_i915_private *i915 = to_i915(state->base.dev);
+	struct intel_link_bw_limits new_limits = {};
+	struct intel_link_bw_limits old_limits;
+	enum pipe pipe;
+	int ret;
+
+	for_each_pipe(i915, pipe)
+		new_limits.max_bpp_x16[pipe] = INT_MAX;
+
+	old_limits = new_limits;
+
+	while (true) {
+		enum pipe failed_pipe;
+
+		ret = intel_atomic_check_config(state, &new_limits,
+						&failed_pipe);
+		if (ret) {
+			if (ret == -EINVAL &&
+			    intel_link_bw_reset_pipe_limit_to_min(state,
+								  &old_limits,
+								  &new_limits,
+								  failed_pipe))
+				continue;
+
+			break;
+		}
+
+		old_limits = new_limits;
+
+		ret = intel_link_bw_atomic_check(state, &old_limits, &new_limits);
+		if (ret != -EAGAIN)
+			break;
+	}
 
 	return ret;
 }

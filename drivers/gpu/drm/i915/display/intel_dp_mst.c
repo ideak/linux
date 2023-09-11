@@ -43,6 +43,7 @@
 #include "intel_dpio_phy.h"
 #include "intel_hdcp.h"
 #include "intel_hotplug.h"
+#include "intel_link_bw.h"
 #include "intel_vdsc.h"
 #include "skl_scaler.h"
 
@@ -564,8 +565,8 @@ static int intel_dp_mst_check_bw(struct intel_atomic_state *state,
 
 	mst_port_pipes = get_pipes_downstream_of_mst_port(state, mst_mgr, mst_port);
 
-	ret = intel_atomic_reduce_link_bpp(state, limits,
-					   mst_port_pipes, "MST link BW");
+	ret = intel_link_bw_reduce_link_bpp(state, limits,
+					    mst_port_pipes, "MST link BW");
 
 	return ret ? : -EAGAIN;
 }

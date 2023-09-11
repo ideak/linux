@@ -13,6 +13,7 @@
 #include "intel_display_types.h"
 #include "intel_fdi.h"
 #include "intel_fdi_regs.h"
+#include "intel_link_bw.h"
 
 struct intel_fdi_funcs {
 	void (*fdi_link_train)(struct intel_crtc *crtc,
@@ -335,9 +336,9 @@ static int intel_fdi_atomic_check_bw(struct intel_atomic_state *state,
 	if (ret != -EINVAL)
 		return ret;
 
-	ret = intel_atomic_reduce_link_bpp(state, limits,
-					   BIT(pipe_to_reduce),
-					   "FDI link BW");
+	ret = intel_link_bw_reduce_link_bpp(state, limits,
+					    BIT(pipe_to_reduce),
+					    "FDI link BW");
 
 	return ret ? : -EAGAIN;
 }

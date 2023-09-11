@@ -48,6 +48,7 @@
 #include "intel_gmbus.h"
 #include "intel_hdmi.h"
 #include "intel_hotplug.h"
+#include "intel_link_bw.h"
 #include "intel_panel.h"
 #include "intel_sdvo.h"
 #include "intel_sdvo_regs.h"
@@ -1353,7 +1354,7 @@ static int intel_sdvo_compute_config(struct intel_encoder *encoder,
 
 	if (HAS_PCH_SPLIT(to_i915(encoder->base.dev))) {
 		pipe_config->has_pch_encoder = true;
-		if (!intel_atomic_compute_pipe_bpp(pipe_config))
+		if (!intel_link_bw_compute_pipe_bpp(pipe_config))
 			return -EINVAL;
 	}
 
