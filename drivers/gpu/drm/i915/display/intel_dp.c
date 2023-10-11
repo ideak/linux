@@ -5116,6 +5116,10 @@ intel_dp_detect_dpcd(struct intel_dp *intel_dp)
 	if (!intel_dp_get_dpcd(intel_dp))
 		return connector_status_disconnected;
 
+	/* Read DP Sink DSC Cap DPCD regs for DP v1.4 */
+	if (HAS_DSC(i915))
+		intel_dp_get_dsc_sink_cap(intel_dp);
+
 	/* if there's no downstream port, we're done */
 	if (!drm_dp_is_branch(dpcd))
 		return connector_status_connected;
@@ -5381,10 +5385,6 @@ intel_dp_detect(struct drm_connector *connector,
 
 		goto out;
 	}
-
-	/* Read DP Sink DSC Cap DPCD regs for DP v1.4 */
-	if (HAS_DSC(dev_priv))
-		intel_dp_get_dsc_sink_cap(intel_dp);
 
 	intel_dp_configure_mst(intel_dp);
 
