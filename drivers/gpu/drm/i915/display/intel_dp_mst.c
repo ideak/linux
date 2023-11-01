@@ -351,6 +351,14 @@ static int intel_dp_mst_update_slots(struct intel_encoder *encoder,
 	return 0;
 }
 
+static bool
+intel_dp_mst_dsc_source_support(const struct intel_crtc_state *crtc_state)
+{
+	struct drm_i915_private *i915 = to_i915(crtc_state->uapi.crtc->dev);
+
+	return DISPLAY_VER(i915) > 11 && intel_dsc_source_support(crtc_state);
+}
+
 static int mode_hblank_period_ns(const struct drm_display_mode *mode)
 {
 	return DIV_ROUND_CLOSEST_ULL(mul_u32_u32(mode->htotal - mode->hdisplay,
@@ -387,7 +395,7 @@ adjust_limits_for_dsc_hblank_expansion_quirk(const struct intel_connector *conne
 	if (!hblank_expansion_quirk_needs_dsc(connector, crtc_state))
 		return true;
 
-	if (!dsc) {
+	if (!dsc && intel_dp_mst_dsc_source_support(crtc_state)) {
 		drm_dbg_kms(&i915->drm,
 			    "[CRTC:%d:%s][CONNECTOR:%d:%s] DSC required by hblank expansion quirk\n",
 			    crtc->base.base.id, crtc->base.name,
@@ -397,7 +405,9 @@ adjust_limits_for_dsc_hblank_expansion_quirk(const struct intel_connector *conne
 
 	drm_WARN_ON(&i915->drm, limits->min_rate != limits->max_rate);
 
-	if (limits->max_rate < 540000)
+	if (!intel_dp_mst_dsc_source_support(crtc_state))
+		min_bpp_x16 = to_bpp_x16(24);
+	else if (limits->max_rate < 540000)
 		min_bpp_x16 = to_bpp_x16(13);
 	else if (limits->max_rate < 810000)
 		min_bpp_x16 = to_bpp_x16(10);
@@ -510,6 +520,9 @@ static int intel_dp_mst_compute_config(struct intel_encoder *encoder,
 		drm_dbg_kms(&dev_priv->drm, "Try DSC (fallback=%s, force=%s)\n",
 			    str_yes_no(ret),
 			    str_yes_no(intel_dp->force_dsc_en));
+
+		if (!intel_dp_mst_dsc_source_support(pipe_config))
+			return -EINVAL;
 
 		if (!intel_dp_mst_compute_config_limits(intel_dp,
 							connector,
