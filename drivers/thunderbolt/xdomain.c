@@ -535,29 +535,19 @@ static int tb_xdp_link_state_status_request(struct tb_ctl *ctl, u64 route,
 }
 
 static int tb_xdp_link_state_status_response(struct tb *tb, struct tb_ctl *ctl,
-					     struct tb_xdomain *xd, u8 sequence)
+					     struct tb_xdomain *xd, u8 sequence,
+					     u8 slw, u8 sls, u8 tls, u8 tlw)
 {
 	struct tb_xdp_link_state_status_response res;
-	struct tb_port *port = tb_xdomain_downstream_port(xd);
-	u32 val[2];
-	int ret;
 
 	memset(&res, 0, sizeof(res));
 	tb_xdp_fill_header(&res.hdr, xd->route, sequence,
 			   LINK_STATE_STATUS_RESPONSE, sizeof(res));
 
-	ret = tb_port_read(port, val, TB_CFG_PORT,
-			   port->cap_phy + LANE_ADP_CS_0, ARRAY_SIZE(val));
-	if (ret)
-		return ret;
-
-	res.slw = (val[0] & LANE_ADP_CS_0_SUPPORTED_WIDTH_MASK) >>
-			LANE_ADP_CS_0_SUPPORTED_WIDTH_SHIFT;
-	res.sls = (val[0] & LANE_ADP_CS_0_SUPPORTED_SPEED_MASK) >>
-			LANE_ADP_CS_0_SUPPORTED_SPEED_SHIFT;
-	res.tls = val[1] & LANE_ADP_CS_1_TARGET_SPEED_MASK;
-	res.tlw = (val[1] & LANE_ADP_CS_1_TARGET_WIDTH_MASK) >>
-			LANE_ADP_CS_1_TARGET_WIDTH_SHIFT;
+	res.slw = slw;
+	res.sls = sls;
+	res.tls = tls;
+	res.tlw = tlw;
 
 	return __tb_xdomain_response(ctl, &res, sizeof(res),
 				     TB_CFG_PKG_XDOMAIN_RESP);
@@ -802,8 +792,47 @@ static void tb_xdp_handle_request(struct work_struct *work)
 		       route);
 
 		if (xd) {
-			ret = tb_xdp_link_state_status_response(tb, ctl, xd,
-								sequence);
+			struct tb_port *port = tb_xdomain_downstream_port(xd);
+			u8 slw, sls, tls, tlw;
+			u32 val[2];
+
+			/*
+			 * Read the adapter supported and target widths
+			 * and speeds.
+			 */
+			ret = tb_port_read(port, val, TB_CFG_PORT,
+					   port->cap_phy + LANE_ADP_CS_0,
+					   ARRAY_SIZE(val));
+			if (ret)
+				break;
+
+			slw = (val[0] & LANE_ADP_CS_0_SUPPORTED_WIDTH_MASK) >>
+				LANE_ADP_CS_0_SUPPORTED_WIDTH_SHIFT;
+			sls = (val[0] & LANE_ADP_CS_0_SUPPORTED_SPEED_MASK) >>
+				LANE_ADP_CS_0_SUPPORTED_SPEED_SHIFT;
+			tls = val[1] & LANE_ADP_CS_1_TARGET_SPEED_MASK;
+			tlw = (val[1] & LANE_ADP_CS_1_TARGET_WIDTH_MASK) >>
+				LANE_ADP_CS_1_TARGET_WIDTH_SHIFT;
+
+			/*
+			 * When we have higher UUID, we are supposed to
+			 * return ERROR_NOT_READY if the tlw is not yet
+			 * set according to the Inter-Domain spec for
+			 * USB4 v2.
+			 */
+			if (xd->state == XDOMAIN_STATE_BONDING_UUID_HIGH &&
+			    xd->target_link_width &&
+			    xd->target_link_width != tlw) {
+				tb_dbg(tb, "%llx: target link width not yet set %#x != %#x\n",
+				       route, tlw, xd->target_link_width);
+				tb_xdp_error_response(ctl, route, sequence,
+						      ERROR_NOT_READY);
+			} else {
+				tb_dbg(tb, "%llx: replying with target link width set to %#x\n",
+				       route, tlw);
+				ret = tb_xdp_link_state_status_response(tb, ctl,
+					xd, sequence, slw, sls, tls, tlw);
+			}
 		} else {
 			tb_xdp_error_response(ctl, route, sequence,
 					      ERROR_NOT_READY);
@@ -1462,6 +1491,11 @@ static int tb_xdomain_get_properties(struct tb_xdomain *xd)
 				tb_port_disable(port->dual_link_port);
 		}
 
+		dev_dbg(&xd->dev, "current link speed %u.0 Gb/s\n",
+			xd->link_speed);
+		dev_dbg(&xd->dev, "current link width %s\n",
+			tb_width_name(xd->link_width));
+
 		if (device_add(&xd->dev)) {
 			dev_err(&xd->dev, "failed to add XDomain device\n");
 			return -ENODEV;
@@ -1895,6 +1929,50 @@ struct device_type tb_xdomain_type = {
 };
 EXPORT_SYMBOL_GPL(tb_xdomain_type);
 
+static void tb_xdomain_link_init(struct tb_xdomain *xd, struct tb_port *down)
+{
+	if (!down->dual_link_port)
+		return;
+
+	/*
+	 * Gen 4 links come up already as bonded so only update the port
+	 * structures here.
+	 */
+	if (tb_port_get_link_generation(down) >= 4) {
+		down->bonded = true;
+		down->dual_link_port->bonded = true;
+	} else {
+		xd->bonding_possible = true;
+	}
+}
+
+static void tb_xdomain_link_exit(struct tb_xdomain *xd)
+{
+	struct tb_port *down = tb_xdomain_downstream_port(xd);
+
+	if (!down->dual_link_port)
+		return;
+
+	if (tb_port_get_link_generation(down) >= 4) {
+		down->bonded = false;
+		down->dual_link_port->bonded = false;
+	} else if (xd->link_width > TB_LINK_WIDTH_SINGLE) {
+		/*
+		 * Just return port structures back to way they were and
+		 * update credits. No need to update userspace because
+		 * the XDomain is removed soon anyway.
+		 */
+		tb_port_lane_bonding_disable(down);
+		tb_port_update_credits(down);
+	} else if (down->dual_link_port) {
+		/*
+		 * Re-enable the lane 1 adapter we disabled at the end
+		 * of tb_xdomain_get_properties().
+		 */
+		tb_port_enable(down->dual_link_port);
+	}
+}
+
 /**
  * tb_xdomain_alloc() - Allocate new XDomain object
  * @tb: Domain where the XDomain belongs
@@ -1945,7 +2023,8 @@ struct tb_xdomain *tb_xdomain_alloc(struct tb *tb, struct device *parent,
 			goto err_free_local_uuid;
 	} else {
 		xd->needs_uuid = true;
-		xd->bonding_possible = !!down->dual_link_port;
+
+		tb_xdomain_link_init(xd, down);
 	}
 
 	device_initialize(&xd->dev);
@@ -2013,6 +2092,8 @@ void tb_xdomain_remove(struct tb_xdomain *xd)
 	stop_handshake(xd);
 
 	device_for_each_child_reverse(&xd->dev, xd, unregister_service);
+
+	tb_xdomain_link_exit(xd);
 
 	/*
 	 * Undo runtime PM here explicitly because it is possible that
