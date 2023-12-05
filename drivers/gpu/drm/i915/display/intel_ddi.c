@@ -54,6 +54,7 @@
 #include "intel_dp_aux.h"
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
+#include "intel_dp_tunnel.h"
 #include "intel_dpio_phy.h"
 #include "intel_dsi.h"
 #include "intel_fdi.h"
@@ -3161,6 +3162,9 @@ static void intel_ddi_post_pll_disable(struct intel_atomic_state *state,
 
 	main_link_aux_power_domain_put(dig_port, old_crtc_state);
 
+	intel_dp_tunnel_atomic_free_bw(state, encoder,
+				       old_crtc_state, old_conn_state);
+
 	if (is_tc_port)
 		intel_tc_port_put_link(dig_port);
 }
@@ -3502,6 +3506,9 @@ intel_ddi_pre_pll_enable(struct intel_atomic_state *state,
 		intel_tc_port_get_link(dig_port, crtc_state->lane_count);
 		intel_ddi_update_active_dpll(state, encoder, master_crtc);
 	}
+
+	intel_dp_tunnel_atomic_alloc_bw(state, encoder,
+					crtc_state, conn_state);
 
 	main_link_aux_power_domain_get(dig_port, crtc_state);
 

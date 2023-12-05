@@ -19,6 +19,7 @@
 #include "intel_dp.h"
 #include "intel_dp_aux.h"
 #include "intel_dp_link_training.h"
+#include "intel_dp_tunnel.h"
 #include "intel_dpio_phy.h"
 #include "intel_fifo_underrun.h"
 #include "intel_hdmi.h"
@@ -729,6 +730,24 @@ static void vlv_enable_dp(struct intel_atomic_state *state,
 	encoder->audio_enable(encoder, pipe_config, conn_state);
 }
 
+static void g4x_dp_pre_pll_enable(struct intel_atomic_state *state,
+				  struct intel_encoder *encoder,
+				  const struct intel_crtc_state *new_crtc_state,
+				  const struct drm_connector_state *new_conn_state)
+{
+	intel_dp_tunnel_atomic_alloc_bw(state, encoder,
+					new_crtc_state, new_conn_state);
+}
+
+static void g4x_dp_post_pll_disable(struct intel_atomic_state *state,
+				    struct intel_encoder *encoder,
+				    const struct intel_crtc_state *old_crtc_state,
+				    const struct drm_connector_state *old_conn_state)
+{
+	intel_dp_tunnel_atomic_free_bw(state, encoder,
+				       old_crtc_state, old_conn_state);
+}
+
 static void g4x_pre_enable_dp(struct intel_atomic_state *state,
 			      struct intel_encoder *encoder,
 			      const struct intel_crtc_state *pipe_config,
@@ -762,6 +781,8 @@ static void vlv_dp_pre_pll_enable(struct intel_atomic_state *state,
 	intel_dp_prepare(encoder, pipe_config);
 
 	vlv_phy_pre_pll_enable(encoder, pipe_config);
+
+	g4x_dp_pre_pll_enable(state, encoder, pipe_config, conn_state);
 }
 
 static void chv_pre_enable_dp(struct intel_atomic_state *state,
@@ -785,6 +806,8 @@ static void chv_dp_pre_pll_enable(struct intel_atomic_state *state,
 	intel_dp_prepare(encoder, pipe_config);
 
 	chv_phy_pre_pll_enable(encoder, pipe_config);
+
+	g4x_dp_pre_pll_enable(state, encoder, pipe_config, conn_state);
 }
 
 static void chv_dp_post_pll_disable(struct intel_atomic_state *state,
@@ -792,6 +815,8 @@ static void chv_dp_post_pll_disable(struct intel_atomic_state *state,
 				    const struct intel_crtc_state *old_crtc_state,
 				    const struct drm_connector_state *old_conn_state)
 {
+	g4x_dp_post_pll_disable(state, encoder, old_crtc_state, old_conn_state);
+
 	chv_phy_post_pll_disable(encoder, old_crtc_state);
 }
 
@@ -1349,11 +1374,14 @@ bool g4x_dp_init(struct drm_i915_private *dev_priv,
 		intel_encoder->enable = vlv_enable_dp;
 		intel_encoder->disable = vlv_disable_dp;
 		intel_encoder->post_disable = vlv_post_disable_dp;
+		intel_encoder->post_pll_disable = g4x_dp_post_pll_disable;
 	} else {
+		intel_encoder->pre_pll_enable = g4x_dp_pre_pll_enable;
 		intel_encoder->pre_enable = g4x_pre_enable_dp;
 		intel_encoder->enable = g4x_enable_dp;
 		intel_encoder->disable = g4x_disable_dp;
 		intel_encoder->post_disable = g4x_post_disable_dp;
+		intel_encoder->post_pll_disable = g4x_dp_post_pll_disable;
 	}
 	intel_encoder->audio_enable = g4x_dp_audio_enable;
 	intel_encoder->audio_disable = g4x_dp_audio_disable;
