@@ -17,6 +17,23 @@ config DRM_DISPLAY_DP_HELPER
 	help
 	  DRM display helpers for DisplayPort.
 
+config DRM_DISPLAY_DP_TUNNEL
+	bool
+	select DRM_DISPLAY_DP_HELPER
+	help
+	  Enable support for DisplayPort tunnels.
+
+config DRM_DISPLAY_DEBUG_DP_TUNNEL_STATE
+	bool "Enable debugging the DP tunnel state"
+	depends on REF_TRACKER
+	depends on DRM_DISPLAY_DP_TUNNEL
+	depends on DEBUG_KERNEL
+	depends on EXPERT
+	help
+	  Enables debugging the DP tunnel manager's status.
+
+	  If in doubt, say "N".
+
 config DRM_DISPLAY_HDCP_HELPER
 	bool
 	depends on DRM_DISPLAY_HELPER
