@@ -25,6 +25,11 @@ struct intel_encoder;
 
 struct work_struct;
 
+enum intel_dp_get_pipes_mode {
+	INTEL_DP_GET_PIPES_TRY_SYNC,
+	INTEL_DP_GET_PIPES_SYNC,
+};
+
 struct link_config_limits {
 	int min_rate, max_rate;
 	int min_lane_count, max_lane_count;
@@ -59,6 +64,7 @@ int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 					    int link_rate, u8 lane_count);
 int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
 			      struct drm_modeset_acquire_ctx *ctx,
+			      enum intel_dp_get_pipes_mode mode,
 			      u8 *pipe_mask);
 int intel_dp_retrain_link(struct intel_encoder *encoder,
 			  struct drm_modeset_acquire_ctx *ctx);

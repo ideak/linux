@@ -1659,7 +1659,9 @@ static int reset_link_commit(struct intel_tc_port *tc,
 	if (ret)
 		return ret;
 
-	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
+	ret = intel_dp_get_active_pipes(intel_dp, ctx,
+					INTEL_DP_GET_PIPES_TRY_SYNC,
+					&pipe_mask);
 	if (ret)
 		return ret;
 

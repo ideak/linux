@@ -5019,6 +5019,7 @@ static bool intel_dp_has_connector(struct intel_dp *intel_dp,
 
 int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
 			      struct drm_modeset_acquire_ctx *ctx,
+			      enum intel_dp_get_pipes_mode mode,
 			      u8 *pipe_mask)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
@@ -5053,9 +5054,23 @@ int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
 		if (!crtc_state->hw.active)
 			continue;
 
-		if (conn_state->commit &&
-		    !try_wait_for_completion(&conn_state->commit->hw_done))
-			continue;
+		if (conn_state->commit) {
+			bool synced;
+
+			switch (mode) {
+			case INTEL_DP_GET_PIPES_TRY_SYNC:
+				if (!try_wait_for_completion(&conn_state->commit->hw_done))
+					continue;
+				break;
+			case INTEL_DP_GET_PIPES_SYNC:
+				synced = wait_for_completion_timeout(&conn_state->commit->hw_done,
+								     msecs_to_jiffies(5000));
+				drm_WARN_ON(&i915->drm, !synced);
+				break;
+			default:
+				MISSING_CASE(mode);
+			}
+		}
 
 		*pipe_mask |= BIT(crtc->pipe);
 	}
@@ -5092,7 +5107,9 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 	if (!intel_dp_needs_link_retrain(intel_dp))
 		return 0;
 
-	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
+	ret = intel_dp_get_active_pipes(intel_dp, ctx,
+					INTEL_DP_GET_PIPES_TRY_SYNC,
+					&pipe_mask);
 	if (ret)
 		return ret;
 
