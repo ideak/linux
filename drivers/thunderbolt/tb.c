@@ -1643,7 +1643,8 @@ static void tb_discover_tunnels(struct tb *tb)
 	}
 }
 
-static void tb_deactivate_and_free_tunnel(struct tb_tunnel *tunnel)
+static void tb_deactivate_and_free_tunnel(struct tb_tunnel *tunnel,
+					  bool suspending)
 {
 	struct tb_port *src_port, *dst_port;
 	struct tb *tb;
@@ -1667,10 +1668,12 @@ static void tb_deactivate_and_free_tunnel(struct tb_tunnel *tunnel)
 		 */
 		tb_switch_dealloc_dp_resource(src_port->sw, src_port);
 		/*
-		 * If bandwidth on a link is < asym_threshold
-		 * transition the link to symmetric.
+		 * If bandwidth on a link is < asym_threshold transition
+		 * the link to symmetric. But only if we are not
+		 * entering suspend.
 		 */
-		tb_configure_sym(tb, src_port, dst_port, true);
+		if (!suspending)
+			tb_configure_sym(tb, src_port, dst_port, true);
 		/* Now we can allow the domain to runtime suspend again */
 		pm_runtime_mark_last_busy(&dst_port->sw->dev);
 		pm_runtime_put_autosuspend(&dst_port->sw->dev);
@@ -1704,7 +1707,7 @@ static void tb_free_invalid_tunnels(struct tb *tb)
 
 	list_for_each_entry_safe(tunnel, n, &tcm->tunnel_list, list) {
 		if (tb_tunnel_is_invalid(tunnel))
-			tb_deactivate_and_free_tunnel(tunnel);
+			tb_deactivate_and_free_tunnel(tunnel, false);
 	}
 }
 
@@ -1989,7 +1992,7 @@ static void tb_dp_resource_unavailable(struct tb *tb, struct tb_port *port)
 	}
 
 	tunnel = tb_find_tunnel(tb, TB_TUNNEL_DP, in, out);
-	tb_deactivate_and_free_tunnel(tunnel);
+	tb_deactivate_and_free_tunnel(tunnel, false);
 	list_del_init(&port->list);
 
 	/*
@@ -2032,7 +2035,7 @@ static void tb_disconnect_and_release_dp(struct tb *tb)
 	 */
 	list_for_each_entry_safe_reverse(tunnel, n, &tcm->tunnel_list, list) {
 		if (tb_tunnel_is_dp(tunnel))
-			tb_deactivate_and_free_tunnel(tunnel);
+			tb_deactivate_and_free_tunnel(tunnel, true);
 	}
 
 	while (!list_empty(&tcm->dp_resources)) {
@@ -2179,7 +2182,7 @@ static void __tb_disconnect_xdomain_paths(struct tb *tb, struct tb_xdomain *xd,
 
 		if (tb_tunnel_match_dma(tunnel, transmit_path, transmit_ring,
 					receive_path, receive_ring))
-			tb_deactivate_and_free_tunnel(tunnel);
+			tb_deactivate_and_free_tunnel(tunnel, false);
 	}
 
 	/*
