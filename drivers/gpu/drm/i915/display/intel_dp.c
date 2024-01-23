@@ -5388,28 +5388,7 @@ static bool
 intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
-	u8 old_sink_count = intel_dp->sink_count;
 	bool reprobe_needed = false;
-	bool ret;
-
-	/*
-	 * Clearing compliance test variables to allow capturing
-	 * of values for next automated test request.
-	 */
-	memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
-
-	/*
-	 * Now read the DPCD to see if it's actually running
-	 * If the current value of sink count doesn't match with
-	 * the value that was stored earlier or dpcd read failed
-	 * we need to do full detection
-	 */
-	ret = intel_dp_get_dpcd(intel_dp);
-
-	if ((old_sink_count != intel_dp->sink_count) || !ret) {
-		/* No need to proceed if we are going to do full detect */
-		return false;
-	}
 
 	intel_dp_check_device_service_irq(intel_dp);
 	reprobe_needed = intel_dp_check_link_service_irq(intel_dp);
@@ -6198,6 +6177,8 @@ intel_dp_hpd_pulse(struct intel_digital_port *dig_port, bool long_hpd)
 {
 	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
 	struct intel_dp *intel_dp = &dig_port->dp;
+	u8 old_sink_count = intel_dp->sink_count;
+	bool reprobe_needed = false;
 
 	if (dig_port->base.type == INTEL_OUTPUT_EDP &&
 	    (long_hpd || !intel_pps_have_panel_power_or_vdd(intel_dp))) {
@@ -6220,19 +6201,35 @@ intel_dp_hpd_pulse(struct intel_digital_port *dig_port, bool long_hpd)
 		    dig_port->base.base.name,
 		    long_hpd ? "long" : "short");
 
+	/*
+	 * Clearing compliance test variables to allow capturing
+	 * of values for next automated test request.
+	 */
+	memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
+
+	/*
+	 * Now read the DPCD to see if it's actually running
+	 * If the current value of sink count doesn't match with
+	 * the value that was stored earlier or dpcd read failed
+	 * we need to do full detection
+	 */
+	if (!intel_dp_get_dpcd(intel_dp) ||
+	    (!intel_dp->is_mst && old_sink_count != intel_dp->sink_count)) {
+		/* No need to proceed if we are going to do full detect */
+		reprobe_needed = true;
+	}
+
 	if (long_hpd) {
 		intel_dp->reset_link_params = true;
-		return IRQ_NONE;
-	}
-
-	if (intel_dp->is_mst) {
+		reprobe_needed = true;
+	} else if (intel_dp->is_mst) {
 		if (!intel_dp_check_mst_status(intel_dp))
-			return IRQ_NONE;
+			reprobe_needed = true;
 	} else if (!intel_dp_short_pulse(intel_dp)) {
-		return IRQ_NONE;
+		reprobe_needed = true;
 	}
 
-	return IRQ_HANDLED;
+	return reprobe_needed ? IRQ_NONE : IRQ_HANDLED;
 }
 
 static bool _intel_dp_is_port_edp(struct drm_i915_private *dev_priv,
