@@ -96,6 +96,9 @@ intel_display_param_named_unsafe(nuclear_pageflip, bool, 0400,
 intel_display_param_named_unsafe(enable_dp_mst, bool, 0400,
 	"Enable multi-stream transport (MST) for new DisplayPort sinks. (default: true)");
 
+intel_display_param_named_unsafe(enable_dp_tun_bw_alloc, bool, 0400,
+	"Enable DP tunnel BW allocation. (default: true)");
+
 intel_display_param_named_unsafe(enable_fbc, int, 0400,
 	"Enable frame buffer compression for power savings "
 	"(default: -1 (use per-chip default))");

@@ -177,6 +177,16 @@ static int detect_new_tunnel(struct intel_dp *intel_dp, struct drm_modeset_acqui
 
 	intel_dp->tunnel = tunnel;
 
+	if (!i915->display.params.enable_dp_tun_bw_alloc) {
+		drm_dbg_kms(&i915->drm,
+			    "[DPTUN %s][ENCODER:%d:%s] Keep BW allocation mode disabled due to module parameter\n",
+			    drm_dp_tunnel_name(intel_dp->tunnel),
+			    encoder->base.base.id,
+			    encoder->base.name);
+
+		return 0;
+	}
+
 	ret = drm_dp_tunnel_enable_bw_alloc(intel_dp->tunnel);
 	if (ret) {
 		if (ret == -EOPNOTSUPP)
