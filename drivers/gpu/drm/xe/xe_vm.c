@@ -1079,7 +1079,7 @@ static struct drm_gpuva_op *xe_vm_op_alloc(void)
 
 static void xe_vm_free(struct drm_gpuvm *gpuvm);
 
-static struct drm_gpuvm_ops gpuvm_ops = {
+static const struct drm_gpuvm_ops gpuvm_ops = {
 	.op_alloc = xe_vm_op_alloc,
 	.vm_bo_validate = xe_gpuvm_validate,
 	.vm_free = xe_vm_free,
@@ -1984,6 +1984,7 @@ static int xe_vm_prefetch(struct xe_vm *vm, struct xe_vma *vma,
 					xe_exec_queue_last_fence_get(wait_exec_queue, vm);
 
 				xe_sync_entry_signal(&syncs[i], NULL, fence);
+				dma_fence_put(fence);
 			}
 		}
 
@@ -2530,13 +2531,25 @@ retry_userptr:
 	}
 	drm_exec_fini(&exec);
 
-	if (err == -EAGAIN && xe_vma_is_userptr(vma)) {
+	if (err == -EAGAIN) {
 		lockdep_assert_held_write(&vm->lock);
-		err = xe_vma_userptr_pin_pages(to_userptr_vma(vma));
-		if (!err)
-			goto retry_userptr;
 
-		trace_xe_vma_fail(vma);
+		if (op->base.op == DRM_GPUVA_OP_REMAP) {
+			if (!op->remap.unmap_done)
+				vma = gpuva_to_vma(op->base.remap.unmap->va);
+			else if (op->remap.prev)
+				vma = op->remap.prev;
+			else
+				vma = op->remap.next;
+		}
+
+		if (xe_vma_is_userptr(vma)) {
+			err = xe_vma_userptr_pin_pages(to_userptr_vma(vma));
+			if (!err)
+				goto retry_userptr;
+
+			trace_xe_vma_fail(vma);
+		}
 	}
 
 	return err;
@@ -2669,7 +2682,7 @@ static void vm_bind_ioctl_ops_unwind(struct xe_vm *vm,
 {
 	int i;
 
-	for (i = num_ops_list - 1; i; ++i) {
+	for (i = num_ops_list - 1; i >= 0; --i) {
 		struct drm_gpuva_ops *__ops = ops[i];
 		struct drm_gpuva_op *__op;
 
