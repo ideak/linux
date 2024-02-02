@@ -1,0 +1,34 @@
+drm drm-fixes 39126abc5e20611579602f03b66627d7cd1422f0
+	nouveau: offload fence uevents work to workqueue
+drm-misc drm-misc-fixes 1c1914d6e8c6edbf5b45047419ff51abdb1dce96
+	dma-buf: heaps: Don't track CMA dma-buf pages under RssFile
+drm-intel drm-intel-fixes 41bccc98fb7931d63d03f326a746ac4d429c1dd3
+	Linux 6.8-rc2
+drm-xe drm-xe-fixes 5f16ee27cd5abd5166e28b2311ac693c204063ff
+	drm/hwmon: Fix abi doc warnings
+drm drm-next 41bccc98fb7931d63d03f326a746ac4d429c1dd3
+	Linux 6.8-rc2
+drm-misc drm-misc-next-fixes 1f1626ac0428820f998245478610f452650bcab5
+	drm/ttm: fix ttm pool initialization for no-dma-device drivers
+drm-intel drm-intel-next-fixes 84b5ece64477df4394d362d494a2496bf0878985
+	drm/i915: Drop -Wstringop-overflow
+drm-xe drm-xe-next-fixes bf3ff145df184698a8a80b33265064638572366f
+	drm/xe: display support should not depend on EXPERT
+drm-misc drm-misc-next 3d94e7584486f7ac4a44fe215330ae6a1094e492
+	dt-bindings: visionox-rm69299: Update maintainers
+drm-intel drm-intel-next 35396cd3efa8b0311fbbb5a0cc48bd7d8b017b81
+	drm/i915/fbc: Allow FBC with CCS modifiers on SKL+
+drm-intel drm-intel-gt-next 4104e634bba446a7b32b4accc980d97dde849f0d
+	drm/i915/gt: Reflect the true and current status of rc6_enable
+drm-xe drm-xe-next 447f74d223b4f6cbab74963bf1099050c15374ce
+	drm/xe: Pick correct userptr VMA to repin on REMAP op failure
+drm-intel topic/core-for-CI 43751d3da708cb3f7bf61db6aada0c1576ac9c4e
+	kunit: Mark filter* params as rw
+drm topic/nouveau-misc dfc4005f8c172eea359f9db08c3b2b0ff0153699
+	drm/nouveau/disp: move DAC load detection method
+drm topic/drm-ci ad6bfe1b66a5c146ec236847eca7af4c8806d666
+	drm: ci: docs: fix build warning - add missing escape
+drm topic/vmemdup-user-array 06ab64a0d836ac430c5f94669710a78aa43942cb
+	drm: vmwgfx_surface.c: copy user-array safely
+drm-xe topic/xe-for-CI e4cfe0cd981952f6ed3d5b92a0b7e3ae0b3ad2b4
+	drm/xe/guc: define LNL FW
