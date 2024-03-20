@@ -54,16 +54,19 @@
 static int intel_dp_mst_check_constraints(struct drm_i915_private *i915, int bpp,
 					  const struct drm_display_mode *adjusted_mode,
 					  struct intel_crtc_state *crtc_state,
-					  bool dsc)
+					  bool dsc, int bw_overhead)
 {
 	if (intel_dp_is_uhbr(crtc_state) && DISPLAY_VER(i915) < 14 && dsc) {
 		int output_bpp = bpp;
 		int symbol_clock = intel_dp_link_symbol_clock(crtc_state->port_clock);
+		int available_bw = mul_u32_u32(symbol_clock * 72,
+					       drm_dp_bw_channel_coding_efficiency(true)) /
+				   bw_overhead;
 
 		if (output_bpp * adjusted_mode->crtc_clock >
-		    symbol_clock * 72) {
+		    available_bw) {
 			drm_dbg_kms(&i915->drm, "UHBR check failed(required bw %d available %d)\n",
-				    output_bpp * adjusted_mode->crtc_clock, symbol_clock * 72);
+				    output_bpp * adjusted_mode->crtc_clock, available_bw);
 			return -EINVAL;
 		}
 	}
@@ -187,10 +190,6 @@ static int intel_dp_mst_find_vcpi_slots_for_bpp(struct intel_encoder *encoder,
 
 		drm_dbg_kms(&i915->drm, "Trying bpp %d\n", bpp);
 
-		ret = intel_dp_mst_check_constraints(i915, bpp, adjusted_mode, crtc_state, dsc);
-		if (ret)
-			continue;
-
 		link_bpp_x16 = to_bpp_x16(dsc ? bpp :
 					  intel_dp_output_bpp(crtc_state->output_format, bpp));
 
@@ -198,6 +197,11 @@ static int intel_dp_mst_find_vcpi_slots_for_bpp(struct intel_encoder *encoder,
 							     false, dsc, link_bpp_x16);
 		remote_bw_overhead = intel_dp_mst_bw_overhead(crtc_state, connector,
 							      true, dsc, link_bpp_x16);
+
+		ret = intel_dp_mst_check_constraints(i915, bpp, adjusted_mode, crtc_state, dsc,
+						     remote_bw_overhead);
+		if (ret)
+			continue;
 
 		intel_dp_mst_compute_m_n(crtc_state, connector,
 					 local_bw_overhead,
