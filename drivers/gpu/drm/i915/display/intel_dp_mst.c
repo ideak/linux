@@ -51,27 +51,24 @@
 #include "intel_vdsc.h"
 #include "skl_scaler.h"
 
-static int intel_dp_mst_check_constraints(struct drm_i915_private *i915, int bpp,
-					  const struct drm_display_mode *adjusted_mode,
-					  struct intel_crtc_state *crtc_state,
-					  bool dsc, int bw_overhead)
+static int intel_dp_mst_max_dpt_bpp(const struct intel_crtc_state *crtc_state,
+				    bool dsc, int bw_overhead)
 {
-	if (intel_dp_is_uhbr(crtc_state) && DISPLAY_VER(i915) < 20 && dsc) {
-		int output_bpp = bpp;
-		int symbol_clock = intel_dp_link_symbol_clock(crtc_state->port_clock);
-		int available_bw = mul_u32_u32(symbol_clock * 72,
-					       drm_dp_bw_channel_coding_efficiency(true)) /
-				   bw_overhead;
+	struct drm_i915_private *i915 = to_i915(crtc_state->uapi.crtc->dev);
+	const struct drm_display_mode *adjusted_mode =
+		&crtc_state->hw.adjusted_mode;
 
-		if (output_bpp * adjusted_mode->crtc_clock >
-		    available_bw) {
-			drm_dbg_kms(&i915->drm, "UHBR check failed(required bw %d available %d)\n",
-				    output_bpp * adjusted_mode->crtc_clock, available_bw);
-			return -EINVAL;
-		}
-	}
+	if (!intel_dp_is_uhbr(crtc_state) || DISPLAY_VER(i915) >= 20 || !dsc)
+		return INT_MAX;
 
-	return 0;
+	/*
+	 * DSC->DPT interface width:
+	 *   ICL-MTL: 72 bits (each branch has 72 bits, only left branch is used)
+	 *   LNL+:    144 bits (not a bottleneck in any config)
+	 */
+	return div64_u64(mul_u32_u32(intel_dp_link_symbol_clock(crtc_state->port_clock) * 72,
+				     drm_dp_bw_channel_coding_efficiency(true)),
+			 mul_u32_u32(adjusted_mode->crtc_clock, bw_overhead));
 }
 
 static int intel_dp_mst_bw_overhead(const struct intel_crtc_state *crtc_state,
@@ -186,6 +183,7 @@ static int intel_dp_mst_find_vcpi_slots_for_bpp(struct intel_encoder *encoder,
 		int local_bw_overhead;
 		int remote_bw_overhead;
 		int link_bpp_x16;
+		int max_dpt_bpp;
 		int remote_tu;
 
 		drm_dbg_kms(&i915->drm, "Trying bpp %d\n", bpp);
@@ -198,10 +196,11 @@ static int intel_dp_mst_find_vcpi_slots_for_bpp(struct intel_encoder *encoder,
 		remote_bw_overhead = intel_dp_mst_bw_overhead(crtc_state, connector,
 							      true, dsc, link_bpp_x16);
 
-		ret = intel_dp_mst_check_constraints(i915, bpp, adjusted_mode, crtc_state, dsc,
-						     remote_bw_overhead);
-		if (ret)
+		max_dpt_bpp = intel_dp_mst_max_dpt_bpp(crtc_state, dsc, remote_bw_overhead);
+		if (bpp > max_dpt_bpp) {
+			drm_dbg_kms(&i915->drm, "bpp above DPT bpp limit (%d)\n", max_dpt_bpp);
 			continue;
+		}
 
 		intel_dp_mst_compute_m_n(crtc_state, connector,
 					 local_bw_overhead,
