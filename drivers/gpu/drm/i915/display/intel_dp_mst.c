@@ -88,11 +88,10 @@ static int intel_dp_mst_bw_overhead(const struct intel_crtc_state *crtc_state,
 
 	if (dsc) {
 		flags |= DRM_DP_BW_OVERHEAD_DSC;
-		/* TODO: add support for bigjoiner */
 		dsc_slice_count = intel_dp_dsc_get_slice_count(connector,
 							       adjusted_mode->clock,
 							       adjusted_mode->hdisplay,
-							       false);
+							       crtc_state->bigjoiner_pipes);
 	}
 
 	overhead = drm_dp_bw_overhead(crtc_state->lane_count,
