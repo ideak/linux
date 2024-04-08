@@ -1,0 +1,30 @@
+drm drm-fixes 4c8595741b5dd3268d6710545461ee9a7bbde891
+	Merge tag 'drm-intel-fixes-2024-04-04' of https://anongit.freedesktop.org/git/drm/drm-intel into drm-fixes
+drm-misc drm-misc-fixes 185fdb4697cc9684a02f2fab0530ecdd0c2f15d4
+	nouveau: fix function cast warning
+drm-intel drm-intel-fixes 99f855082f228cdcecd6ab768d3b8b505e0eb028
+	drm/i915/mst: Reject FEC+MST on ICL
+drm-xe drm-xe-fixes 77a011012d7d8b98368a763bf74317c6d5ce00f1
+	drm/xe: Use ordered wq for preempt fence waiting
+drm drm-next 1f913730e7c7904595cd899659c9a46f27eda07c
+	Merge tag 'drm-misc-next-2024-04-05' of https://gitlab.freedesktop.org/drm/misc/kernel into drm-next
+drm-misc drm-misc-next-fixes 5d4e8ae6e57b025802aadf55a4775c55cceb75f1
+	nouveau/gsp: don't check devinit disable on GSP.
+drm-intel drm-intel-next-fixes 84b5ece64477df4394d362d494a2496bf0878985
+	drm/i915: Drop -Wstringop-overflow
+drm-xe drm-xe-next-fixes 4cece764965020c22cff7665b18a012006359095
+	Linux 6.9-rc1
+drm-misc drm-misc-next b48ccb18e642c96473325bc0e16977dc7cb81f48
+	drm-panel: If drm_panel_dp_aux_backlight() fails, don't fail panel probe
+drm-intel drm-intel-next bbd62a59f8d1e2a44bd7f7b4605201f28e976a29
+	drm/xe/display: clean up compat i915_vgpu.h
+drm-intel drm-intel-gt-next 3563d855312acedcd445a3767f0cb07906f1c26f
+	drm/i915/guc: Fix the fix for reset lock confusion
+drm-xe drm-xe-next 1d7d997cd764ad1d462d857e3036d61bbcf534d1
+	drm/xe: Drop xe_vm_assert_held() macro definition from xe_bo.h
+drm-intel topic/core-for-CI 44909e5ed2f8e95a9a8576f44d570c68c76c44d6
+	ASoC: SOF: Core: Add remove_late() to  sof_init_environment failure path
+drm-xe topic/xe-for-CI ddb9be6feae2523fd4069482e44729e211f34219
+	drm/xe/huc: Define LNL HuC
+drm-intel topic/thunderbolt-next b8a730836c6b1788ca2fbd6bcc2ac99e97ef7de9
+	thunderbolt: Constify the struct device_type usage
