@@ -537,6 +537,7 @@
 # define DP_PCON_DSC_ONE_BPP		    4
 
 /* DP Extended DSC Capabilities */
+#define DP_DSC_BRANCH_CAP_SIZE              3 /* 0xa0 through 0xa2 */
 #define DP_DSC_BRANCH_OVERALL_THROUGHPUT_0  0x0a0   /* DP 1.4a SCR */
 #define DP_DSC_BRANCH_OVERALL_THROUGHPUT_1  0x0a1
 #define DP_DSC_BRANCH_MAX_LINE_WIDTH        0x0a2

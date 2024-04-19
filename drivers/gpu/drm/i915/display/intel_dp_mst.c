@@ -443,7 +443,30 @@ hblank_expansion_quirk_needs_dsc(const struct intel_connector *connector,
 }
 
 static bool
-adjust_limits_for_dsc_hblank_expansion_quirk(const struct intel_connector *connector,
+intel_dp_mst_dsc_branch_supports_mode(struct intel_dp *intel_dp,
+				      const struct intel_crtc_state *crtc_state)
+{
+	int max_width = drm_dp_mst_dsc_branch_max_line_buffer_width(intel_dp->dsc_branch_caps);
+	int max_throughput = drm_dp_mst_dsc_branch_overall_throughput(intel_dp->dsc_branch_caps, 0);
+	const struct drm_display_mode *adjusted_mode =
+		&crtc_state->hw.adjusted_mode;
+
+	if (max_width > 0 && adjusted_mode->hdisplay > max_width)
+		return false;
+
+	/* TODO: Add support for YUV mode */
+	if (crtc_state->output_format != INTEL_OUTPUT_FORMAT_RGB)
+		return true;
+
+	if (max_throughput > 0 && adjusted_mode->clock > max_throughput * 1000)
+		return false;
+
+	return true;
+}
+
+static bool
+adjust_limits_for_dsc_hblank_expansion_quirk(struct intel_dp *intel_dp,
+					     const struct intel_connector *connector,
 					     const struct intel_crtc_state *crtc_state,
 					     struct link_config_limits *limits,
 					     bool dsc)
@@ -456,6 +479,9 @@ adjust_limits_for_dsc_hblank_expansion_quirk(const struct intel_connector *conne
 		return true;
 
 	if (!dsc) {
+		if (!intel_dp_mst_dsc_branch_supports_mode(intel_dp, crtc_state))
+			return true;
+
 		if (intel_dp_mst_dsc_source_support(crtc_state)) {
 			drm_dbg_kms(&i915->drm,
 				    "[CRTC:%d:%s][CONNECTOR:%d:%s] DSC needed by hblank expansion quirk\n",
@@ -537,7 +563,11 @@ intel_dp_mst_compute_config_limits(struct intel_dp *intel_dp,
 						     limits))
 		return false;
 
-	return adjust_limits_for_dsc_hblank_expansion_quirk(connector,
+	if (dsc && !intel_dp_mst_dsc_branch_supports_mode(intel_dp, crtc_state))
+		return false;
+
+	return adjust_limits_for_dsc_hblank_expansion_quirk(intel_dp,
+							    connector,
 							    crtc_state,
 							    limits,
 							    dsc);

@@ -957,6 +957,12 @@ bool drm_dp_mst_port_is_logical(struct drm_dp_mst_port *port)
 struct drm_dp_aux *drm_dp_mst_aux_for_parent(struct drm_dp_mst_port *port);
 struct drm_dp_aux *drm_dp_mst_dsc_aux_for_port(struct drm_dp_mst_port *port);
 
+int drm_dp_mst_read_dsc_branch_caps(struct drm_dp_aux *aux,
+				    u8 caps[DP_DSC_BRANCH_CAP_SIZE]);
+int drm_dp_mst_dsc_branch_overall_throughput(const u8 caps[DP_DSC_BRANCH_CAP_SIZE],
+					     int mode);
+int drm_dp_mst_dsc_branch_max_line_buffer_width(const u8 caps[DP_DSC_BRANCH_CAP_SIZE]);
+
 static inline struct drm_dp_mst_topology_state *
 to_drm_dp_mst_topology_state(struct drm_private_state *state)
 {

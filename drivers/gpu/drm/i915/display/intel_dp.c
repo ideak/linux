@@ -4143,6 +4143,10 @@ intel_dp_mst_configure(struct intel_dp *intel_dp)
 
 	/* Avoid stale info on the next detect cycle. */
 	intel_dp->mst_detect = DRM_DP_SST;
+
+	if (intel_dp->is_mst)
+		drm_dp_mst_read_dsc_branch_caps(&intel_dp->aux,
+						intel_dp->dsc_branch_caps);
 }
 
 static void

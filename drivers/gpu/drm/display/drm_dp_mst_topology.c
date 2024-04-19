@@ -6150,3 +6150,42 @@ struct drm_dp_aux *drm_dp_mst_dsc_aux_for_port(struct drm_dp_mst_port *port)
 	return NULL;
 }
 EXPORT_SYMBOL(drm_dp_mst_dsc_aux_for_port);
+
+int drm_dp_mst_read_dsc_branch_caps(struct drm_dp_aux *aux,
+				    u8 caps[DP_DSC_BRANCH_CAP_SIZE])
+{
+	int ret;
+
+	ret = drm_dp_dpcd_read(aux, DP_DSC_BRANCH_OVERALL_THROUGHPUT_0, caps,
+			       DP_DSC_BRANCH_CAP_SIZE);
+
+	return ret < 0 ? ret : 0;
+}
+EXPORT_SYMBOL(drm_dp_mst_read_dsc_branch_caps);
+
+int drm_dp_mst_dsc_branch_overall_throughput(const u8 caps[DP_DSC_BRANCH_CAP_SIZE], int mode)
+{
+	if (WARN_ON(mode != 0 && mode != 1))
+		return 0;
+
+	switch (caps[mode]) {
+	case 0:
+		return 0;
+	case 1:
+		return 680;
+	default:
+		return 600 + 50 * caps[mode];
+	}
+}
+EXPORT_SYMBOL(drm_dp_mst_dsc_branch_overall_throughput);
+
+int drm_dp_mst_dsc_branch_max_line_buffer_width(const u8 caps[DP_DSC_BRANCH_CAP_SIZE])
+{
+	int width = caps[DP_DSC_BRANCH_MAX_LINE_WIDTH - DP_DSC_BRANCH_OVERALL_THROUGHPUT_0];
+
+	if (width < 16)
+		return 0;
+
+	return width * 320;
+}
+EXPORT_SYMBOL(drm_dp_mst_dsc_branch_max_line_buffer_width);
