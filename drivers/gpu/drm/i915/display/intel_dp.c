@@ -5401,6 +5401,22 @@ void intel_dp_check_link_state(struct intel_dp *intel_dp)
 	intel_encoder_link_check_queue_work(encoder, 0);
 }
 
+void intel_dp_reset_link(struct intel_dp *intel_dp)
+{
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	struct intel_encoder *encoder = &dig_port->base;
+
+	if (!intel_dp_is_connected(intel_dp))
+		return;
+
+	drm_modeset_lock(&i915->drm.mode_config.connection_mutex, NULL);
+	intel_dp->link.force_retrain = true;
+	drm_modeset_unlock(&i915->drm.mode_config.connection_mutex);
+
+	intel_encoder_link_check_queue_work(encoder, 2000);
+}
+
 static int intel_dp_prep_phy_test(struct intel_dp *intel_dp,
 				  struct drm_modeset_acquire_ctx *ctx,
 				  u8 *pipe_mask)

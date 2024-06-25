@@ -1171,7 +1171,7 @@ intel_dp_hotplug(struct intel_encoder *encoder,
 
 	state = intel_encoder_hotplug(encoder, connector);
 
-	intel_dp_check_link_state(intel_dp);
+	intel_dp_reset_link(intel_dp);
 
 	/*
 	 * Keeping it consistent with intel_ddi_hotplug() and

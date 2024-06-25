@@ -4563,7 +4563,7 @@ intel_ddi_hotplug(struct intel_encoder *encoder,
 				ret = intel_hdmi_reset_link(encoder, &ctx);
 			drm_WARN_ON(encoder->base.dev, ret);
 		} else {
-			intel_dp_check_link_state(intel_dp);
+			intel_dp_reset_link(intel_dp);
 		}
 	}
 
