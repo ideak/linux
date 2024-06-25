@@ -5286,6 +5286,7 @@ static int intel_dp_retrain_link(struct intel_encoder *encoder,
 	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 	struct intel_crtc *crtc;
 	bool mst_output = false;
+	u32 connector_mask;
 	u8 pipe_mask;
 	int ret;
 
@@ -5300,7 +5301,7 @@ static int intel_dp_retrain_link(struct intel_encoder *encoder,
 	if (!intel_dp_needs_link_retrain(intel_dp))
 		return 0;
 
-	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
+	ret = intel_dp_get_active_link(intel_dp, ctx, &pipe_mask, &connector_mask);
 	if (ret)
 		return ret;
 
@@ -5368,22 +5369,22 @@ static int intel_dp_retrain_link(struct intel_encoder *encoder,
 	}
 
 out:
-	if (ret != -EDEADLK)
+	if (ret != -EDEADLK) {
 		intel_dp->link.force_retrain = false;
+		if (ret)
+			intel_dp_queue_modeset_retry_for_connectors(dev_priv, connector_mask);
+	}
 
 	return ret;
 }
 
 void intel_dp_link_check(struct intel_encoder *encoder)
 {
-	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
 	struct drm_modeset_acquire_ctx ctx;
 	int ret;
 
 	intel_modeset_lock_ctx_retry(&ctx, NULL, 0, ret)
 		ret = intel_dp_retrain_link(encoder, &ctx);
-
-	drm_WARN_ON(&i915->drm, ret);
 }
 
 void intel_dp_check_link_state(struct intel_dp *intel_dp)
