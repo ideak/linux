@@ -1505,6 +1505,8 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	else
 		passed = intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count);
 
+	intel_dp->link.force_retrain = false;
+
 	if (intel_dp->link.force_train_failure) {
 		intel_dp->link.force_train_failure--;
 		lt_dbg(intel_dp, DP_PHY_DPRX, "Forcing link training failure\n");
