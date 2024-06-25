@@ -5212,9 +5212,9 @@ static bool intel_dp_has_connector(struct intel_dp *intel_dp,
 	return false;
 }
 
-int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
-			      struct drm_modeset_acquire_ctx *ctx,
-			      u8 *pipe_mask)
+static int intel_dp_get_active_link(struct intel_dp *intel_dp,
+				    struct drm_modeset_acquire_ctx *ctx,
+				    u8 *pipe_mask, u32 *connector_mask)
 {
 	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
 	struct drm_connector_list_iter conn_iter;
@@ -5222,6 +5222,7 @@ int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
 	int ret = 0;
 
 	*pipe_mask = 0;
+	*connector_mask = 0;
 
 	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
 	for_each_intel_connector_iter(connector, &conn_iter) {
@@ -5254,10 +5255,20 @@ int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
 								 msecs_to_jiffies(5000)));
 
 		*pipe_mask |= BIT(crtc->pipe);
+		*connector_mask |= drm_connector_mask(&connector->base);
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
 	return ret;
+}
+
+int intel_dp_get_active_pipes(struct intel_dp *intel_dp,
+			      struct drm_modeset_acquire_ctx *ctx,
+			      u8 *pipe_mask)
+{
+	u32 connector_mask;	/* not used */
+
+	return intel_dp_get_active_link(intel_dp, ctx, pipe_mask, &connector_mask);
 }
 
 static bool intel_dp_is_connected(struct intel_dp *intel_dp)
