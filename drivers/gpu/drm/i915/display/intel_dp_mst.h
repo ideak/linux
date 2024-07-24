@@ -29,4 +29,6 @@ bool intel_dp_mst_crtc_needs_modeset(struct intel_atomic_state *state,
 				     struct intel_crtc *crtc);
 void intel_dp_mst_prepare_probe(struct intel_dp *intel_dp);
 
+bool intel_dp_mst_verify_dpcd_state(struct intel_dp *intel_dp);
+
 #endif /* __INTEL_DP_MST_H__ */
