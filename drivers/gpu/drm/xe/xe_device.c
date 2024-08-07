@@ -150,6 +150,7 @@ void xe_file_put(struct xe_file *xef)
 
 static void xe_file_close(struct drm_device *dev, struct drm_file *file)
 {
+	struct xe_device *xe = to_xe_device(dev);
 	struct xe_file *xef = file->driver_priv;
 	struct xe_vm *vm;
 	struct xe_exec_queue *q;
