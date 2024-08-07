@@ -1,0 +1,28 @@
+drm drm-fixes 27ce65f65258cf2f2855162cbeef59659a81fac4
+	Revert "nouveau: rip out busy fence waits"
+drm-misc drm-misc-fixes 929725bd7eb4eea1f75197d9847f3f1ea5afdad1
+	drm/atomic: allow no-op FB_ID updates for async flips
+drm-intel drm-intel-fixes 787db3bb6ed5cee56fc97fecdd61517d89763f0a
+	drm/i915: Attempt to get pages without eviction first
+drm-xe drm-xe-fixes 609458abd5a10180f513ca364d6c0ae30128c821
+	drm/xe/display/xe_hdcp_gsc: Free arbiter on driver removal
+drm drm-next a4172af3040cdc207f1b60efffcdd219156093c9
+	Merge tag 'drm-xe-next-2024-07-30' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-next
+drm-misc drm-misc-next-fixes 291e4baf70019f17a81b7b47aeb186b27d222159
+	kselftests: dmabuf-heaps: Ensure the driver name is null-terminated
+drm-intel drm-intel-next-fixes 8400291e289ee6b2bf9779ff1c83a291501f017b
+	Linux 6.11-rc1
+drm-xe drm-xe-next-fixes 0cf3f7297d01c6863fb5a20c3e247999824e3dde
+	drm/xe/vf: Fix register value lookup
+drm-misc drm-misc-next f7f3ddb6e5c8dc7b621fd8c0903ea42190d67452
+	gpu: drm: use for_each_endpoint_of_node()
+drm-intel drm-intel-next 34d0472ce1087fbf8e2ba504a4625e4c74286c63
+	drm/i915: Remove DSC register dump
+drm-intel drm-intel-gt-next 0829b5bcdd3ba077c408e71e22ac2bfa85bf2c95
+	drm/i915: 2 GiB of relocations ought to be enough for anybody*
+drm-xe drm-xe-next e102b5ed6e283a144793cab8fcd95f61d0ddbadb
+	drm/xe: Fix access_ok check in user_fence_create
+drm-intel topic/core-for-CI 9d38844bfb1250e3616ac488f9b99fa8bd335480
+	usb: typec: ucsi: Fix a potential deadlock in ucsi_send_command_common()
+drm-xe topic/xe-for-CI 2d5e5ecf0a3f43221fd39fc24f18be6872bc97d1
+	drm/xe/guc: Pre-release GuC firmware v70.29.2 for PVC
