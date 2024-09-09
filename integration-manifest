@@ -1,0 +1,28 @@
+drm drm-fixes 141bb6bc73cf45e8b742d6fafa6734b6d5f82b77
+	Merge tag 'amd-drm-fixes-6.11-2024-09-05' of https://gitlab.freedesktop.org/agd5f/linux into drm-fixes
+drm-misc drm-misc-fixes ea5ff5d351b520524019f7ff7f9ce418de2dad87
+	dma-buf: heaps: Fix off-by-one in CMA heap fault handler
+drm-intel drm-intel-fixes da3ea35007d0af457a0afc87e84fddaebc4e0b63
+	Linux 6.11-rc7
+drm-xe drm-xe-fixes 4bfc9c553f5ea8cbfe085824f3283885cf173c20
+	drm/xe/display: Avoid encoder_suspend at runtime suspend
+drm drm-next 88a29f8c5ff97f9e134005d620613f3f9c1aa81a
+	Merge tag 'mediatek-drm-next-6.12' of https://git.kernel.org/pub/scm/linux/kernel/git/chunkuang.hu/linux into drm-next
+drm-misc drm-misc-next-fixes ba2b9de0c1ac2abfbe663414a292c5881e64c361
+	drm/tegra: fix potential uninitialized variable use
+drm-intel drm-intel-next-fixes 8400291e289ee6b2bf9779ff1c83a291501f017b
+	Linux 6.11-rc1
+drm-xe drm-xe-next-fixes a4172af3040cdc207f1b60efffcdd219156093c9
+	Merge tag 'drm-xe-next-2024-07-30' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-next
+drm-misc drm-misc-next 7a4fe6525450eb950de040336de996775e40176e
+	dma-buf: heaps: Add __init to CMA and system heap module_init functions
+drm-intel drm-intel-next 54df34c5a2439b481f066476e67bfa21a0a640e5
+	drm/i915/bios: fix printk format width
+drm-intel drm-intel-gt-next 1f1c1bd56620b80ae407c5790743e17caad69cec
+	drm/i915/guc: prevent a possible int overflow in wq offsets
+drm-xe drm-xe-next 0c841e47d8d94bd0f5444a25052d86c0b1f2c2e8
+	drm/xe: Update runtime detection of has_flat_ccs
+drm-intel topic/core-for-CI 5d4f308a0cd71418b7a8f9a09a24f230b4b217e6
+	thunderbolt: Add Kconfig option to disable PCIe tunneling
+drm-xe topic/xe-for-CI 1ec484590947f43be963899f7885d9b92bd26f07
+	drm/xe/guc: Pre-release GuC firmware v70.29.2 for PVC
