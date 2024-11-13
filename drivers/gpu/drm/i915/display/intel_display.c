@@ -511,6 +511,7 @@ void vlv_wait_port_ready(struct intel_display *display,
 
 void intel_enable_transcoder(const struct intel_crtc_state *new_crtc_state)
 {
+	struct intel_display *display = to_intel_display(new_crtc_state);
 	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->uapi.crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder = new_crtc_state->cpu_transcoder;
@@ -554,8 +555,7 @@ void intel_enable_transcoder(const struct intel_crtc_state *new_crtc_state)
 		if (DISPLAY_VER(dev_priv) == 14)
 			set |= DP_FEC_BS_JITTER_WA;
 
-		intel_de_rmw(dev_priv,
-			     hsw_chicken_trans_reg(dev_priv, cpu_transcoder),
+		intel_de_rmw(display, CHICKEN_TRANS(display, cpu_transcoder),
 			     clear, set);
 	}
 
@@ -591,6 +591,7 @@ void intel_enable_transcoder(const struct intel_crtc_state *new_crtc_state)
 
 void intel_disable_transcoder(const struct intel_crtc_state *old_crtc_state)
 {
+	struct intel_display *display = to_intel_display(old_crtc_state);
 	struct intel_crtc *crtc = to_intel_crtc(old_crtc_state->uapi.crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder = old_crtc_state->cpu_transcoder;
@@ -628,7 +629,7 @@ void intel_disable_transcoder(const struct intel_crtc_state *old_crtc_state)
 	intel_de_write(dev_priv, TRANSCONF(dev_priv, cpu_transcoder), val);
 
 	if (DISPLAY_VER(dev_priv) >= 12)
-		intel_de_rmw(dev_priv, hsw_chicken_trans_reg(dev_priv, cpu_transcoder),
+		intel_de_rmw(display, CHICKEN_TRANS(display, cpu_transcoder),
 			     FECSTALL_DIS_DPTSTREAM_DPTTG, 0);
 
 	if ((val & TRANSCONF_ENABLE) == 0)
@@ -1744,10 +1745,9 @@ static void hsw_set_linetime_wm(const struct intel_crtc_state *crtc_state)
 
 static void hsw_set_frame_start_delay(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_display *display = to_intel_display(crtc_state);
 
-	intel_de_rmw(i915, hsw_chicken_trans_reg(i915, crtc_state->cpu_transcoder),
+	intel_de_rmw(display, CHICKEN_TRANS(display, crtc_state->cpu_transcoder),
 		     HSW_FRAME_START_DELAY_MASK,
 		     HSW_FRAME_START_DELAY(crtc_state->framestart_delay - 1));
 }
@@ -2371,7 +2371,7 @@ static bool intel_crtc_supports_double_wide(const struct intel_crtc *crtc)
 	const struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 
 	/* GDG double wide on either pipe, otherwise pipe A only */
-	return DISPLAY_VER(dev_priv) < 4 &&
+	return HAS_DOUBLE_WIDE(dev_priv) &&
 		(crtc->pipe == PIPE_A || IS_I915G(dev_priv));
 }
 
@@ -3207,7 +3207,7 @@ static bool i9xx_get_pipe_config(struct intel_crtc *crtc,
 
 	intel_color_get_config(pipe_config);
 
-	if (DISPLAY_VER(dev_priv) < 4)
+	if (HAS_DOUBLE_WIDE(dev_priv))
 		pipe_config->double_wide = tmp & TRANSCONF_DOUBLE_WIDE;
 
 	intel_get_transcoder_timings(crtc, pipe_config);
@@ -3746,12 +3746,13 @@ static u8 fixup_ultrajoiner_secondary_pipes(u8 ultrajoiner_primary_pipes,
 static void enabled_ultrajoiner_pipes(struct drm_i915_private *i915,
 				      u8 *primary_pipes, u8 *secondary_pipes)
 {
+	struct intel_display *display = &i915->display;
 	struct intel_crtc *crtc;
 
 	*primary_pipes = 0;
 	*secondary_pipes = 0;
 
-	if (!HAS_ULTRAJOINER(i915))
+	if (!HAS_ULTRAJOINER(display))
 		return;
 
 	for_each_intel_crtc_in_pipe_mask(&i915->drm, crtc,
@@ -4111,6 +4112,7 @@ static void intel_joiner_get_config(struct intel_crtc_state *crtc_state)
 static bool hsw_get_pipe_config(struct intel_crtc *crtc,
 				struct intel_crtc_state *pipe_config)
 {
+	struct intel_display *display = to_intel_display(crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	bool active;
 	u32 tmp;
@@ -4187,7 +4189,7 @@ static bool hsw_get_pipe_config(struct intel_crtc *crtc,
 	}
 
 	if (!transcoder_is_dsi(pipe_config->cpu_transcoder)) {
-		tmp = intel_de_read(dev_priv, hsw_chicken_trans_reg(dev_priv, pipe_config->cpu_transcoder));
+		tmp = intel_de_read(display, CHICKEN_TRANS(display, pipe_config->cpu_transcoder));
 
 		pipe_config->framestart_delay = REG_FIELD_GET(HSW_FRAME_START_DELAY_MASK, tmp) + 1;
 	} else {
@@ -4545,6 +4547,7 @@ static int hsw_compute_linetime_wm(struct intel_atomic_state *state,
 static int intel_crtc_atomic_check(struct intel_atomic_state *state,
 				   struct intel_crtc *crtc)
 {
+	struct intel_display *display = to_intel_display(crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	struct intel_crtc_state *crtc_state =
 		intel_atomic_get_new_crtc_state(state, crtc);
@@ -4581,12 +4584,12 @@ static int intel_crtc_atomic_check(struct intel_atomic_state *state,
 				return ret;
 		}
 
-		ret = intel_atomic_setup_scalers(dev_priv, crtc, crtc_state);
+		ret = intel_atomic_setup_scalers(state, crtc);
 		if (ret)
 			return ret;
 	}
 
-	if (HAS_IPS(dev_priv)) {
+	if (HAS_IPS(display)) {
 		ret = hsw_ips_compute_config(state, crtc);
 		if (ret)
 			return ret;
@@ -5322,6 +5325,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 			  const struct intel_crtc_state *pipe_config,
 			  bool fastset)
 {
+	struct intel_display *display = to_intel_display(current_config);
 	struct drm_i915_private *dev_priv = to_i915(current_config->uapi.crtc->dev);
 	struct intel_crtc *crtc = to_intel_crtc(pipe_config->uapi.crtc);
 	struct drm_printer p;
@@ -5562,7 +5566,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	PIPE_CONF_CHECK_I(lane_count);
 	PIPE_CONF_CHECK_X(lane_lat_optim_mask);
 
-	if (HAS_DOUBLE_BUFFERED_M_N(dev_priv)) {
+	if (HAS_DOUBLE_BUFFERED_M_N(display)) {
 		if (!fastset || !pipe_config->update_m_n)
 			PIPE_CONF_CHECK_M_N(dp_m_n);
 	} else {
@@ -5743,7 +5747,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	PIPE_CONF_CHECK_I(dsc.config.nsl_bpg_offset);
 
 	PIPE_CONF_CHECK_BOOL(dsc.compression_enable);
-	PIPE_CONF_CHECK_BOOL(dsc.dsc_split);
+	PIPE_CONF_CHECK_I(dsc.num_streams);
 	PIPE_CONF_CHECK_I(dsc.compressed_bpp_x16);
 
 	PIPE_CONF_CHECK_BOOL(splitter.enable);
@@ -8308,11 +8312,12 @@ void intel_setup_outputs(struct drm_i915_private *dev_priv)
 
 static int max_dotclock(struct drm_i915_private *i915)
 {
-	int max_dotclock = i915->display.cdclk.max_dotclk_freq;
+	struct intel_display *display = &i915->display;
+	int max_dotclock = display->cdclk.max_dotclk_freq;
 
-	if (HAS_ULTRAJOINER(i915))
+	if (HAS_ULTRAJOINER(display))
 		max_dotclock *= 4;
-	else if (HAS_UNCOMPRESSED_JOINER(i915) || HAS_BIGJOINER(i915))
+	else if (HAS_UNCOMPRESSED_JOINER(display) || HAS_BIGJOINER(display))
 		max_dotclock *= 2;
 
 	return max_dotclock;
