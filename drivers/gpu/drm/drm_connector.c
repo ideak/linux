@@ -218,11 +218,11 @@ void drm_connector_free_work_fn(struct work_struct *work)
 	}
 }
 
-static int __drm_connector_init(struct drm_device *dev,
-				struct drm_connector *connector,
-				const struct drm_connector_funcs *funcs,
-				int connector_type,
-				struct i2c_adapter *ddc)
+static int __drm_connector_init_early(struct drm_device *dev,
+				      struct drm_connector *connector,
+				      const struct drm_connector_funcs *funcs,
+				      int connector_type,
+				      struct i2c_adapter *ddc)
 {
 	struct drm_mode_config *config = &dev->mode_config;
 	int ret;
@@ -288,14 +288,6 @@ static int __drm_connector_init(struct drm_device *dev,
 
 	drm_connector_get_cmdline_mode(connector);
 
-	/* We should add connectors at the end to avoid upsetting the connector
-	 * index too much.
-	 */
-	spin_lock_irq(&config->connector_list_lock);
-	list_add_tail(&connector->head, &config->connector_list);
-	config->num_connector++;
-	spin_unlock_irq(&config->connector_list_lock);
-
 	if (connector_type != DRM_MODE_CONNECTOR_VIRTUAL &&
 	    connector_type != DRM_MODE_CONNECTOR_WRITEBACK)
 		drm_connector_attach_edid_property(connector);
@@ -330,6 +322,71 @@ out_put:
 		drm_mode_object_unregister(dev, &connector->base);
 
 	return ret;
+}
+
+/**
+ * drm_connector_init_early - Early initialization of a preallocated connector
+ * @dev: DRM device
+ * @connector: the connector to init
+ * @funcs: callbacks for this connector
+ * @connector_type: user visible type of the connector
+ *
+ * Initialises a preallocated connector. This is the same as
+ * drm_connector_init(), without adding the connector to the
+ * drm_mode_config::connector_list. This call must be followed by
+ * calling drm_connector_add() during initialization and must be
+ * paired with drm_connector_cleanup_early() during cleanup.
+ *
+ * Returns:
+ * Zero on success, error code on failure.
+ */
+int drm_connector_init_early(struct drm_device *dev,
+			     struct drm_connector *connector,
+			     const struct drm_connector_funcs *funcs,
+			     int connector_type)
+{
+	if (drm_WARN_ON(dev, !(funcs && funcs->destroy)))
+		return -EINVAL;
+
+	return __drm_connector_init_early(dev, connector, funcs, connector_type, NULL);
+}
+EXPORT_SYMBOL(drm_connector_init_early);
+
+/**
+ * drm_connector_add - Add the connector
+ * @connector: the connector to add
+ *
+ * Add the connector to the drm_mode_config::connector_list, exposing the
+ * connector to in-kernel users. This call must be preceded by a call to
+ * drm_connector_init_early().
+ */
+void drm_connector_add(struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_mode_config *config = &dev->mode_config;
+
+	spin_lock_irq(&config->connector_list_lock);
+	list_add_tail(&connector->head, &config->connector_list);
+	config->num_connector++;
+	spin_unlock_irq(&config->connector_list_lock);
+}
+EXPORT_SYMBOL(drm_connector_add);
+
+static int __drm_connector_init(struct drm_device *dev,
+				struct drm_connector *connector,
+				const struct drm_connector_funcs *funcs,
+				int connector_type,
+				struct i2c_adapter *ddc)
+{
+	int ret;
+
+	ret = __drm_connector_init_early(dev, connector, funcs, connector_type, ddc);
+	if (ret)
+		return ret;
+
+	drm_connector_add(connector);
+
+	return 0;
 }
 
 /**
@@ -613,13 +670,25 @@ static void drm_mode_remove(struct drm_connector *connector,
 	drm_mode_destroy(connector->dev, mode);
 }
 
+void drm_connector_remove(struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+
+	spin_lock_irq(&dev->mode_config.connector_list_lock);
+	list_del(&connector->head);
+	dev->mode_config.num_connector--;
+	spin_unlock_irq(&dev->mode_config.connector_list_lock);
+}
+
 /**
- * drm_connector_cleanup - cleans up an initialised connector
+ * drm_connector_cleanup_early - cleans up an initialised connector
  * @connector: connector to cleanup
  *
- * Cleans up the connector but doesn't free the object.
+ * Cleans up the connector but doesn't remove the connector from the
+ * drm_mode_config::connector_list or free the object. This call cleans up
+ * the state initialized by drm_connector_init_early().
  */
-void drm_connector_cleanup(struct drm_connector *connector)
+void drm_connector_cleanup_early(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode, *t;
@@ -659,10 +728,6 @@ void drm_connector_cleanup(struct drm_connector *connector)
 	connector->name = NULL;
 	fwnode_handle_put(connector->fwnode);
 	connector->fwnode = NULL;
-	spin_lock_irq(&dev->mode_config.connector_list_lock);
-	list_del(&connector->head);
-	dev->mode_config.num_connector--;
-	spin_unlock_irq(&dev->mode_config.connector_list_lock);
 
 	WARN_ON(connector->state && !connector->funcs->atomic_destroy_state);
 	if (connector->state && connector->funcs->atomic_destroy_state)
@@ -676,6 +741,19 @@ void drm_connector_cleanup(struct drm_connector *connector)
 
 	if (dev->registered)
 		drm_sysfs_hotplug_event(dev);
+}
+EXPORT_SYMBOL(drm_connector_cleanup_early);
+
+/**
+ * drm_connector_cleanup - cleans up an initialised connector
+ * @connector: connector to cleanup
+ *
+ * Cleans up the connector but doesn't free the object.
+ */
+void drm_connector_cleanup(struct drm_connector *connector)
+{
+	drm_connector_remove(connector);
+	drm_connector_cleanup_early(connector);
 }
 EXPORT_SYMBOL(drm_connector_cleanup);
 

@@ -2122,6 +2122,11 @@ struct drm_connector {
 
 #define obj_to_connector(x) container_of(x, struct drm_connector, base)
 
+int drm_connector_init_early(struct drm_device *dev,
+			     struct drm_connector *connector,
+			     const struct drm_connector_funcs *funcs,
+			     int connector_type);
+void drm_connector_add(struct drm_connector *connector);
 int drm_connector_init(struct drm_device *dev,
 		       struct drm_connector *connector,
 		       const struct drm_connector_funcs *funcs,
@@ -2151,6 +2156,8 @@ void drm_connector_unregister(struct drm_connector *connector);
 int drm_connector_attach_encoder(struct drm_connector *connector,
 				      struct drm_encoder *encoder);
 
+void drm_connector_cleanup_early(struct drm_connector *connector);
+void drm_connector_remove(struct drm_connector *connector);
 void drm_connector_cleanup(struct drm_connector *connector);
 
 static inline unsigned int drm_connector_index(const struct drm_connector *connector)
