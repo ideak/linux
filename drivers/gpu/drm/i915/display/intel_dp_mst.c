@@ -1719,6 +1719,8 @@ static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topolo
 	if (!intel_connector)
 		return NULL;
 
+	connector = &intel_connector->base;
+
 	intel_connector->get_hw_state = intel_dp_mst_get_hw_state;
 	intel_connector->sync_state = intel_dp_connector_sync_state;
 	intel_connector->mst_port = intel_dp;
@@ -1727,28 +1729,18 @@ static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topolo
 
 	intel_dp_init_modeset_retry_work(intel_connector);
 
-	/*
-	 * TODO: The following initialization belongs to DRM core, however it
-	 * happens atm too late in drm_connector_init(). That function will
-	 * also expose the connector to in-kernel users, so we can't call it
-	 * here, before the connector is sufficiently initialized; init the
-	 * device pointer.
-	 */
-	intel_connector->base.dev = mgr->dev;
-
-	intel_connector->dp.dsc_decompression_aux = drm_dp_mst_dsc_aux_for_port(port);
-	intel_dp_mst_read_decompression_port_dsc_caps(intel_dp, intel_connector);
-	intel_connector->dp.dsc_hblank_expansion_quirk =
-		detect_dsc_hblank_expansion_quirk(intel_connector);
-
-	connector = &intel_connector->base;
-	ret = drm_connector_init(display->drm, connector, &intel_dp_mst_connector_funcs,
-				 DRM_MODE_CONNECTOR_DisplayPort);
+	ret = drm_connector_init_early(display->drm, connector, &intel_dp_mst_connector_funcs,
+				       DRM_MODE_CONNECTOR_DisplayPort);
 	if (ret) {
 		drm_dp_mst_put_port_malloc(port);
 		intel_connector_free(intel_connector);
 		return NULL;
 	}
+
+	intel_connector->dp.dsc_decompression_aux = drm_dp_mst_dsc_aux_for_port(port);
+	intel_dp_mst_read_decompression_port_dsc_caps(intel_dp, intel_connector);
+	intel_connector->dp.dsc_hblank_expansion_quirk =
+		detect_dsc_hblank_expansion_quirk(intel_connector);
 
 	drm_connector_helper_add(connector, &intel_dp_mst_connector_helper_funcs);
 
@@ -1770,10 +1762,12 @@ static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topolo
 		drm_dbg_kms(display->drm, "[%s:%d] HDCP MST init failed, skipping.\n",
 			    connector->name, connector->base.id);
 
+	drm_connector_add(connector);
+
 	return connector;
 
 err:
-	drm_connector_cleanup(connector);
+	drm_connector_cleanup_early(connector);
 	return NULL;
 }
 
