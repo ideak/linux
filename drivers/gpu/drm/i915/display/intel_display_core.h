@@ -171,6 +171,7 @@ struct intel_hotplug {
 
 	u32 long_port_mask;
 	u32 short_port_mask;
+	u32 blocked_port_mask;
 	struct work_struct dig_port_work;
 
 	struct work_struct poll_init_work;

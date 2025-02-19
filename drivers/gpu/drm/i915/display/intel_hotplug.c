@@ -351,17 +351,21 @@ static bool intel_encoder_has_hpd_pulse(struct intel_encoder *encoder)
 
 static void i915_digport_work_func(struct work_struct *work)
 {
-	struct drm_i915_private *dev_priv =
-		container_of(work, struct drm_i915_private, display.hotplug.dig_port_work);
+	struct intel_display *display =
+		container_of(work, struct intel_display, hotplug.dig_port_work);
+	struct drm_i915_private *dev_priv = to_i915(display->drm);
+	struct intel_hotplug *hotplug = &display->hotplug;
 	u32 long_port_mask, short_port_mask;
 	struct intel_encoder *encoder;
 	u32 old_bits = 0;
 
 	spin_lock_irq(&dev_priv->irq_lock);
-	long_port_mask = dev_priv->display.hotplug.long_port_mask;
-	dev_priv->display.hotplug.long_port_mask = 0;
-	short_port_mask = dev_priv->display.hotplug.short_port_mask;
-	dev_priv->display.hotplug.short_port_mask = 0;
+
+	long_port_mask = hotplug->long_port_mask & ~hotplug->blocked_port_mask;
+	hotplug->long_port_mask &= ~long_port_mask;
+	short_port_mask = hotplug->short_port_mask & ~hotplug->blocked_port_mask;
+	hotplug->short_port_mask &= ~short_port_mask;
+
 	spin_unlock_irq(&dev_priv->irq_lock);
 
 	for_each_intel_encoder(&dev_priv->drm, encoder) {
@@ -406,13 +410,77 @@ static void i915_digport_work_func(struct work_struct *work)
  */
 void intel_hpd_trigger_irq(struct intel_digital_port *dig_port)
 {
-	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
+	struct intel_display *display = to_intel_display(dig_port);
+	struct drm_i915_private *i915 = to_i915(display->drm);
+	struct intel_hotplug *hotplug = &display->hotplug;
 
 	spin_lock_irq(&i915->irq_lock);
-	i915->display.hotplug.short_port_mask |= BIT(dig_port->base.port);
+
+	hotplug->short_port_mask |= BIT(dig_port->base.port);
+	if (!(BIT(dig_port->base.port) & hotplug->blocked_port_mask))
+		queue_work(hotplug->dp_wq, &hotplug->dig_port_work);
+
+	spin_unlock_irq(&i915->irq_lock);
+}
+
+/**
+ * intel_hpd_block_pulse - Block handling short/long HPD pulses for an encoder
+ * @encoder: Encoder to block the handling for
+ *
+ * Blocks the handling of short/long HPD pulses for @encoder.
+ *
+ * On return it's guaranteed that the blocked encoder's HPD pulse handler
+ * (via intel_digital_port::hpd_pulse()) is not running.
+ *
+ * A nested call of this function on the same encoder is not allowed.
+ *
+ * The call must be followed by calling intel_hpd_unblock_port().
+ */
+void intel_hpd_block_pulse(struct intel_encoder *encoder)
+{
+	struct intel_display *display = to_intel_display(encoder);
+	struct drm_i915_private *i915 = to_i915(display->drm);
+	struct intel_hotplug *hotplug = &display->hotplug;
+
+	if (!intel_encoder_has_hpd_pulse(encoder))
+		return;
+
+	spin_lock_irq(&i915->irq_lock);
+
+	drm_WARN_ON(display->drm, hotplug->blocked_port_mask & BIT(encoder->port));
+	hotplug->blocked_port_mask |= BIT(encoder->port);
+
 	spin_unlock_irq(&i915->irq_lock);
 
-	queue_work(i915->display.hotplug.dp_wq, &i915->display.hotplug.dig_port_work);
+	flush_work(&hotplug->dig_port_work);
+}
+
+/**
+ * intel_hpd_unblock_pulse - Unblock handling short/long HPD pulses for an encoder
+ * @encoder: Encoder to unblock the handling for
+ *
+ * Unblock the handling of short/long HPD pulses for @encoder, which was
+ * previously blocked by intel_hpd_block_port(). Any pulse event that occured
+ * on the port while it was blocked will be handled.
+ */
+void intel_hpd_unblock_pulse(struct intel_encoder *encoder)
+{
+	struct intel_display *display = to_intel_display(encoder);
+	struct drm_i915_private *i915 = to_i915(display->drm);
+	struct intel_hotplug *hotplug = &display->hotplug;
+
+	if (!intel_encoder_has_hpd_pulse(encoder))
+		return;
+
+	spin_lock_irq(&i915->irq_lock);
+
+	drm_WARN_ON(display->drm, !(hotplug->blocked_port_mask & BIT(encoder->port)));
+	hotplug->blocked_port_mask &= ~BIT(encoder->port);
+
+	if ((hotplug->short_port_mask | hotplug->long_port_mask) & BIT(encoder->port))
+		queue_work(hotplug->dp_wq, &hotplug->dig_port_work);
+
+	spin_unlock_irq(&i915->irq_lock);
 }
 
 /*
@@ -573,7 +641,9 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 			"digital hpd on [ENCODER:%d:%s] - %s\n",
 			encoder->base.base.id, encoder->base.name,
 			long_hpd ? "long" : "short");
-		queue_dig = true;
+
+		if (!(BIT(port) & dev_priv->display.hotplug.blocked_port_mask))
+			queue_dig = true;
 
 		if (long_hpd) {
 			long_hpd_pulse_mask |= BIT(pin);
@@ -915,10 +985,14 @@ static bool cancel_all_detection_work(struct drm_i915_private *i915)
 
 void intel_hpd_cancel_work(struct drm_i915_private *dev_priv)
 {
+	struct intel_display *display = to_intel_display(&dev_priv->drm);
+
 	if (!HAS_DISPLAY(dev_priv))
 		return;
 
 	spin_lock_irq(&dev_priv->irq_lock);
+
+	drm_WARN_ON(display->drm, dev_priv->display.hotplug.blocked_port_mask);
 
 	dev_priv->display.hotplug.long_port_mask = 0;
 	dev_priv->display.hotplug.short_port_mask = 0;
