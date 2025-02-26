@@ -1,0 +1,28 @@
+drm drm-fixes d082ecbc71e9e0bf49883ee4afd435a77a5101b6
+	Linux 6.14-rc4
+drm-misc drm-misc-fixes 2e064e3f3282ec016d80cb7b1fadff0d8e2014ca
+	drm/imagination: remove unnecessary header include path
+drm-intel drm-intel-fixes d082ecbc71e9e0bf49883ee4afd435a77a5101b6
+	Linux 6.14-rc4
+drm-xe drm-xe-fixes 5bd566703e16b17d17f4fb648440d54f8967462c
+	drm/xe/oa: Allow oa_exponent value of 0
+drm drm-next 425b8481750abce45fa4aeecf6c32152cadbfa15
+	Merge tag 'amd-drm-next-6.15-2025-02-21' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
+drm-misc drm-misc-next-fixes ecee4d0695067ae04959b121028b42a588e75370
+	accel/amdxdna: Add MODULE_FIRMWARE() declarations
+drm-intel drm-intel-next-fixes 2014c95afecee3e76ca4a56956a936e23283f05b
+	Linux 6.14-rc1
+drm-xe drm-xe-next-fixes 8dcb26b493d3bab90851f93ae1c127af5cb2dbb5
+	Merge tag 'amd-drm-fixes-6.14-2025-01-29' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
+drm-misc drm-misc-next 72d0af4accd965dc32f504440d74d0a4d18bf781
+	drm/msm/dp: Add support for LTTPR handling
+drm-intel drm-intel-next 0159e311772af9d6598aafe072c020687720f1d7
+	drm/i915/dp_mst: Fix encoder HW state readout for UHBR MST
+drm-intel drm-intel-gt-next 7ded94bd11d47a8ddef051aef1d1a42d8191e09f
+	drm/i915/gt: add wait on depth stall done bit handling
+drm-xe drm-xe-next 18fbd567e75f9b97b699b2ab4f1fa76b7cf268f6
+	drm/xe: cancel pending job timer before freeing scheduler
+drm-intel topic/core-for-CI 69a373f3b198bfdbaaf68a38ea400136b7ed329c
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI 6ea369b34748ef5377f23e24b577912585ce5445
+	drm/xe/ptl: Define HuC FW version for PTL
