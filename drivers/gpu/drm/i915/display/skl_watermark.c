@@ -249,7 +249,8 @@ static void skl_sagv_post_plane_update(struct intel_atomic_state *state)
 
 static void icl_sagv_pre_plane_update(struct intel_atomic_state *state)
 {
-	struct drm_i915_private *i915 = to_i915(state->base.dev);
+	struct intel_display *display = to_intel_display(state);
+	struct drm_i915_private *i915 = to_i915(display->drm);
 	const struct intel_bw_state *old_bw_state =
 		intel_atomic_get_old_bw_state(state);
 	const struct intel_bw_state *new_bw_state =
@@ -276,12 +277,13 @@ static void icl_sagv_pre_plane_update(struct intel_atomic_state *state)
 	 * time. Also masking should be done before updating the configuration
 	 * and unmasking afterwards.
 	 */
-	icl_pcode_restrict_qgv_points(i915, new_mask);
+	icl_pcode_restrict_qgv_points(display, new_mask);
 }
 
 static void icl_sagv_post_plane_update(struct intel_atomic_state *state)
 {
-	struct drm_i915_private *i915 = to_i915(state->base.dev);
+	struct intel_display *display = to_intel_display(state);
+	struct drm_i915_private *i915 = to_i915(display->drm);
 	const struct intel_bw_state *old_bw_state =
 		intel_atomic_get_old_bw_state(state);
 	const struct intel_bw_state *new_bw_state =
@@ -308,7 +310,7 @@ static void icl_sagv_post_plane_update(struct intel_atomic_state *state)
 	 * time. Also masking should be done before updating the configuration
 	 * and unmasking afterwards.
 	 */
-	icl_pcode_restrict_qgv_points(i915, new_mask);
+	icl_pcode_restrict_qgv_points(display, new_mask);
 }
 
 void intel_sagv_pre_plane_update(struct intel_atomic_state *state)
@@ -2314,6 +2316,7 @@ cdclk_prefill_adjustment(const struct intel_crtc_state *crtc_state)
 static int
 dsc_prefill_latency(const struct intel_crtc_state *crtc_state)
 {
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct intel_crtc_scaler_state *scaler_state =
 					&crtc_state->scaler_state;
 	int linetime = DIV_ROUND_UP(1000 * crtc_state->hw.adjusted_mode.htotal,
@@ -2323,7 +2326,9 @@ dsc_prefill_latency(const struct intel_crtc_state *crtc_state)
 		crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR420 ? 2 : 1;
 	u32 dsc_prefill_latency = 0;
 
-	if (!crtc_state->dsc.compression_enable || !num_scaler_users)
+	if (!crtc_state->dsc.compression_enable ||
+	    !num_scaler_users ||
+	    num_scaler_users > crtc->num_scalers)
 		return dsc_prefill_latency;
 
 	dsc_prefill_latency = DIV_ROUND_UP(15 * linetime * chroma_downscaling_factor, 10);
