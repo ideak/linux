@@ -1,0 +1,28 @@
+drm drm-fixes d1d77326f585ccf1fb388e1bcc18a630e044577f
+	Merge tag 'drm-xe-fixes-2025-03-13' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-fixes
+drm-misc drm-misc-fixes 67d15c7aa0864dfd82325c7e7e7d8548b5224c7b
+	accel/qaic: Fix integer overflow in qaic_validate_req()
+drm-intel drm-intel-fixes a8045e46c508b70fe4b30cc020fd0a2b0709b2e5
+	drm/i915: Increase I915_PARAM_MMAP_GTT_VERSION version to indicate support for partial mmaps
+drm-xe drm-xe-fixes f5d4e81774c42d9c2ea3980e570f3330ff2ed5d2
+	drm/xe: remove redundant check in xe_vm_create_ioctl()
+drm drm-next 5da39dce1fa3c81dc6552a16a9f748ba2980d630
+	Merge tag 'drm-xe-next-fixes-2025-03-12' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-next
+drm-misc drm-misc-next-fixes ee20c69c789b6cb2179a535cf440d72b98f4a134
+	drm: adp: Fix NULL vs IS_ERR() check in adp_plane_new()
+drm-intel drm-intel-next-fixes d115a38f3c07b40d65e16d7251c1e5c4e995453a
+	Merge tag 'drm-intel-gt-next-2025-02-26' of https://gitlab.freedesktop.org/drm/i915/kernel into drm-next
+drm-xe drm-xe-next-fixes 7b7b07c285c304317d00ea21c2a659167d4d4d12
+	drm/xe: Use correct type width for alignment in fb pinning code
+drm-misc drm-misc-next 83a0237859bc5a9e0a716e1db8e7fd3cafd63259
+	accel/qaic: Remove redundant 'flush_workqueue()' calls
+drm-intel drm-intel-next ff568d622b0a587e15925b681152bef3e11b5f3f
+	drm/i915/display: Maintain asciibetical order for HAS_* macros
+drm-intel drm-intel-gt-next 34b1c1c71d375835d589e0929299b8caf0171cf1
+	i915/selftest/igt_mmap: let mmap tests run in kthread
+drm-xe drm-xe-next 28f79ac609de2797cccdd5fa6c4d5ec8bcef92b4
+	drm/xe/hwmon: expose fan speed
+drm-intel topic/core-for-CI 69a373f3b198bfdbaaf68a38ea400136b7ed329c
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI 4868f2aad04f639490d35b90e1f9f73919078ffd
+	drm/xe/pm: Temporarily disable D3Cold on BMG
