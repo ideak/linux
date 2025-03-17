@@ -4420,7 +4420,10 @@ intel_dp_mst_disconnect(struct intel_dp *intel_dp)
 static bool
 intel_dp_get_sink_irq_esi(struct intel_dp *intel_dp, u8 *esi)
 {
-	return drm_dp_dpcd_read(&intel_dp->aux, DP_SINK_COUNT_ESI, esi, 4) == 4;
+	if (drm_dp_dpcd_readb(&intel_dp->aux, DP_SINK_COUNT, &esi[0]) != 1)
+		return false;
+
+	return drm_dp_dpcd_read(&intel_dp->aux, DP_SINK_COUNT_ESI + 1, &esi[1], 3) == 3;
 }
 
 static bool intel_dp_ack_sink_irq_esi(struct intel_dp *intel_dp, u8 esi[4])
