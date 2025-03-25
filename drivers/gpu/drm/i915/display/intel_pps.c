@@ -744,10 +744,10 @@ bool intel_pps_vdd_on_unlocked(struct intel_dp *intel_dp)
 	i915_reg_t pp_stat_reg, pp_ctrl_reg;
 	bool need_to_disable = !intel_dp->pps.want_panel_vdd;
 
-	lockdep_assert_held(&display->pps.mutex);
-
 	if (!intel_dp_is_edp(intel_dp))
 		return false;
+
+	lockdep_assert_held(&display->pps.mutex);
 
 	cancel_delayed_work(&intel_dp->pps.panel_vdd_work);
 	intel_dp->pps.want_panel_vdd = true;
@@ -925,10 +925,10 @@ void intel_pps_vdd_off_unlocked(struct intel_dp *intel_dp, bool sync)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 
-	lockdep_assert_held(&display->pps.mutex);
-
 	if (!intel_dp_is_edp(intel_dp))
 		return;
+
+	lockdep_assert_held(&display->pps.mutex);
 
 	INTEL_DISPLAY_STATE_WARN(display, !intel_dp->pps.want_panel_vdd,
 				 "[ENCODER:%d:%s] %s VDD not forced on",
@@ -1855,7 +1855,7 @@ void assert_pps_unlocked(struct intel_display *display, enum pipe pipe)
 
 		switch (port_sel) {
 		case PANEL_PORT_SELECT_LVDS:
-			intel_lvds_port_enabled(dev_priv, PCH_LVDS, &panel_pipe);
+			intel_lvds_port_enabled(display, PCH_LVDS, &panel_pipe);
 			break;
 		case PANEL_PORT_SELECT_DPA:
 			g4x_dp_port_enabled(display, DP_A, PORT_A, &panel_pipe);
@@ -1883,7 +1883,7 @@ void assert_pps_unlocked(struct intel_display *display, enum pipe pipe)
 
 		drm_WARN_ON(display->drm,
 			    port_sel != PANEL_PORT_SELECT_LVDS);
-		intel_lvds_port_enabled(dev_priv, LVDS, &panel_pipe);
+		intel_lvds_port_enabled(display, LVDS, &panel_pipe);
 	}
 
 	val = intel_de_read(display, pp_reg);

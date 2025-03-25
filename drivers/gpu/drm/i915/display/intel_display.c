@@ -73,6 +73,7 @@
 #include "intel_de.h"
 #include "intel_display_driver.h"
 #include "intel_display_power.h"
+#include "intel_display_rpm.h"
 #include "intel_display_types.h"
 #include "intel_dmc.h"
 #include "intel_dp.h"
@@ -2341,7 +2342,6 @@ static int intel_crtc_compute_pipe_src(struct intel_crtc_state *crtc_state)
 {
 	struct intel_display *display = to_intel_display(crtc_state);
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
 
 	intel_joiner_compute_pipe_src(crtc_state);
 
@@ -2360,7 +2360,7 @@ static int intel_crtc_compute_pipe_src(struct intel_crtc_state *crtc_state)
 		}
 
 		if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_LVDS) &&
-		    intel_is_dual_link_lvds(i915)) {
+		    intel_is_dual_link_lvds(display)) {
 			drm_dbg_kms(display->drm,
 				    "[CRTC:%d:%s] Odd pipe source width not supported with dual link LVDS\n",
 				    crtc->base.base.id, crtc->base.name);
@@ -3833,7 +3833,6 @@ static bool bxt_get_dsi_transcoder_state(struct intel_crtc *crtc,
 					 struct intel_display_power_domain_set *power_domain_set)
 {
 	struct intel_display *display = to_intel_display(crtc);
-	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder;
 	enum port port;
 	u32 tmp;
@@ -3855,7 +3854,7 @@ static bool bxt_get_dsi_transcoder_state(struct intel_crtc *crtc,
 		 * registers/MIPI[BXT]. We can break out here early, since we
 		 * need the same DSI PLL to be enabled for both DSI ports.
 		 */
-		if (!bxt_dsi_pll_is_enabled(dev_priv))
+		if (!bxt_dsi_pll_is_enabled(display))
 			break;
 
 		/* XXX: this works for video mode only */
@@ -7229,7 +7228,7 @@ static void intel_atomic_dsb_finish(struct intel_atomic_state *state,
 static void intel_atomic_commit_tail(struct intel_atomic_state *state)
 {
 	struct intel_display *display = to_intel_display(state);
-	struct drm_i915_private *dev_priv = to_i915(display->drm);
+	struct drm_i915_private __maybe_unused *dev_priv = to_i915(display->drm);
 	struct intel_crtc_state *new_crtc_state, *old_crtc_state;
 	struct intel_crtc *crtc;
 	struct intel_power_domain_mask put_domains[I915_MAX_PIPES] = {};
@@ -7443,7 +7442,7 @@ static void intel_atomic_commit_tail(struct intel_atomic_state *state)
 	 * toggling overhead at and above 60 FPS.
 	 */
 	intel_display_power_put_async_delay(display, POWER_DOMAIN_DC_OFF, wakeref, 17);
-	intel_runtime_pm_put(&dev_priv->runtime_pm, state->wakeref);
+	intel_display_rpm_put(display, state->wakeref);
 
 	/*
 	 * Defer the cleanup of the old state to a separate worker to not
@@ -7515,10 +7514,9 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 {
 	struct intel_display *display = to_intel_display(dev);
 	struct intel_atomic_state *state = to_intel_atomic_state(_state);
-	struct drm_i915_private *dev_priv = to_i915(dev);
 	int ret = 0;
 
-	state->wakeref = intel_runtime_pm_get(&dev_priv->runtime_pm);
+	state->wakeref = intel_display_rpm_get(display);
 
 	/*
 	 * The intel_legacy_cursor_update() fast path takes care
@@ -7552,7 +7550,7 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 	if (ret) {
 		drm_dbg_atomic(display->drm,
 			       "Preparing state failed with %i\n", ret);
-		intel_runtime_pm_put(&dev_priv->runtime_pm, state->wakeref);
+		intel_display_rpm_put(display, state->wakeref);
 		return ret;
 	}
 
@@ -7562,7 +7560,7 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 
 	if (ret) {
 		drm_atomic_helper_unprepare_planes(dev, &state->base);
-		intel_runtime_pm_put(&dev_priv->runtime_pm, state->wakeref);
+		intel_display_rpm_put(display, state->wakeref);
 		return ret;
 	}
 
@@ -7670,7 +7668,7 @@ void intel_setup_outputs(struct intel_display *display)
 		intel_bios_for_each_encoder(display, intel_ddi_init);
 
 		if (display->platform.geminilake || display->platform.broxton)
-			vlv_dsi_init(dev_priv);
+			vlv_dsi_init(display);
 	} else if (HAS_PCH_SPLIT(dev_priv)) {
 		int found;
 
@@ -7679,7 +7677,7 @@ void intel_setup_outputs(struct intel_display *display)
 		 * to prevent the registration of both eDP and LVDS and the
 		 * incorrect sharing of the PPS.
 		 */
-		intel_lvds_init(dev_priv);
+		intel_lvds_init(display);
 		intel_crt_init(display);
 
 		dpd_is_edp = intel_dp_is_port_edp(display, PORT_D);
@@ -7754,15 +7752,15 @@ void intel_setup_outputs(struct intel_display *display)
 				g4x_hdmi_init(display, CHV_HDMID, PORT_D);
 		}
 
-		vlv_dsi_init(dev_priv);
+		vlv_dsi_init(display);
 	} else if (display->platform.pineview) {
-		intel_lvds_init(dev_priv);
+		intel_lvds_init(display);
 		intel_crt_init(display);
 	} else if (IS_DISPLAY_VER(display, 3, 4)) {
 		bool found = false;
 
 		if (display->platform.mobile)
-			intel_lvds_init(dev_priv);
+			intel_lvds_init(display);
 
 		intel_crt_init(display);
 
@@ -7804,10 +7802,10 @@ void intel_setup_outputs(struct intel_display *display)
 			intel_tv_init(display);
 	} else if (DISPLAY_VER(display) == 2) {
 		if (display->platform.i85x)
-			intel_lvds_init(dev_priv);
+			intel_lvds_init(display);
 
 		intel_crt_init(display);
-		intel_dvo_init(dev_priv);
+		intel_dvo_init(display);
 	}
 
 	for_each_intel_encoder(display->drm, encoder) {
@@ -7817,7 +7815,7 @@ void intel_setup_outputs(struct intel_display *display)
 			intel_encoder_possible_clones(encoder);
 	}
 
-	intel_init_pch_refclk(dev_priv);
+	intel_init_pch_refclk(display);
 
 	drm_helper_move_panel_connectors_to_head(display->drm);
 }
