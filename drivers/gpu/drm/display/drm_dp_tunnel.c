@@ -1578,6 +1578,28 @@ drm_dp_tunnel_atomic_get_new_state(struct drm_atomic_state *state,
 }
 EXPORT_SYMBOL(drm_dp_tunnel_atomic_get_new_state);
 
+/**
+ * drm_dp_tunnel_get_state - get the state for a tunnel
+ * @tunnel: Tunnel to get the state for
+ *
+ * Get the current state for @tunnel.
+ *
+ * Return the current state for @tunnel or NULL if the tunnel has no
+ * allocation in its tunnel group.
+ */
+struct drm_dp_tunnel_state *
+drm_dp_tunnel_get_state(const struct drm_dp_tunnel *tunnel)
+{
+	struct drm_dp_tunnel_state *tunnel_state;
+
+	for_each_tunnel_state(to_group_state(tunnel->group->base.state), tunnel_state)
+		if (tunnel_state->tunnel_ref.tunnel == tunnel)
+			return tunnel_state;
+
+	return NULL;
+}
+EXPORT_SYMBOL(drm_dp_tunnel_get_state);
+
 static bool init_group(struct drm_dp_tunnel_mgr *mgr, struct drm_dp_tunnel_group *group)
 {
 	struct drm_dp_tunnel_group_state *group_state;
@@ -1674,6 +1696,14 @@ static int set_stream_bw(struct drm_dp_tunnel_state *tunnel_state,
 	return 0;
 }
 
+static int get_stream_bw(const struct drm_dp_tunnel_state *tunnel_state, u8 stream_id)
+{
+	if (!(tunnel_state->stream_mask & BIT(stream_id)))
+		return 0;
+
+	return tunnel_state->stream_bw[stream_id_to_idx(tunnel_state->stream_mask, stream_id)];
+}
+
 static int clear_stream_bw(struct drm_dp_tunnel_state *tunnel_state,
 			   u8 stream_id)
 {
@@ -1739,6 +1769,32 @@ int drm_dp_tunnel_atomic_set_stream_bw(struct drm_atomic_state *state,
 	return 0;
 }
 EXPORT_SYMBOL(drm_dp_tunnel_atomic_set_stream_bw);
+
+/**
+ * drm_dp_tunnel_atomic_get_stream_bw - Get the BW for a DP tunnel stream
+ * @tunnel_state: State for DP tunnel containing the stream
+ * @stream_id: Stream ID
+ *
+ * Return a DP tunnel stream's required BW in the atomic state or a negative
+ * error code in case of failure.
+ */
+int drm_dp_tunnel_atomic_get_stream_bw(const struct drm_dp_tunnel_state *tunnel_state,
+				       u8 stream_id)
+{
+	struct drm_dp_tunnel_group *group;
+
+	if (!tunnel_state)
+		return 0;
+
+	group = to_group(tunnel_state->group_state->base.obj);
+
+	if (drm_WARN_ON(group->mgr->dev,
+			stream_id > BITS_PER_TYPE(tunnel_state->stream_mask)))
+		return -EINVAL;
+
+	return get_stream_bw(tunnel_state, stream_id);
+}
+EXPORT_SYMBOL(drm_dp_tunnel_atomic_get_stream_bw);
 
 /**
  * drm_dp_tunnel_atomic_get_required_bw - Get the BW required by a DP tunnel
