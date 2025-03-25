@@ -10,6 +10,7 @@
 #include "intel_crtc_state_dump.h"
 #include "intel_display_core.h"
 #include "intel_display_types.h"
+#include "intel_dp_tunnel.h"
 #include "intel_hdmi.h"
 #include "intel_vblank.h"
 #include "intel_vdsc.h"
@@ -381,4 +382,6 @@ dump_planes:
 		if (plane->pipe == crtc->pipe)
 			intel_dump_plane_state(&p, plane_state);
 	}
+
+	intel_dp_tunnel_state_dump(&p, 0, state, pipe_config);
 }

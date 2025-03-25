@@ -754,6 +754,33 @@ static void atomic_increase_bw(struct intel_atomic_state *state)
 	}
 }
 
+void intel_dp_tunnel_state_dump(struct drm_printer *p, int indent,
+				struct intel_atomic_state *state,
+				const struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
+	struct drm_dp_tunnel *tunnel = crtc_state->dp_tunnel_ref.tunnel;
+	const struct drm_dp_tunnel_state *tunnel_state;
+	int stream_bw;
+	int tunnel_bw;
+
+	if (!drm_dp_tunnel_bw_alloc_is_enabled(tunnel))
+		return;
+
+	if (state)
+		tunnel_state = drm_dp_tunnel_atomic_get_new_state(&state->base, tunnel);
+	else
+		tunnel_state = drm_dp_tunnel_get_state(tunnel);
+
+	stream_bw = drm_dp_tunnel_atomic_get_stream_bw(tunnel_state, crtc->pipe);
+	tunnel_bw = drm_dp_tunnel_atomic_get_required_bw(tunnel_state);
+
+	drm_printf_indent(p, indent,
+			  "[DPTUN %s] allocated stream/tunnel BW: %d/%d Mb/s\n",
+			  drm_dp_tunnel_name(tunnel),
+			  kbytes_to_mbits(stream_bw), kbytes_to_mbits(tunnel_bw));
+}
+
 /**
  * intel_dp_tunnel_atomic_alloc_bw - Allocate the BW for all modeset tunnels
  * @state: Atomic state

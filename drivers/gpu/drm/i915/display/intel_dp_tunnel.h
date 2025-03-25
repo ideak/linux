@@ -11,6 +11,7 @@
 
 struct drm_connector_state;
 struct drm_modeset_acquire_ctx;
+struct drm_printer;
 struct intel_atomic_state;
 struct intel_connector;
 struct intel_crtc;
@@ -52,6 +53,10 @@ int intel_dp_tunnel_atomic_check_state(struct intel_atomic_state *state,
 				       struct intel_connector *connector);
 
 void intel_dp_tunnel_atomic_alloc_bw(struct intel_atomic_state *state);
+
+void intel_dp_tunnel_state_dump(struct drm_printer *p, int indent,
+				struct intel_atomic_state *state,
+				const struct intel_crtc_state *crtc_state);
 
 int intel_dp_tunnel_mgr_init(struct intel_display *display);
 void intel_dp_tunnel_mgr_cleanup(struct intel_display *display);
@@ -118,6 +123,12 @@ static inline int
 intel_dp_tunnel_atomic_alloc_bw(struct intel_atomic_state *state)
 {
 	return 0;
+}
+
+void intel_dp_tunnel_state_dump(struct drm_printer *p, int indent,
+				struct intel_atomic_state *state,
+				const struct intel_crtc_state *crtc_state)
+{
 }
 
 static inline int

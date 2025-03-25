@@ -31,6 +31,7 @@
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
 #include "intel_dp_test.h"
+#include "intel_dp_tunnel.h"
 #include "intel_drrs.h"
 #include "intel_fb.h"
 #include "intel_fbc.h"
@@ -576,6 +577,8 @@ static void intel_crtc_info(struct seq_file *m, struct intel_crtc *crtc)
 		   str_yes_no(!crtc->pch_fifo_underrun_disabled));
 
 	crtc_updates_info(m, crtc, "\t");
+
+	intel_dp_tunnel_state_dump(&p, 1, NULL, crtc_state);
 }
 
 static int i915_display_info(struct seq_file *m, void *unused)
