@@ -67,13 +67,6 @@ static bool dump_dp_payload_table(struct drm_dp_mst_topology_mgr *mgr,
 
 static void drm_dp_mst_topology_put_port(struct drm_dp_mst_port *port);
 
-static int drm_dp_send_dpcd_read(struct drm_dp_mst_topology_mgr *mgr,
-				 struct drm_dp_mst_port *port,
-				 int offset, int size, u8 *bytes);
-static int drm_dp_send_dpcd_write(struct drm_dp_mst_topology_mgr *mgr,
-				  struct drm_dp_mst_port *port,
-				  int offset, int size, u8 *bytes);
-
 static int drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 				    struct drm_dp_mst_branch *mstb);
 
@@ -2139,52 +2132,6 @@ out:
 	return ret;
 }
 
-/**
- * drm_dp_mst_dpcd_read() - read a series of bytes from the DPCD via sideband
- * @aux: Fake sideband AUX CH
- * @offset: address of the (first) register to read
- * @buffer: buffer to store the register values
- * @size: number of bytes in @buffer
- *
- * Performs the same functionality for remote devices via
- * sideband messaging as drm_dp_dpcd_read() does for local
- * devices via actual AUX CH.
- *
- * Return: Number of bytes read, or negative error code on failure.
- */
-ssize_t drm_dp_mst_dpcd_read(struct drm_dp_aux *aux,
-			     unsigned int offset, void *buffer, size_t size)
-{
-	struct drm_dp_mst_port *port = container_of(aux, struct drm_dp_mst_port,
-						    aux);
-
-	return drm_dp_send_dpcd_read(port->mgr, port,
-				     offset, size, buffer);
-}
-
-/**
- * drm_dp_mst_dpcd_write() - write a series of bytes to the DPCD via sideband
- * @aux: Fake sideband AUX CH
- * @offset: address of the (first) register to write
- * @buffer: buffer containing the values to write
- * @size: number of bytes in @buffer
- *
- * Performs the same functionality for remote devices via
- * sideband messaging as drm_dp_dpcd_write() does for local
- * devices via actual AUX CH.
- *
- * Return: number of bytes written on success, negative error code on failure.
- */
-ssize_t drm_dp_mst_dpcd_write(struct drm_dp_aux *aux,
-			      unsigned int offset, void *buffer, size_t size)
-{
-	struct drm_dp_mst_port *port = container_of(aux, struct drm_dp_mst_port,
-						    aux);
-
-	return drm_dp_send_dpcd_write(port->mgr, port,
-				      offset, size, buffer);
-}
-
 static int drm_dp_check_mstb_guid(struct drm_dp_mst_branch *mstb, guid_t *guid)
 {
 	int ret = 0;
@@ -3457,10 +3404,24 @@ int drm_dp_add_payload_part2(struct drm_dp_mst_topology_mgr *mgr,
 }
 EXPORT_SYMBOL(drm_dp_add_payload_part2);
 
-static int drm_dp_send_dpcd_read(struct drm_dp_mst_topology_mgr *mgr,
-				 struct drm_dp_mst_port *port,
-				 int offset, int size, u8 *bytes)
+/**
+ * drm_dp_mst_dpcd_read() - read a series of bytes from the DPCD via sideband
+ * @aux: Fake sideband AUX CH
+ * @offset: address of the (first) register to read
+ * @buffer: buffer to store the register values
+ * @size: number of bytes in @buffer
+ *
+ * Performs the same functionality for remote devices via
+ * sideband messaging as drm_dp_dpcd_read() does for local
+ * devices via actual AUX CH.
+ *
+ * Return: Number of bytes read, or negative error code on failure.
+ */
+ssize_t drm_dp_mst_dpcd_read(struct drm_dp_aux *aux,
+			     unsigned int offset, void *bytes, size_t size)
 {
+	struct drm_dp_mst_port *port = container_of(aux, struct drm_dp_mst_port, aux);
+	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
 	int ret = 0;
 	struct drm_dp_sideband_msg_tx *txmsg;
 	struct drm_dp_mst_branch *mstb;
@@ -3485,7 +3446,7 @@ static int drm_dp_send_dpcd_read(struct drm_dp_mst_topology_mgr *mgr,
 		goto fail_free;
 
 	if (txmsg->reply.reply_type == 1) {
-		drm_dbg_kms(mgr->dev, "mstb %p port %d: DPCD read on addr 0x%x for %d bytes NAKed\n",
+		drm_dbg_kms(mgr->dev, "mstb %p port %d: DPCD read on addr 0x%x for %zd bytes NAKed\n",
 			    mstb, port->port_num, offset, size);
 		ret = -EIO;
 		goto fail_free;
@@ -3508,10 +3469,24 @@ fail_put:
 	return ret;
 }
 
-static int drm_dp_send_dpcd_write(struct drm_dp_mst_topology_mgr *mgr,
-				  struct drm_dp_mst_port *port,
-				  int offset, int size, u8 *bytes)
+/**
+ * drm_dp_mst_dpcd_write() - write a series of bytes to the DPCD via sideband
+ * @aux: Fake sideband AUX CH
+ * @offset: address of the (first) register to write
+ * @buffer: buffer containing the values to write
+ * @size: number of bytes in @buffer
+ *
+ * Performs the same functionality for remote devices via
+ * sideband messaging as drm_dp_dpcd_write() does for local
+ * devices via actual AUX CH.
+ *
+ * Return: number of bytes written on success, negative error code on failure.
+ */
+ssize_t drm_dp_mst_dpcd_write(struct drm_dp_aux *aux,
+			      unsigned int offset, void *bytes, size_t size)
 {
+	struct drm_dp_mst_port *port = container_of(aux, struct drm_dp_mst_port, aux);
+	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
 	int ret;
 	struct drm_dp_sideband_msg_tx *txmsg;
 	struct drm_dp_mst_branch *mstb;
