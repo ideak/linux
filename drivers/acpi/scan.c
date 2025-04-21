@@ -2241,6 +2241,11 @@ static int acpi_scan_attach_handler(struct acpi_device *device)
 	list_for_each_entry(hwid, &device->pnp.ids, list) {
 		const struct acpi_device_id *devid;
 		struct acpi_scan_handler *handler;
+		/* pr_info("*** scan_attach %s ***\n", hwid->id); */
+		if (!strcmp(hwid->id, "PNP0D80")) {
+			pr_info("HACK aborting PNP0D80 Attach\n");
+			continue;
+		}
 
 		handler = acpi_scan_match_handler(hwid->id, &devid);
 		if (handler) {
@@ -2292,7 +2297,6 @@ static int acpi_bus_attach(struct acpi_device *device, void *first_pass)
 			device->power.states[ACPI_STATE_D0].flags.valid;
 		if (acpi_bus_init_power(device))
 			device->flags.power_manageable = 0;
-
 		device->flags.initialized = true;
 	} else if (device->flags.visited) {
 		goto ok;
