@@ -1,0 +1,28 @@
+drm drm-fixes b4432656b36e5cc1d50a1f2dc15357543add530e
+	Linux 6.15-rc4
+drm-misc drm-misc-fixes 1a8bc0fe8039e1e57f68c4a588f0403d98bfeb1f
+	drm/mipi-dbi: Fix blanking for non-16 bit formats
+drm-intel drm-intel-fixes 7e21ea8149a0e41c3666ee52cc063a6f797a7a2a
+	drm/i915/pxp: fix undefined reference to `intel_pxp_gsccs_is_ready_for_sessions'
+drm-xe drm-xe-fixes 5e639707ddb8f080fbde805a1bfa6668a1b45298
+	drm/xe/guc: Fix capture of steering registers
+drm drm-next d2b9e2f8a15d53121ae8f2c67b69cf06b6fa586c
+	Merge tag 'drm-xe-next-2025-04-17' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-next
+drm-misc drm-misc-next-fixes 85a063b8b281e144ed96463936fb4e6b3d4fe9e4
+	drm/i2c: tda998x: select CONFIG_DRM_KMS_HELPER
+drm-intel drm-intel-next-fixes 0af2f6be1b4281385b618cb86ad946eded089ac8
+	Linux 6.15-rc1
+drm-xe drm-xe-next-fixes 5e66cf6edddb5f6237e3afb07475ace57ecb56bc
+	drm/xe: Fix unmet direct dependencies warning
+drm-misc drm-misc-next de5fbbe1531f645c8b56098be8d1faf31e46f7f0
+	drm/appletbdrm: Make appletbdrm depend on X86
+drm-intel drm-intel-next 506f254e362b7a7045ed3ccba2a8f4bedb3fd3d6
+	drm/i915/hdmi: Use an intel_connector pointer everywhere
+drm-intel drm-intel-gt-next 795dbde92fe5c6996a02a5b579481de73035e7bf
+	drm/i915/huc: Fix fence not released on early probe errors
+drm-xe drm-xe-next 70a2585e582058e94fe4381a337be42dec800337
+	drm/xe/tests/mocs: Hold XE_FORCEWAKE_ALL for LNCF regs
+drm-intel topic/core-for-CI 5d93b4b116842b7f59de2868a5bda39300fd4de7
+	gcc-15: disable '-Wunterminated-string-initialization' entirely for now
+drm-xe topic/xe-for-CI 993a9b1f119ff8e6d89e5e32f5a86a02c7d2cf57
+	drm/xe/pm: Re-enable D3Cold by default on BMG
