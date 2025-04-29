@@ -905,11 +905,12 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 			break;
 		}
 		crtc = connector->base.state->crtc;
-		if (connector->base.status != connector_status_connected || !crtc) {
+		if (connector->base.status != connector_status_connected) {
 			ret = -ENODEV;
 			break;
 		}
-		ret = drm_modeset_lock(&crtc->mutex, &ctx);
+		if (crtc)
+			ret = drm_modeset_lock(&crtc->mutex, &ctx);
 		if (ret == -EDEADLK) {
 			ret = drm_modeset_backoff(&ctx);
 			if (!ret) {
@@ -921,9 +922,12 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 			break;
 		}
 		intel_dp = intel_attached_dp(connector);
-		crtc_state = to_intel_crtc_state(crtc->state);
+
+		if (crtc)
+			crtc_state = to_intel_crtc_state(crtc->state);
+
 		seq_printf(m, "DSC_Enabled: %s\n",
-			   str_yes_no(crtc_state->dsc.compression_enable));
+			   str_yes_no(crtc_state && crtc_state->dsc.compression_enable));
 		seq_printf(m, "DSC_Sink_Support: %s\n",
 			   str_yes_no(drm_dp_sink_supports_dsc(connector->dp.dsc_dpcd)));
 		seq_printf(m, "DSC_Output_Format_Sink_Support: RGB: %s YCBCR420: %s YCBCR444: %s\n",
