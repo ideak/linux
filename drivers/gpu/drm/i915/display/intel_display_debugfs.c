@@ -937,8 +937,9 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 								      DP_DSC_YCbCr420_Native)),
 			   str_yes_no(drm_dp_dsc_sink_supports_format(connector->dp.dsc_dpcd,
 								      DP_DSC_YCbCr444)));
-		seq_printf(m, "DSC_Sink_BPP_Precision: %d\n",
-			   drm_dp_dsc_sink_bpp_incr(connector->dp.dsc_dpcd));
+		seq_printf(m, "DSC_Sink_BPP_Precision: " FXP_Q4_FMT " valid: " FXP_Q4_FMT "\n",
+			   FXP_Q4_ARGS(fxp_q4_from_int(1) / drm_dp_dsc_sink_bpp_incr(connector->dp.dsc_dpcd)),
+			   FXP_Q4_ARGS(intel_dp_dsc_bpp_step_x16(connector)));
 		seq_printf(m, "DSC_Sink_Max_Slice_Count: %d\n",
 			   drm_dp_dsc_sink_max_slice_count((connector->dp.dsc_dpcd), intel_dp_is_edp(intel_dp)));
 		seq_printf(m, "Force_DSC_Enable: %s\n",
