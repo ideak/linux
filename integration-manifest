@@ -1,0 +1,28 @@
+drm drm-fixes 92a09c47464d040866cf2b4cd052bc60555185fb
+	Linux 6.15-rc5
+drm-misc drm-misc-fixes 7c6fa1797a725732981f2d77711c867166737719
+	drm/panel: simple: Update timings for AUO G101EVN010
+drm-intel drm-intel-fixes 936b73feab5cd7eae8fe3d08a7ac9b1f8ac68042
+	drm/i915/slpc: Balance the inc/dec for num_waiters
+drm-xe drm-xe-fixes 92a09c47464d040866cf2b4cd052bc60555185fb
+	Linux 6.15-rc5
+drm drm-next 5e0c67998152bdb91b056160449ee542b86271a5
+	BackMerge tag 'v6.15-rc5' into drm-next
+drm-misc drm-misc-next-fixes 85a063b8b281e144ed96463936fb4e6b3d4fe9e4
+	drm/i2c: tda998x: select CONFIG_DRM_KMS_HELPER
+drm-intel drm-intel-next-fixes 0af2f6be1b4281385b618cb86ad946eded089ac8
+	Linux 6.15-rc1
+drm-xe drm-xe-next-fixes 5e66cf6edddb5f6237e3afb07475ace57ecb56bc
+	drm/xe: Fix unmet direct dependencies warning
+drm-misc drm-misc-next a6c0a91ccb257eaec2aee080df06863ce7601315
+	checkpatch: remove %p4cn
+drm-intel drm-intel-next ecd9352cd92784717670e22a5ebd890ca0ae980e
+	drm/i915/rps: fix stale reference to i915->irq_lock
+drm-intel drm-intel-gt-next d26e55085f4b7a63677670db827541209257b313
+	drm/i915/slpc: Balance the inc/dec for num_waiters
+drm-xe drm-xe-next 12370bfcc4f0bdf70279ec5b570eb298963422b5
+	drm/xe/gsc: do not flush the GSC worker from the reset path
+drm-intel topic/core-for-CI 5d93b4b116842b7f59de2868a5bda39300fd4de7
+	gcc-15: disable '-Wunterminated-string-initialization' entirely for now
+drm-xe topic/xe-for-CI 993a9b1f119ff8e6d89e5e32f5a86a02c7d2cf57
+	drm/xe/pm: Re-enable D3Cold by default on BMG
