@@ -4965,7 +4965,7 @@ intel_dp_get_sink_irq_esi(struct intel_dp *intel_dp, u8 *esi)
 	 * transactions to prevent disconnecting the sink on a TBT link
 	 * inadvertently.
 	 */
-	if (IS_DISPLAY_VER(display, 14, 20) && !display->platform.battlemage) {
+	if (IS_DISPLAY_VER(display, 14, 30)) {
 		if (drm_dp_dpcd_read(&intel_dp->aux, DP_SINK_COUNT_ESI, esi, 3) != 3)
 			return false;
 
