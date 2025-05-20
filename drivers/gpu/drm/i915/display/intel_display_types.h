@@ -1852,6 +1852,7 @@ struct intel_dp {
 		int seq_train_failures;
 		int force_train_failure;
 		bool force_retrain;
+		bool no_lane0_mapping;
 	} link;
 	bool reset_link_params;
 	int mso_link_count;

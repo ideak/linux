@@ -769,6 +769,12 @@ static void intel_dp_link_config_init(struct intel_dp *intel_dp)
 					ARRAY_SIZE(intel_dp->link.configs)))
 				goto sort_configs;
 
+			/* Without lane0 mapping support in the sink UHBR rates require 4 lanes. */
+			if (intel_dp->link.no_lane0_mapping &&
+			    drm_dp_is_uhbr_rate(intel_dp_common_rate(intel_dp, i)) &&
+			    (1 << j) != 4)
+				continue;
+
 			lc->lane_count_exp = j;
 			lc->link_rate_idx = i;
 
@@ -1885,6 +1891,10 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 					intel_dp_link_required(link_rate, lane_count,
 							       clock, adjusted_mode->hdisplay,
 							       link_bpp_x16, 0);
+
+				if (intel_dp->link.no_lane0_mapping &&
+				    drm_dp_is_uhbr_rate(link_rate) && lane_count != 4)
+					continue;
 
 				link_avail = intel_dp_max_link_data_rate(intel_dp,
 									 link_rate,
@@ -3667,6 +3677,7 @@ void intel_dp_reset_link_params(struct intel_dp *intel_dp)
 	intel_dp->link.mst_probed_rate = 0;
 	intel_dp->link.retrain_disabled = false;
 	intel_dp->link.seq_train_failures = 0;
+	intel_dp->link.no_lane0_mapping = false;
 }
 
 /* Enable backlight PWM and backlight PP control. */
@@ -6263,6 +6274,29 @@ intel_dp_update_420(struct intel_dp *intel_dp)
 		    str_yes_no(intel_dp->dfp.rgb_to_ycbcr),
 		    str_yes_no(connector->base.ycbcr_420_allowed),
 		    str_yes_no(intel_dp->dfp.ycbcr_444_to_420));
+}
+
+void intel_dp_detect_lane_map_quirk(struct intel_connector *connector)
+{
+	struct intel_display *display = to_intel_display(connector);
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	bool new = false;
+
+	if (intel_dp->tunnel && !drm_dp_tunnel_128b132b_lane0_mapping_supported(intel_dp->tunnel) &&
+	    drm_edid_has_quirk(&connector->base, DRM_EDID_QUIRK_DP_NO_LANE0_MAPPING))
+		new = true;
+
+	if (new == intel_dp->link.no_lane0_mapping)
+		return;
+
+	drm_dbg_kms(display->drm, "[CONNECTOR:%d:%s][ENCODER:%d:%s] Lane0 mapping support: %s\n",
+		    connector->base.base.id, connector->base.name,
+		    dig_port->base.base.base.id, dig_port->base.base.name,
+		    str_yes_no(!new));
+
+	intel_dp->link.no_lane0_mapping = new;
+	intel_dp_update_sink_caps(intel_dp);
 }
 
 static void

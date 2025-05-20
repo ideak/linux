@@ -1408,6 +1408,10 @@ static int mst_connector_get_ddc_modes(struct drm_connector *_connector)
 
 	drm_edid_free(drm_edid);
 
+	if (drm_dp_mst_port_is_logical(connector->mst.port) &&
+	    !drm_dp_mst_aux_for_parent(connector->mst.port))
+		intel_dp_detect_lane_map_quirk(connector);
+
 	return ret;
 }
 

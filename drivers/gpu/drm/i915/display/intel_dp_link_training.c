@@ -1280,8 +1280,16 @@ static bool reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
 	lane_count = crtc_state->lane_count;
 	link_rate = reduce_link_rate(intel_dp, crtc_state->port_clock);
 	if (link_rate < 0) {
-		lane_count = reduce_lane_count(intel_dp, crtc_state->lane_count);
 		link_rate = intel_dp_max_common_rate(intel_dp);
+		if (intel_dp->link.no_lane0_mapping) {
+			while (drm_dp_is_uhbr_rate(link_rate)) {
+				link_rate = reduce_link_rate(intel_dp, link_rate);
+				if (link_rate < 0)
+					return false;
+			}
+		}
+
+		lane_count = reduce_lane_count(intel_dp, crtc_state->lane_count);
 	}
 
 	if (lane_count < 0)
