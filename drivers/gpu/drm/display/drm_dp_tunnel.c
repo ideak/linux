@@ -1142,7 +1142,7 @@ out:
 		     DPTUN_BW_ARG(group_allocated_bw(tunnel->group)),
 		     DPTUN_BW_ARG(tunnel->group->available_bw));
 
-	if (err == -EIO)
+	if (err == -EIO || err == -ETIMEDOUT)
 		drm_dp_tunnel_set_io_error(tunnel);
 
 	return err;
