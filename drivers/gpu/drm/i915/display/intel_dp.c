@@ -750,7 +750,6 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 static void intel_dp_link_config_init(struct intel_dp *intel_dp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
-	struct intel_dp_link_config *lc;
 	int num_common_lane_configs;
 	int i;
 	int j;
@@ -760,22 +759,24 @@ static void intel_dp_link_config_init(struct intel_dp *intel_dp)
 
 	num_common_lane_configs = ilog2(intel_dp_max_common_lane_count(intel_dp)) + 1;
 
-	if (drm_WARN_ON(display->drm, intel_dp->num_common_rates * num_common_lane_configs >
-				    ARRAY_SIZE(intel_dp->link.configs)))
-		return;
+	intel_dp->link.num_configs = 0;
 
-	intel_dp->link.num_configs = intel_dp->num_common_rates * num_common_lane_configs;
-
-	lc = &intel_dp->link.configs[0];
 	for (i = 0; i < intel_dp->num_common_rates; i++) {
 		for (j = 0; j < num_common_lane_configs; j++) {
+			struct intel_dp_link_config *lc = &intel_dp->link.configs[intel_dp->link.num_configs];
+
+			if (drm_WARN_ON(display->drm, intel_dp->link.num_configs >=
+					ARRAY_SIZE(intel_dp->link.configs)))
+				goto sort_configs;
+
 			lc->lane_count_exp = j;
 			lc->link_rate_idx = i;
 
-			lc++;
+			intel_dp->link.num_configs++;
 		}
 	}
 
+sort_configs:
 	sort_r(intel_dp->link.configs, intel_dp->link.num_configs,
 	       sizeof(intel_dp->link.configs[0]),
 	       link_config_cmp_by_bw, NULL,
