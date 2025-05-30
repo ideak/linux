@@ -1252,10 +1252,6 @@ static int reduce_link_rate(struct intel_dp *intel_dp, int current_rate)
 
 	new_rate = intel_dp_common_rate(intel_dp, rate_index - 1);
 
-	/* TODO: Make switching from UHBR to non-UHBR rates work. */
-	if (drm_dp_is_uhbr_rate(current_rate) != drm_dp_is_uhbr_rate(new_rate))
-		return -1;
-
 	return new_rate;
 }
 
