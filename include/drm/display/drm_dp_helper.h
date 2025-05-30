@@ -862,6 +862,13 @@ enum drm_dp_quirk {
 	 * specific DSC pixel throughput.
 	 */
 	DP_DPCD_QUIRK_DSC_THROUGHPUT_BPP_LIMIT,
+	/**
+	 * @DP_DPCD_QUIRK_NO_UHBR_LANE0_CONVERSION:
+	 *
+	 * Novatek panel not handling UHBR lane0 conversion.
+	 * See DP Standard v2.1 3.5.2.16.3
+	 */
+	DP_DPCD_QUIRK_NO_UHBR_LANE0_CONVERSION,
 };
 
 /**

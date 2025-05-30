@@ -268,6 +268,10 @@ static const struct edid_quirk {
 
 	/* HP ZR24w DP AUX DPCD access requires probing to prevent corruption. */
 	EDID_QUIRK('H', 'W', 'P', 0x2869, BIT(DRM_EDID_QUIRK_DP_DPCD_PROBE)),
+
+	/* DELL U3224KB/KBA UHBR lane0 mapping WA, see DP v2.1a 3.5.2.16.3 */
+	EDID_QUIRK_NAME("DELL U3224KB", BIT(DRM_EDID_QUIRK_DP_NO_LANE0_MAPPING)),
+	EDID_QUIRK_NAME("DELL U3224KBA", BIT(DRM_EDID_QUIRK_DP_NO_LANE0_MAPPING)),
 };
 
 /*

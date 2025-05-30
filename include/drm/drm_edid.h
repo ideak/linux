@@ -112,6 +112,7 @@ struct detailed_data_string {
 enum drm_edid_quirk {
 	/* Do a dummy read before DPCD accesses, to prevent corruption. */
 	DRM_EDID_QUIRK_DP_DPCD_PROBE,
+	DRM_EDID_QUIRK_DP_NO_LANE0_MAPPING,
 
 	DRM_EDID_QUIRK_NUM,
 };

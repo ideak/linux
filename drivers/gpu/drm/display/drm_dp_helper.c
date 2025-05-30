@@ -2556,6 +2556,8 @@ static const struct dpcd_quirk dpcd_quirk_list[] = {
 	{ OUI(0x90, 0xCC, 0x24), DEVICE_ID('S', 'Y', 'N', 'A', 0x53, 0x22), true, BIT(DP_DPCD_QUIRK_DSC_THROUGHPUT_BPP_LIMIT) },
 	{ OUI(0x90, 0xCC, 0x24), DEVICE_ID('S', 'Y', 'N', 'A', 0x53, 0x31), true, BIT(DP_DPCD_QUIRK_DSC_THROUGHPUT_BPP_LIMIT) },
 	{ OUI(0x90, 0xCC, 0x24), DEVICE_ID('S', 'Y', 'N', 'A', 0x53, 0x33), true, BIT(DP_DPCD_QUIRK_DSC_THROUGHPUT_BPP_LIMIT) },
+	/* Novatek panel not handling UHBR lane0 conversion. See DP Standard v2.1 3.5.2.16.3 */
+	{ OUI(0x38, 0xec, 0x11), DEVICE_ID_ANY, false, BIT(DP_DPCD_QUIRK_NO_UHBR_LANE0_CONVERSION) },
 };
 
 #undef OUI
