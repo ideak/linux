@@ -126,6 +126,14 @@ struct drm_edid_match_closure {
 	.quirks = _quirks \
 }
 
+#define EDID_QUIRK_NAME(_panel_name, _quirks) \
+{ \
+	.ident = { \
+		.name = _panel_name, \
+	}, \
+	.quirks = _quirks, \
+}
+
 static const struct edid_quirk {
 	const struct drm_edid_ident ident;
 	u32 quirks;
@@ -5550,7 +5558,8 @@ match_identity(const struct detailed_timing *timing, void *data)
 bool drm_edid_match(const struct drm_edid *drm_edid,
 		    const struct drm_edid_ident *ident)
 {
-	if (!drm_edid || drm_edid_get_panel_id(drm_edid) != ident->panel_id)
+	if (!drm_edid ||
+	    (ident->panel_id && drm_edid_get_panel_id(drm_edid) != ident->panel_id))
 		return false;
 
 	/* Match with name only if it's not NULL. */
