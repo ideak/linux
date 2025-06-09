@@ -212,4 +212,6 @@ int intel_dp_dsc_min_src_input_bpc(void);
 int intel_dp_compute_min_hblank(struct intel_crtc_state *crtc_state,
 				const struct drm_connector_state *conn_state);
 
+void intel_dp_dpcd_set_probe(struct intel_dp *intel_dp, bool force_on_external);
+
 #endif /* __INTEL_DP_H__ */
