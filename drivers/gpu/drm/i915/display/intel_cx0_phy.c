@@ -3461,21 +3461,26 @@ static void intel_c10pll_state_verify(const struct intel_crtc_state *state,
 				 mpllb_sw_state->cmn, mpllb_hw_state->cmn);
 }
 
-void intel_cx0pll_readout_hw_state(struct intel_encoder *encoder,
+bool intel_cx0pll_readout_hw_state(struct intel_encoder *encoder,
 				   struct intel_cx0pll_state *pll_state)
 {
-	pll_state->use_c10 = false;
+	if (intel_tc_port_in_tbt_alt_mode(enc_to_dig_port(encoder))) {
+		pll_state->tbt_mode = true;
 
-	pll_state->tbt_mode = intel_tc_port_in_tbt_alt_mode(enc_to_dig_port(encoder));
-	if (pll_state->tbt_mode)
-		return;
+		return true;
+	}
+
+	if (!intel_cx0_pll_is_enabled(encoder))
+		return false;
 
 	if (intel_encoder_is_c10phy(encoder)) {
-		intel_c10pll_readout_hw_state(encoder, &pll_state->c10);
 		pll_state->use_c10 = true;
+		intel_c10pll_readout_hw_state(encoder, &pll_state->c10);
 	} else {
 		intel_c20pll_readout_hw_state(encoder, &pll_state->c20);
 	}
+
+	return true;
 }
 
 static bool mtl_compare_hw_state_c10(const struct intel_c10pll_state *a,
