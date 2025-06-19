@@ -4376,8 +4376,20 @@ static void mtl_pll_enable(struct intel_display *display,
 	intel_mtl_pll_enable(encoder, pll, dpll_hw_state);
 }
 
+static void mtl_pll_disable(struct intel_display *display,
+			    struct intel_dpll *pll)
+{
+	struct intel_encoder *encoder = get_intel_encoder(display, pll);
+
+	if (drm_WARN_ON(display->drm, !encoder))
+		return;
+
+	intel_mtl_pll_disable(encoder);
+}
+
 static const struct intel_dpll_funcs mtl_pll_funcs = {
 	.enable = mtl_pll_enable,
+	.disable = mtl_pll_disable,
 };
 
 static const struct dpll_info mtl_plls[] = {
