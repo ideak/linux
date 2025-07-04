@@ -1,0 +1,30 @@
+drm drm-fixes da8d8e9001c6a3741e9bec26a6cdcfd75ecabc88
+	Merge tag 'drm-xe-fixes-2025-07-03' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-fixes
+drm-misc drm-misc-fixes 2e9fdbe5ec7a65b66da9c202cac621a3a366fde3
+	rust: drm: device: drop_in_place() the drm::Device in release()
+drm-intel drm-intel-fixes 8cadce97bf264ed478669c6f32d5603b34608335
+	drm/i915/gsc: mei interrupt top half should be in irq disabled context
+drm-xe drm-xe-fixes b20b87414405b396cd64a1965c5d1cb74fc1f770
+	FOR-DRM-XE-FIXES-TEST-UNBLOCK: platform/x86: asus-wmi: Only register lps0 dev for Ally devices
+drm drm-next 17d081ef84a6f3c2a1867cc753d7c8459a34d829
+	Merge tag 'drm-misc-next-2025-07-03' of https://gitlab.freedesktop.org/drm/misc/kernel into drm-next
+drm-misc drm-misc-next-fixes fd03f82a026cc03cb8051a8c6487c99f96c9029f
+	drm/bridge: analogix_dp: Fix clk-disable removal
+drm-intel drm-intel-next-fixes 19272b37aa4f83ca52bdf9c16d5d81bdd1354494
+	Linux 6.16-rc1
+drm-xe drm-xe-next-fixes 04c8970771b4f1f39bb8453a2eeb188c4d5edbd6
+	drm/nouveau/vfn/r535: Convert comma to semicolon
+drm-misc drm-misc-next 86c947b363f003153768d879ee15f8358cbf29c5
+	drm: Simplify drmm_alloc_ordered_workqueue return
+drm-intel drm-intel-next d6a59ee852758bc69c4cc821954db277a2bd5b93
+	drm/ttm: Remove unneeded blank line in comment
+drm-intel drm-intel-gt-next 4e65d104129e8be001d561410f6402135f6f8a45
+	drm/i915/guc: Enable CT_DEAD output in regular debug builds
+drm-xe drm-xe-next 03d85ab36bcbcbe9dc962fccd3f8e54d7bb93b35
+	Revert "drm/xe/xe2: Enable Indirect Ring State support for Xe2"
+drm-intel topic/core-for-CI 781e1eb170d489eda30e1c02cc3030a806194e74
+	iommu/vt-d: Enable ATS before cache tag assignment
+drm-xe topic/xe-for-CI 9b740fabbb7eb6722c78b886d1ae59d2504d855b
+	drm/xe/pm: Re-enable D3Cold by default on BMG
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
