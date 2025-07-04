@@ -54,6 +54,7 @@
 				__DOMAIN_MAX_PFN(gaw), (unsigned long)-1))
 #define DOMAIN_MAX_ADDR(gaw)	(((uint64_t)__DOMAIN_MAX_PFN(gaw)) << VTD_PAGE_SHIFT)
 
+static void sm_iommu_enable_pcicaps(struct device *dev);
 static void __init check_tylersburg_isoch(void);
 static int rwbf_quirk;
 
@@ -1825,10 +1826,11 @@ static int dmar_domain_attach_device(struct dmar_domain *domain,
 	else
 		ret = domain_setup_second_level(iommu, domain, dev,
 						IOMMU_NO_PASID, NULL);
-
 	if (ret)
 		goto out_block_translation;
 
+	/* PCI ATS enablement must happen before cache tag assigning. */
+	sm_iommu_enable_pcicaps(dev);
 	ret = cache_tag_assign_domain(domain, dev, IOMMU_NO_PASID);
 	if (ret)
 		goto out_block_translation;
@@ -3765,10 +3767,17 @@ free:
 	return ERR_PTR(ret);
 }
 
-static void intel_iommu_probe_finalize(struct device *dev)
+static void sm_iommu_enable_pcicaps(struct device *dev)
 {
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
 	struct intel_iommu *iommu = info->iommu;
+
+	/*
+	 * Called only in iommu_device_register() path when iommu is
+	 * configured in the scalable mode.
+	 */
+	if (!sm_supported(iommu) || READ_ONCE(iommu->iommu.ready))
+		return;
 
 	/*
 	 * The PCIe spec, in its wisdom, declares that the behaviour of the
@@ -3780,7 +3789,7 @@ static void intel_iommu_probe_finalize(struct device *dev)
 	    !pci_enable_pasid(to_pci_dev(dev), info->pasid_supported & ~1))
 		info->pasid_enabled = 1;
 
-	if (sm_supported(iommu) && !dev_is_real_dma_subdevice(dev))
+	if (!dev_is_real_dma_subdevice(dev))
 		iommu_enable_pci_ats(info);
 	iommu_enable_pci_pri(info);
 }
@@ -4309,6 +4318,7 @@ static int identity_domain_attach_dev(struct iommu_domain *domain, struct device
 		ret = intel_pasid_setup_pass_through(iommu, dev, IOMMU_NO_PASID);
 	else
 		ret = device_setup_pass_through(dev);
+	sm_iommu_enable_pcicaps(dev);
 
 	if (!ret)
 		info->domain_attached = true;
@@ -4359,7 +4369,6 @@ const struct iommu_ops intel_iommu_ops = {
 	.domain_alloc_sva	= intel_svm_domain_alloc,
 	.domain_alloc_nested	= intel_iommu_domain_alloc_nested,
 	.probe_device		= intel_iommu_probe_device,
-	.probe_finalize		= intel_iommu_probe_finalize,
 	.release_device		= intel_iommu_release_device,
 	.get_resv_regions	= intel_iommu_get_resv_regions,
 	.device_group		= intel_iommu_device_group,
