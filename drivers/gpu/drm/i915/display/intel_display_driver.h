@@ -26,6 +26,7 @@ void intel_display_driver_remove_nogem(struct intel_display *display);
 void intel_display_driver_unregister(struct intel_display *display);
 int intel_display_driver_suspend(struct intel_display *display);
 void intel_display_driver_resume(struct intel_display *display);
+void intel_display_driver_flush_cleanup_work(struct intel_display *display);
 
 /* interface for intel_display_reset.c */
 int __intel_display_driver_resume(struct intel_display *display,
