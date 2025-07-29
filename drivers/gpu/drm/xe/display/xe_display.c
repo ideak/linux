@@ -313,29 +313,7 @@ void xe_display_pm_suspend(struct xe_device *xe)
 	if (!xe->info.probe_display)
 		return;
 
-	/*
-	 * We do a lot of poking in a lot of registers, make sure they work
-	 * properly.
-	 */
-	intel_power_domains_disable(display);
-	drm_client_dev_suspend(&xe->drm);
-
-	if (intel_display_device_present(display)) {
-		drm_kms_helper_poll_disable(&xe->drm);
-		intel_display_driver_disable_user_access(display);
-		intel_display_driver_suspend(display);
-	}
-
-	intel_display_driver_flush_cleanup_work(display);
-
-	intel_encoder_block_all_hpds(display);
-
-	intel_hpd_cancel_work(display);
-
-	if (intel_display_device_present(display)) {
-		intel_display_driver_suspend_access(display);
-		intel_encoder_suspend_all(display);
-	}
+	intel_display_driver_suspend(display, true);
 
 	intel_opregion_suspend(display, s2idle ? PCI_D1 : PCI_D3cold);
 
@@ -349,24 +327,8 @@ void xe_display_pm_shutdown(struct xe_device *xe)
 	if (!xe->info.probe_display)
 		return;
 
-	intel_power_domains_disable(display);
-	drm_client_dev_suspend(&xe->drm);
+	intel_display_driver_suspend(display, true);
 
-	if (intel_display_device_present(display)) {
-		drm_kms_helper_poll_disable(&xe->drm);
-		intel_display_driver_disable_user_access(display);
-		intel_display_driver_suspend(display);
-	}
-
-	intel_display_driver_flush_cleanup_work(display);
-	intel_dp_mst_suspend(display);
-	intel_encoder_block_all_hpds(display);
-	intel_hpd_cancel_work(display);
-
-	if (intel_display_device_present(display))
-		intel_display_driver_suspend_access(display);
-
-	intel_encoder_suspend_all(display);
 	intel_encoder_shutdown_all(display);
 
 	intel_opregion_suspend(display, PCI_D3cold);
@@ -457,21 +419,7 @@ void xe_display_pm_resume(struct xe_device *xe)
 
 	intel_display_driver_init_hw(display);
 
-	if (intel_display_device_present(display))
-		intel_display_driver_resume_access(display);
-
-	intel_hpd_init(display);
-
-	intel_encoder_unblock_all_hpds(display);
-
-	if (intel_display_device_present(display)) {
-		intel_display_driver_resume(display);
-		intel_display_driver_enable_user_access(display);
-		drm_kms_helper_poll_enable(&xe->drm);
-	}
-
-	if (intel_display_device_present(display))
-		intel_hpd_poll_disable(display);
+	intel_display_driver_resume(display);
 
 	intel_opregion_resume(display);
 

@@ -43,6 +43,7 @@
 #include "intel_dp_tunnel.h"
 #include "intel_dpll.h"
 #include "intel_dpll_mgr.h"
+#include "intel_encoder.h"
 #include "intel_fb.h"
 #include "intel_fbc.h"
 #include "intel_fbdev.h"
@@ -699,13 +700,23 @@ void intel_display_driver_flush_cleanup_work(struct intel_display *display)
  * turn all crtc's off, but do not adjust state
  * This has to be paired with a call to intel_modeset_setup_hw_state.
  */
-int intel_display_driver_suspend(struct intel_display *display)
+int intel_display_driver_suspend(struct intel_display *display, bool flush_cleanup_work)
 {
 	struct drm_atomic_commit *state;
 	int ret;
 
 	if (!HAS_DISPLAY(display))
 		return 0;
+
+	/*
+	 * We do a lot of poking in a lot of registers, make sure they work
+	 * properly.
+	 */
+	intel_power_domains_disable(display);
+	drm_client_dev_suspend(display->drm);
+
+	drm_kms_helper_poll_disable(display->drm);
+	intel_display_driver_disable_user_access(display);
 
 	state = drm_atomic_helper_suspend(display->drm);
 	ret = PTR_ERR_OR_ZERO(state);
@@ -719,6 +730,16 @@ int intel_display_driver_suspend(struct intel_display *display)
 	flush_workqueue(display->wq.cleanup);
 
 	intel_dp_mst_suspend(display);
+
+	if (flush_cleanup_work)
+		intel_display_driver_flush_cleanup_work(display);
+
+	intel_encoder_block_all_hpds(display);
+
+	intel_hpd_cancel_work(display);
+
+	intel_display_driver_suspend_access(display);
+	intel_encoder_suspend_all(display);
 
 	return ret;
 }
@@ -771,6 +792,10 @@ void intel_display_driver_resume(struct intel_display *display)
 	if (!HAS_DISPLAY(display))
 		return;
 
+	intel_display_driver_resume_access(display);
+	intel_hpd_init(display);
+	intel_encoder_unblock_all_hpds(display);
+
 	/* MST sideband requires HPD interrupts enabled */
 	intel_dp_mst_resume(display);
 
@@ -800,4 +825,8 @@ void intel_display_driver_resume(struct intel_display *display)
 			"Restoring old state failed with %i\n", ret);
 	if (state)
 		drm_atomic_commit_put(state);
+
+	intel_display_driver_enable_user_access(display);
+	drm_kms_helper_poll_enable(display->drm);
+	intel_hpd_poll_disable(display);
 }
