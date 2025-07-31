@@ -1,0 +1,30 @@
+drm drm-fixes 038d61fd642278bab63ee8ef722c50d10ab01e8f
+	Linux 6.16
+drm-misc drm-misc-fixes 038d61fd642278bab63ee8ef722c50d10ab01e8f
+	Linux 6.16
+drm-intel drm-intel-fixes 038d61fd642278bab63ee8ef722c50d10ab01e8f
+	Linux 6.16
+drm-xe drm-xe-fixes 519575a16fc0976de4838e60cd7aeea985c4c824
+	FOR-DRM-XE-FIXES-TEST-UNBLOCK: platform/x86: asus-wmi: Only register lps0 dev for Ally devices
+drm drm-next 711fa2667d8b230ff31f1855d0f25e3263268d8a
+	Merge tag 'drm-misc-next-fixes-2025-07-24' of https://gitlab.freedesktop.org/drm/misc/kernel into drm-next
+drm-misc drm-misc-next-fixes b213eb34f857c45bdd769c9e9191a386accc9e8f
+	drm/tidss: oldi: convert to devm_drm_bridge_alloc() API
+drm-intel drm-intel-next-fixes 5a569ef4d4ab184a481dd8ecb58f464a89b44d2f
+	drm/i915/display: Set C10_VDR_CTRL_MSGBUS_ACCESS before phy reg read
+drm-xe drm-xe-next-fixes f62408efc8669b82541295a4611494c8c8c52684
+	drm/xe/vf: Disable CSC support on VF
+drm-misc drm-misc-next 934452cbb16e1e3609ba52acb48c503b9aaf3154
+	drm/vkms: Add writeback encoders as possible clones
+drm-intel drm-intel-next 82dde0407ab126f8413fd6c51429e5057ced5ba2
+	drm/i915/fbc: fix the implementation of wa_18038517565
+drm-intel drm-intel-gt-next c8bdf3165fccadac12d670e94ea4a9a893a5a813
+	drm/i915: Replace empty conditional with continue in eb_relocate_vma()
+drm-xe drm-xe-next 1cda3c755bb7770be07d75949bb0f45fb88651f6
+	drm/xe: Fix oops in xe_gem_fault when running core_hotunplug test.
+drm-intel topic/core-for-CI 5d02a8a47924660f5456c0501b4d455546a83d2a
+	usb: early: xhci-dbc: Fix early_ioremap leak
+drm-xe topic/xe-for-CI 7f2f32f161ac0048ade49a2d5db0aab9bae0633a
+	drm/xe/pf: Set VF LMEM BAR size
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
