@@ -2613,13 +2613,16 @@ static void mtl_port_buf_ctl_program(struct intel_encoder *encoder,
 		     val);
 }
 
-static void mtl_port_buf_ctl_io_selection(struct intel_encoder *encoder)
+static void mtl_port_buf_ctl_io_selection(struct intel_encoder *encoder, bool enable)
 {
 	struct intel_display *display = to_intel_display(encoder);
 	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
 	u32 val;
 
-	val = intel_tc_port_in_tbt_alt_mode(dig_port) ?
+	if (DISPLAY_VER(display) < 14)
+		return;
+
+	val = enable && intel_tc_port_in_tbt_alt_mode(dig_port) ?
 	      XELPDP_PORT_BUF_IO_SELECT_TBT : 0;
 	intel_de_rmw(display, XELPDP_PORT_BUF_CTL1(display, encoder->port),
 		     XELPDP_PORT_BUF_IO_SELECT_TBT, val);
@@ -2654,8 +2657,7 @@ static void mtl_ddi_pre_enable_dp(struct intel_atomic_state *state,
 
 	/* 2. PMdemand was already set */
 
-	/* 3. Select Thunderbolt */
-	mtl_port_buf_ctl_io_selection(encoder);
+	/* 3. TBT/non-TBT IO mode set already in pre-PLL enable hook */
 
 	/* 4. Enable Panel Power if PPS is required */
 	intel_pps_on(intel_dp);
@@ -3189,11 +3191,6 @@ static void intel_ddi_post_disable_dp(struct intel_atomic_state *state,
 					wakeref);
 
 	intel_ddi_disable_clock(encoder);
-
-	/* De-select Thunderbolt */
-	if (DISPLAY_VER(display) >= 14)
-		intel_de_rmw(display, XELPDP_PORT_BUF_CTL1(display, encoder->port),
-			     XELPDP_PORT_BUF_IO_SELECT_TBT, 0);
 }
 
 static void intel_ddi_post_disable_hdmi(struct intel_atomic_state *state,
@@ -3325,6 +3322,8 @@ static void intel_ddi_post_pll_disable(struct intel_atomic_state *state,
 				       const struct drm_connector_state *old_conn_state)
 {
 	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+
+	mtl_port_buf_ctl_io_selection(encoder, false);
 
 	main_link_aux_power_domain_put(dig_port, old_crtc_state);
 
@@ -3717,6 +3716,8 @@ intel_ddi_pre_pll_enable(struct intel_atomic_state *state,
 	else if (display->platform.geminilake || display->platform.broxton)
 		bxt_dpio_phy_set_lane_optim_mask(encoder,
 						 crtc_state->lane_lat_optim_mask);
+
+	mtl_port_buf_ctl_io_selection(encoder, true);
 }
 
 static void adlp_tbt_to_dp_alt_switch_wa(struct intel_encoder *encoder)
