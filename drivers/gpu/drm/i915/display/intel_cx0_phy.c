@@ -2193,8 +2193,8 @@ static void intel_c10pll_dump_hw_state(struct drm_printer *p,
 	unsigned int multiplier, tx_clk_div;
 
 	fracen = hw_state->pll[0] & C10_PLL0_FRACEN;
-	drm_printf(p, "c10pll_hw_state: fracen: %s, ",
-		   str_yes_no(fracen));
+	drm_printf(p, "c10pll_hw_state: clock: %d, fracen: %s, ",
+		   hw_state->clock, str_yes_no(fracen));
 
 	if (fracen) {
 		frac_quot = hw_state->pll[12] << 8 | hw_state->pll[11];
@@ -2524,7 +2524,8 @@ static void intel_c20pll_dump_hw_state(struct drm_printer *p,
 {
 	int i;
 
-	drm_printf(p, "c20pll_hw_state:\n");
+	drm_printf(p, "c20pll_hw_state: clock: %d\n", hw_state->clock);
+
 	drm_printf(p,
 		   "tx[0] = 0x%.4x, tx[1] = 0x%.4x, tx[2] = 0x%.4x\n",
 		   hw_state->tx[0], hw_state->tx[1], hw_state->tx[2]);
@@ -2540,12 +2541,21 @@ static void intel_c20pll_dump_hw_state(struct drm_printer *p,
 		for (i = 0; i < ARRAY_SIZE(hw_state->mplla); i++)
 			drm_printf(p, "mplla[%d] = 0x%.4x\n", i,
 				   hw_state->mplla[i]);
+
+		/* For full coverage, also print the additional PLL B entry. */
+		WARN_ON(i + 1 != ARRAY_SIZE(hw_state->mpllb));
+		drm_printf(p, "mpllb[%d] = 0x%.4x\n", i, hw_state->mpllb[i]);
 	}
 }
 
 void intel_cx0pll_dump_hw_state(struct drm_printer *p,
 				const struct intel_cx0pll_state *hw_state)
 {
+	drm_printf(p,
+		   "cx0pll_hw_state: lane_count: %d, ssc_enabled: %s, use_c10: %s, tbt_mode: %s\n",
+		   hw_state->lane_count, str_yes_no(hw_state->ssc_enabled),
+		   str_yes_no(hw_state->use_c10), str_yes_no(hw_state->tbt_mode));
+
 	if (hw_state->use_c10)
 		intel_c10pll_dump_hw_state(p, &hw_state->c10);
 	else
