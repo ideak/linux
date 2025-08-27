@@ -2078,7 +2078,8 @@ static int intel_c10pll_calc_state_from_table(struct intel_encoder *encoder,
 }
 
 static int intel_c10pll_calc_state(struct intel_crtc_state *crtc_state,
-				   struct intel_encoder *encoder)
+				   struct intel_encoder *encoder,
+				   struct intel_dpll_hw_state *hw_state)
 {
 	const struct intel_c10pll_state * const *tables;
 	int err;
@@ -2087,20 +2088,20 @@ static int intel_c10pll_calc_state(struct intel_crtc_state *crtc_state,
 	if (!tables)
 		return -EINVAL;
 
+	hw_state->cx0pll.lane_count = crtc_state->lane_count;
+
 	err = intel_c10pll_calc_state_from_table(encoder, tables,
 						 intel_crtc_has_dp_encoder(crtc_state),
 						 crtc_state->port_clock,
-						 &crtc_state->dpll_hw_state.cx0pll);
+						 &hw_state->cx0pll);
 
 	if (err == 0 || !intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return err;
 
 	/* For HDMI PLLs try SNPS PHY algorithm, if there are no precomputed tables */
-	intel_snps_hdmi_pll_compute_c10pll(&crtc_state->dpll_hw_state.cx0pll.c10,
+	intel_snps_hdmi_pll_compute_c10pll(&hw_state->cx0pll.c10,
 					   crtc_state->port_clock);
-	intel_c10pll_update_pll(encoder,
-				&crtc_state->dpll_hw_state.cx0pll);
-	crtc_state->dpll_hw_state.cx0pll.use_c10 = true;
+	intel_c10pll_update_pll(encoder, &hw_state->cx0pll);
 
 	return 0;
 }
@@ -2335,10 +2336,13 @@ intel_c20_pll_tables_get(struct intel_crtc_state *crtc_state,
 }
 
 static int intel_c20pll_calc_state(struct intel_crtc_state *crtc_state,
-				   struct intel_encoder *encoder)
+				   struct intel_encoder *encoder,
+				   struct intel_dpll_hw_state *hw_state)
 {
 	const struct intel_c20pll_state * const *tables;
 	int i;
+
+	hw_state->cx0pll.lane_count = crtc_state->lane_count;
 
 	/* try computed C20 HDMI tables before using consolidated tables */
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI)) {
@@ -2352,11 +2356,11 @@ static int intel_c20pll_calc_state(struct intel_crtc_state *crtc_state,
 
 	for (i = 0; tables[i]; i++) {
 		if (crtc_state->port_clock == tables[i]->clock) {
-			crtc_state->dpll_hw_state.cx0pll.c20 = *tables[i];
+			hw_state->cx0pll.c20 = *tables[i];
 			intel_cx0pll_update_ssc(encoder,
-						&crtc_state->dpll_hw_state.cx0pll,
+						&hw_state->cx0pll,
 						intel_crtc_has_dp_encoder(crtc_state));
-			crtc_state->dpll_hw_state.cx0pll.use_c10 = false;
+			hw_state->cx0pll.use_c10 = false;
 			return 0;
 		}
 	}
@@ -2365,11 +2369,12 @@ static int intel_c20pll_calc_state(struct intel_crtc_state *crtc_state,
 }
 
 int intel_cx0pll_calc_state(struct intel_crtc_state *crtc_state,
-			    struct intel_encoder *encoder)
+			    struct intel_encoder *encoder,
+			    struct intel_dpll_hw_state *hw_state)
 {
 	if (intel_encoder_is_c10phy(encoder))
-		return intel_c10pll_calc_state(crtc_state, encoder);
-	return intel_c20pll_calc_state(crtc_state, encoder);
+		return intel_c10pll_calc_state(crtc_state, encoder, hw_state);
+	return intel_c20pll_calc_state(crtc_state, encoder, hw_state);
 }
 
 static bool intel_c20phy_use_mpllb(const struct intel_c20pll_state *state)
