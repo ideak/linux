@@ -4268,8 +4268,11 @@ static void mtl_ddi_get_config(struct intel_encoder *encoder,
 	port_dpll = &crtc_state->icl_port_dplls[port_dpll_id];
 	pll = intel_get_dpll_by_id(display, pll_id);
 
+	if (drm_WARN_ON(display->drm, !pll))
+		return;
+
 	port_dpll->pll = pll;
-	pll_active = intel_cx0pll_readout_hw_state(encoder, &port_dpll->hw_state.cx0pll);
+	pll_active = intel_dpll_get_hw_state(display, pll, &port_dpll->hw_state);
 	drm_WARN_ON(display->drm, !pll_active);
 
 	icl_set_active_port_dpll(crtc_state, port_dpll_id);
