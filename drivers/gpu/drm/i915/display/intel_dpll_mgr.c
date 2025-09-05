@@ -4583,23 +4583,23 @@ static bool mtl_compare_hw_state(const struct intel_dpll_hw_state *_a,
 	return intel_cx0pll_compare_hw_state(a, b);
 }
 
-__maybe_unused
 static const struct intel_dpll_mgr mtl_pll_mgr = {
 	.dpll_info = mtl_plls,
 	.compute_dplls = mtl_compute_dplls,
 	.get_dplls = icl_get_dplls,
 	.put_dplls = icl_put_dplls,
+	.update_active_dpll = icl_update_active_dpll,
 	.update_ref_clks = icl_update_dpll_ref_clks,
 	.dump_hw_state = mtl_dump_hw_state,
 	.compare_hw_state = mtl_compare_hw_state,
 };
 
-__maybe_unused
 static const struct intel_dpll_mgr lnl_pll_mgr = {
 	.dpll_info = lnl_plls,
 	.compute_dplls = mtl_compute_dplls,
 	.get_dplls = icl_get_dplls,
 	.put_dplls = icl_put_dplls,
+	.update_active_dpll = icl_update_active_dpll,
 	.update_ref_clks = icl_update_dpll_ref_clks,
 	.dump_hw_state = mtl_dump_hw_state,
 	.compare_hw_state = mtl_compare_hw_state,
@@ -4619,7 +4619,13 @@ void intel_dpll_init(struct intel_display *display)
 
 	mutex_init(&display->dpll.lock);
 
-	if (DISPLAY_VER(display) >= 14 || display->platform.dg2)
+	if (DISPLAY_VER(display) >= 30)
+		dpll_mgr = &mtl_pll_mgr;
+	else if (DISPLAY_VER(display) >= 20)
+		dpll_mgr = &lnl_pll_mgr;
+	else if (DISPLAY_VER(display) >= 14 && !display->platform.dg2)
+		dpll_mgr = &mtl_pll_mgr;
+	else if (display->platform.dg2)
 		/* No shared DPLLs on DG2; port PLLs are part of the PHY */
 		dpll_mgr = NULL;
 	else if (display->platform.alderlake_p)
