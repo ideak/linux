@@ -4348,7 +4348,66 @@ static const struct intel_dpll_mgr adlp_pll_mgr = {
 	.compare_hw_state = icl_compare_hw_state,
 };
 
+static struct intel_encoder *get_intel_encoder(struct intel_display *display,
+					       const struct intel_dpll *pll)
+{
+	struct intel_encoder *encoder;
+	enum intel_dpll_id mtl_id;
+
+	for_each_intel_encoder(display->drm, encoder) {
+		mtl_id = mtl_port_to_pll_id(display, encoder->port);
+
+		if (mtl_id == pll->info->id)
+			return encoder;
+	}
+
+	return NULL;
+}
+
+static bool mtl_bios_has_port_present(struct intel_display *display,
+				      struct intel_dpll *pll)
+{
+	switch (pll->info->id) {
+	case DPLL_ID_ICL_DPLL0:
+		return intel_bios_is_port_present(display, PORT_A);
+	case DPLL_ID_ICL_DPLL1:
+		return intel_bios_is_port_present(display, PORT_B);
+	case DPLL_ID_ICL_MGPLL1:
+		return intel_bios_is_port_present(display, PORT_TC1);
+	case DPLL_ID_ICL_MGPLL2:
+		return intel_bios_is_port_present(display, PORT_TC2);
+	case DPLL_ID_ICL_MGPLL3:
+		return intel_bios_is_port_present(display, PORT_TC3);
+	case DPLL_ID_ICL_MGPLL4:
+		return intel_bios_is_port_present(display, PORT_TC4);
+	default:
+		MISSING_CASE(pll->info->id);
+		return false;
+	}
+}
+
+static bool mtl_pll_get_hw_state(struct intel_display *display,
+				 struct intel_dpll *pll,
+				 struct intel_dpll_hw_state *dpll_hw_state)
+{
+	struct intel_encoder *encoder;
+	bool has_port = mtl_bios_has_port_present(display, pll);
+
+	drm_dbg_kms(display->drm, "PLL: %s, bios support: %s\n",
+		    pll->info->name, str_yes_no(has_port));
+
+	if (!has_port)
+		return false;
+
+	encoder = get_intel_encoder(display, pll);
+	if (!encoder)
+		return false;
+
+	return intel_cx0pll_readout_hw_state(encoder, &dpll_hw_state->cx0pll);
+}
+
 static const struct intel_dpll_funcs mtl_pll_funcs = {
+	.get_hw_state = mtl_pll_get_hw_state,
 };
 
 static const struct dpll_info mtl_plls[] = {
