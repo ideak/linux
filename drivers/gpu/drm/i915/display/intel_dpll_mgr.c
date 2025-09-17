@@ -4434,6 +4434,16 @@ static const struct dpll_info mtl_plls[] = {
 	{}
 };
 
+static const struct dpll_info lnl_plls[] = {
+	{ .name = "DPLL 0", .funcs = &mtl_pll_funcs, .id = DPLL_ID_ICL_DPLL0, },
+	/* TODO: Add TBT PLL */
+	{ .name = "TC PLL 1", .funcs = &mtl_pll_funcs, .id = DPLL_ID_ICL_MGPLL1, },
+	{ .name = "TC PLL 2", .funcs = &mtl_pll_funcs, .id = DPLL_ID_ICL_MGPLL2, },
+	{ .name = "TC PLL 3", .funcs = &mtl_pll_funcs, .id = DPLL_ID_ICL_MGPLL3, },
+	{ .name = "TC PLL 4", .funcs = &mtl_pll_funcs, .id = DPLL_ID_ICL_MGPLL4, },
+	{}
+};
+
 static int mtl_compute_c10phy_dplls(struct intel_atomic_state *state,
 				    struct intel_crtc *crtc,
 				    struct intel_encoder *encoder)
@@ -4516,6 +4526,17 @@ static bool mtl_compare_hw_state(const struct intel_dpll_hw_state *_a,
 __maybe_unused
 static const struct intel_dpll_mgr mtl_pll_mgr = {
 	.dpll_info = mtl_plls,
+	.compute_dplls = mtl_compute_dplls,
+	.get_dplls = icl_get_dplls,
+	.put_dplls = icl_put_dplls,
+	.update_ref_clks = icl_update_dpll_ref_clks,
+	.dump_hw_state = mtl_dump_hw_state,
+	.compare_hw_state = mtl_compare_hw_state,
+};
+
+__maybe_unused
+static const struct intel_dpll_mgr lnl_pll_mgr = {
+	.dpll_info = lnl_plls,
 	.compute_dplls = mtl_compute_dplls,
 	.get_dplls = icl_get_dplls,
 	.put_dplls = icl_put_dplls,
