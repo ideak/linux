@@ -2111,6 +2111,8 @@ static int intel_c10pll_calc_state(struct intel_crtc_state *crtc_state,
 	if (!tables)
 		return -EINVAL;
 
+	crtc_state->dpll_hw_state.cx0pll.lane_count = crtc_state->lane_count;
+
 	err = intel_c10pll_calc_state_from_table(encoder, tables,
 						 intel_crtc_has_dp_encoder(crtc_state),
 						 crtc_state->port_clock,
@@ -2387,6 +2389,8 @@ static int intel_c20pll_calc_state(struct intel_crtc_state *crtc_state,
 {
 	const struct intel_c20pll_state * const *tables;
 	int i;
+
+	crtc_state->dpll_hw_state.cx0pll.lane_count = crtc_state->lane_count;
 
 	/* try computed C20 HDMI tables before using consolidated tables */
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI)) {
@@ -3455,6 +3459,37 @@ static void intel_c10pll_state_verify(const struct intel_crtc_state *state,
 				 mpllb_sw_state->cmn, mpllb_hw_state->cmn);
 }
 
+static int readout_enabled_lane_count(struct intel_encoder *encoder)
+{
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	u8 enabled_lane_count = 0;
+	intel_wakeref_t wakeref;
+	u8 owned_lane_mask;
+	int max_lane_count;
+	int lane;
+
+	wakeref = intel_cx0_phy_transaction_begin(encoder);
+
+	max_lane_count = intel_tc_port_max_lane_count(dig_port);
+	owned_lane_mask = max_lane_count > 2 ? INTEL_CX0_BOTH_LANES : INTEL_CX0_LANE0;
+
+	intel_c10_msgbus_access_begin(encoder, owned_lane_mask);
+
+	for (lane = 0; lane < max_lane_count; lane++) {
+		u8 lane_mask = lane < 2 ? INTEL_CX0_LANE0 : INTEL_CX0_LANE1;
+		int tx = lane % 2 + 1;
+		u8 val;
+
+		val = intel_cx0_read(encoder, lane_mask, PHY_CX0_TX_CONTROL(tx, 2));
+		if (!(val & CONTROL2_DISABLE_SINGLE_TX))
+			enabled_lane_count++;
+	}
+
+	intel_cx0_phy_transaction_end(encoder, wakeref);
+
+	return enabled_lane_count;
+}
+
 void intel_cx0pll_readout_hw_state(struct intel_encoder *encoder,
 				   struct intel_cx0pll_state *pll_state)
 {
@@ -3470,6 +3505,8 @@ void intel_cx0pll_readout_hw_state(struct intel_encoder *encoder,
 	} else {
 		intel_c20pll_readout_hw_state(encoder, &pll_state->c20);
 	}
+
+	pll_state->lane_count = readout_enabled_lane_count(encoder);
 }
 
 static bool mtl_compare_hw_state_c10(const struct intel_c10pll_state *a,
