@@ -99,6 +99,8 @@ static int rev_id;
 	     entry = &lpi_constraints_table[i], i < lpi_constraints_table_size;	\
 	     i++)
 
+static bool skip_sx_target_detect_quirk;
+
 static void lpi_device_get_constraints_amd(void)
 {
 	union acpi_object *out_obj;
@@ -193,6 +195,13 @@ static void lpi_device_get_constraints(void)
 {
 	union acpi_object *out_obj;
 	int i;
+
+	/*
+	 * The following acpi_evaluate_dsm_typed() call would time out after
+	 * 50 sec.
+	 */
+	if (skip_sx_target_detect_quirk)
+		return;
 
 	out_obj = acpi_evaluate_dsm_typed(lps0_device_handle, &lps0_dsm_guid,
 					  1, ACPI_LPS0_GET_DEVICE_CONSTRAINTS,
@@ -646,8 +655,30 @@ static const struct platform_s2idle_ops acpi_s2idle_ops_lps0 = {
 	.end = acpi_s2idle_end,
 };
 
+static int __init quirk_setup_timeout(const struct dmi_system_id *id)
+{
+	skip_sx_target_detect_quirk = true;
+
+	return 0;
+}
+
+static const struct dmi_system_id s2idle_quirk_table[] __initconst = {
+	{
+		.callback = quirk_setup_timeout,
+		.ident = "Intel PTL RVP sx detect timeout",
+		.matches =  {
+			DMI_MATCH(DMI_BIOS_VENDOR, "Intel Corporation"),
+			DMI_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
+			DMI_MATCH(DMI_BOARD_NAME, "PTL-UH LP5 T3 RVP1"),
+		},
+	},
+	{}
+};
+
 void __init acpi_s2idle_setup(void)
 {
+	dmi_check_system(s2idle_quirk_table);
+
 	acpi_scan_add_handler(&lps0_handler);
 	s2idle_set_ops(&acpi_s2idle_ops_lps0);
 }
