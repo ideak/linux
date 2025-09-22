@@ -16,6 +16,7 @@
 #include "intel_bw.h"
 #include "intel_cdclk.h"
 #include "intel_crtc.h"
+#include "intel_crtc_state_dump.h"
 #include "intel_cursor_regs.h"
 #include "intel_de.h"
 #include "intel_display.h"
@@ -1666,6 +1667,8 @@ skl_compute_wm_params(const struct intel_crtc_state *crtc_state,
 		      int color_plane, unsigned int pan_x)
 {
 	struct intel_display *display = to_intel_display(crtc_state);
+	struct intel_atomic_state *state = to_intel_atomic_state(crtc_state->uapi.state);
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	u32 interm_pbpl;
 
 	/* only planar format has two planes */
@@ -1744,6 +1747,33 @@ skl_compute_wm_params(const struct intel_crtc_state *crtc_state,
 					     wp->plane_blocks_per_line);
 
 	wp->linetime_us = fixed16_to_u32_round_up(intel_get_linetime_us(crtc_state));
+
+	if (crtc_state->hw.active && wp->linetime_us == 0) {
+		struct drm_printer p = drm_dbg_printer(display->drm, DRM_UT_KMS, NULL);
+
+		drm_printf(&p, "[CRTC:%d:%s] line_us is zero dumping state\n",
+			   crtc->base.base.id, crtc->base.name);
+
+		drm_printf(&p, "port_pll[ICL_PORT_DPLL_DEFAULT]->pll id %d name %s\n",
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_DEFAULT].pll ?
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_DEFAULT].pll->info->id : -1,
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_DEFAULT].pll ?
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_DEFAULT].pll->info->name : "");
+
+		intel_dpll_dump_hw_state(display, &p, &crtc_state->icl_port_dplls[ICL_PORT_DPLL_DEFAULT].hw_state);
+
+		drm_printf(&p, "port_pll[ICL_PORT_DPLL_MG_PHY]->pll id %d name %s\n",
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_MG_PHY].pll ?
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_MG_PHY].pll->info->id : -1,
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_MG_PHY].pll ?
+			   crtc_state->icl_port_dplls[ICL_PORT_DPLL_MG_PHY].pll->info->name : "");
+
+		intel_dpll_dump_hw_state(display, &p, &crtc_state->icl_port_dplls[ICL_PORT_DPLL_MG_PHY].hw_state);
+
+		intel_crtc_state_dump(crtc_state, state, "line_us is zero");
+
+		return -EINVAL;
+	}
 
 	return 0;
 }
