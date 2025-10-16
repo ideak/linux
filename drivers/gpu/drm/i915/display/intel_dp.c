@@ -2499,6 +2499,7 @@ static int
 dsc_throughput_quirk_max_bpp_x16(const struct intel_connector *connector,
 				 const struct intel_crtc_state *crtc_state)
 {
+	struct intel_display *display = to_intel_display(connector);
 	const struct drm_display_mode *adjusted_mode =
 		&crtc_state->hw.adjusted_mode;
 
@@ -2526,7 +2527,7 @@ dsc_throughput_quirk_max_bpp_x16(const struct intel_connector *connector,
 		connector->dp.dsc_branch_caps.overall_throughput.yuv422_420) / 2)
 		return INT_MAX;
 
-	return fxp_q4_from_int(12);
+	return fxp_q4_from_int(display->params.bpp_limit);
 }
 
 /*
