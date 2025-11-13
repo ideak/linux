@@ -1,0 +1,34 @@
+drm drm-fixes e9a6fb0bcdd7609be6969112f3fbfcce3b1d4a7c
+	Linux 6.18-rc5
+drm-misc drm-misc-fixes 0a4a18e888ae8c8004582f665c5792c84a681668
+	drm/client: fix MODULE_PARM_DESC string for "active"
+drm-rust drm-rust-fixes 211ddde0823f1442e4ad052a2f30f050145ccada
+	Linux 6.18-rc2
+drm-intel drm-intel-fixes f2687d3cc9f905505d7b510c50970176115066a2
+	drm/i915/dp_mst: Disable Panel Replay
+drm-xe drm-xe-fixes 240372edaf854c9136f5ead45f2d8cd9496a9cb3
+	drm/xe/xe3lpg: Extend Wa_15016589081 for xe3lpg
+drm drm-next 2a084f4ad727244768b919455aa9dc1c04630487
+	Merge tag 'amd-drm-next-6.19-2025-11-07' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
+drm-misc drm-misc-next-fixes adefb2ccea1e96b452cbbc39150bc0ccf1688b99
+	drm/v3d: create a dedicated lock for dma fence
+drm-intel drm-intel-next-fixes 3a8660878839faadb4f1a6dd72c3179c1df56787
+	Linux 6.18-rc1
+drm-xe drm-xe-next-fixes 3a8660878839faadb4f1a6dd72c3179c1df56787
+	Linux 6.18-rc1
+drm-misc drm-misc-next ca2583412306ceda9304a7c4302fd9efbf43e963
+	accel/amdxdna: Fix deadlock between context destroy and job timeout
+drm-rust drm-rust-next e54ad0cd3673c93cdafda58505eaa81610fe3aef
+	rust/drm/gem: Fix missing header in `Object` rustdoc
+drm-intel drm-intel-next b84befa3126634d78e31260f538453d534742908
+	drm/i915/display: Add default case to mipi_exec_send_packet
+drm-intel drm-intel-gt-next 3bcf7894a93e18bff802088a368c13d86a5987a0
+	drm/i915/gt: Use standard API for seqcount read in TLB invalidation
+drm-xe drm-xe-next e448372e8a8ed2708ac4f85d74979885e47d5566
+	drm/xe/pf: Use migration-friendly GGTT auto-provisioning
+drm-intel topic/core-for-CI 7699f1e58837bde8d1038b84841c2b7929ef708b
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI da39e07e72ce7927980f9eada791aa74cd2c9717
+	topic/for-xe-CI: drm/xe/cri: Define GuC firmware for CRI
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
