@@ -9,7 +9,19 @@
 #include "intel_de.h"
 #include "intel_display.h"
 #include "intel_dkl_phy.h"
-#include "intel_dkl_phy_regs.h"
+
+/*
+ * Each Dekel PHY is addressed through a 4KB aperture. Each PHY has more than
+ * 4KB of register space, so a separate index is programmed in HIP_INDEX_REG0
+ * or HIP_INDEX_REG1, based on the port number, to set the upper 2 address
+ * bits that point the 4KB window into the full PHY register space.
+ */
+#define _HIP_INDEX_REG0					0x1010A0
+#define _HIP_INDEX_REG1					0x1010A4
+#define HIP_INDEX_REG(tc_port)				_MMIO((tc_port) < 4 ? _HIP_INDEX_REG0 \
+							      : _HIP_INDEX_REG1)
+#define _HIP_INDEX_SHIFT(tc_port)			(8 * ((tc_port) % 4))
+#define HIP_INDEX_VAL(tc_port, val)			((val) << _HIP_INDEX_SHIFT(tc_port))
 
 /**
  * intel_dkl_phy_init - initialize Dekel PHY
