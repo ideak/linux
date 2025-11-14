@@ -12,17 +12,18 @@
 #include "intel_dkl_phy_regs.h"
 
 /*
- * Each Dekel PHY is addressed through a 4KB aperture. Each PHY has more than
- * 4KB of register space, so a separate index is programmed in HIP_INDEX_REG0
- * or HIP_INDEX_REG1, based on the port number, to set the upper 2 address
- * bits that point the 4KB window into the full PHY register space.
+ * Each HIP register segment is addressed through a 4KB aperture window. Each segment
+ * has more than 4KB of register space, so a separate index is programmed to
+ * HIP_INDEX_REG0 or HIP_INDEX_REG1, based on the segment index, to set the upper 2
+ * address bits that point the 4KB window contained in the full segment register
+ * space.
  */
 #define _HIP_INDEX_REG0					0x1010A0
 #define _HIP_INDEX_REG1					0x1010A4
-#define HIP_INDEX_REG(tc_port)				_MMIO((tc_port) < 4 ? _HIP_INDEX_REG0 \
-							      : _HIP_INDEX_REG1)
-#define _HIP_INDEX_SHIFT(tc_port)			(8 * ((tc_port) % 4))
-#define HIP_INDEX_VAL(tc_port, val)			((val) << _HIP_INDEX_SHIFT(tc_port))
+#define HIP_INDEX_REG(seg_idx)				_MMIO((seg_idx) < 4 ? _HIP_INDEX_REG0 : \
+									      _HIP_INDEX_REG1)
+#define _HIP_INDEX_SHIFT(seg_idx)			(8 * ((seg_idx) % 4))
+#define HIP_INDEX_VAL(seg_idx, val)			((val) << _HIP_INDEX_SHIFT(seg_idx))
 
 /**
  * intel_dkl_phy_init - initialize Dekel PHY
@@ -36,15 +37,15 @@ void intel_dkl_phy_init(struct intel_display *display)
 static void
 dkl_phy_set_hip_idx(struct intel_display *display, struct intel_dkl_phy_reg reg)
 {
-	enum tc_port tc_port = DKL_REG_TC_PORT(reg);
+	int seg_idx = HIP_REG_SEG_IDX(reg);
 
 	if (drm_WARN_ON(display->drm,
-			tc_port < TC_PORT_1 || tc_port >= I915_MAX_TC_PORTS))
+			seg_idx < 0 || seg_idx >= HIP_REG_SEG_NUM))
 		return;
 
 	intel_de_write(display,
-		       HIP_INDEX_REG(tc_port),
-		       HIP_INDEX_VAL(tc_port, reg.bank_idx));
+		       HIP_INDEX_REG(seg_idx),
+		       HIP_INDEX_VAL(seg_idx, reg.bank_idx));
 }
 
 /**
