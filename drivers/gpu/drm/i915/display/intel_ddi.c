@@ -1406,19 +1406,19 @@ static void tgl_dkl_phy_set_signal_levels(struct intel_encoder *encoder,
 			     crtc_state->port_clock == 594000) ||
 			     (intel_encoder_is_dp(encoder) &&
 			      crtc_state->port_clock == 162000)) {
-				intel_dkl_phy_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
+				intel_hip_reg_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
 						  LOADGEN_SHARING_PMD_DISABLE, 1);
 			} else {
-				intel_dkl_phy_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
+				intel_hip_reg_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
 						  LOADGEN_SHARING_PMD_DISABLE, 0);
 			}
 		}
 
-		intel_dkl_phy_write(display, DKL_TX_PMD_LANE_SUS(tc_port, ln), 0);
+		intel_hip_reg_write(display, DKL_TX_PMD_LANE_SUS(tc_port, ln), 0);
 
 		level = intel_ddi_level(encoder, crtc_state, 2*ln+0);
 
-		intel_dkl_phy_rmw(display, DKL_TX_DPCNTL0(tc_port, ln),
+		intel_hip_reg_rmw(display, DKL_TX_DPCNTL0(tc_port, ln),
 				  DKL_TX_PRESHOOT_COEFF_MASK |
 				  DKL_TX_DE_EMPAHSIS_COEFF_MASK |
 				  DKL_TX_VSWING_CONTROL_MASK,
@@ -1428,7 +1428,7 @@ static void tgl_dkl_phy_set_signal_levels(struct intel_encoder *encoder,
 
 		level = intel_ddi_level(encoder, crtc_state, 2*ln+1);
 
-		intel_dkl_phy_rmw(display, DKL_TX_DPCNTL1(tc_port, ln),
+		intel_hip_reg_rmw(display, DKL_TX_DPCNTL1(tc_port, ln),
 				  DKL_TX_PRESHOOT_COEFF_MASK |
 				  DKL_TX_DE_EMPAHSIS_COEFF_MASK |
 				  DKL_TX_VSWING_CONTROL_MASK,
@@ -1436,7 +1436,7 @@ static void tgl_dkl_phy_set_signal_levels(struct intel_encoder *encoder,
 				  DKL_TX_DE_EMPHASIS_COEFF(trans->entries[level].dkl.de_emphasis) |
 				  DKL_TX_VSWING_CONTROL(trans->entries[level].dkl.vswing));
 
-		intel_dkl_phy_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
+		intel_hip_reg_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
 				  DKL_TX_DP20BITMODE, 0);
 
 		if (display->platform.alderlake_p) {
@@ -1455,7 +1455,7 @@ static void tgl_dkl_phy_set_signal_levels(struct intel_encoder *encoder,
 				val |= DKL_TX_DPCNTL2_CFG_LOADGENSELECT_TX2(0);
 			}
 
-			intel_dkl_phy_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
+			intel_hip_reg_rmw(display, DKL_TX_DPCNTL2(tc_port, ln),
 					  DKL_TX_DPCNTL2_CFG_LOADGENSELECT_TX1_MASK |
 					  DKL_TX_DPCNTL2_CFG_LOADGENSELECT_TX2_MASK,
 					  val);
@@ -2162,10 +2162,10 @@ static void
 tgl_dkl_phy_check_and_rewrite(struct intel_display *display,
 			      enum tc_port tc_port, u32 ln0, u32 ln1)
 {
-	if (ln0 != intel_dkl_phy_read(display, DKL_DP_MODE(tc_port, 0)))
-		intel_dkl_phy_write(display, DKL_DP_MODE(tc_port, 0), ln0);
-	if (ln1 != intel_dkl_phy_read(display, DKL_DP_MODE(tc_port, 1)))
-		intel_dkl_phy_write(display, DKL_DP_MODE(tc_port, 1), ln1);
+	if (ln0 != intel_hip_reg_read(display, DKL_DP_MODE(tc_port, 0)))
+		intel_hip_reg_write(display, DKL_DP_MODE(tc_port, 0), ln0);
+	if (ln1 != intel_hip_reg_read(display, DKL_DP_MODE(tc_port, 1)))
+		intel_hip_reg_write(display, DKL_DP_MODE(tc_port, 1), ln1);
 }
 
 static void
@@ -2186,8 +2186,8 @@ icl_program_mg_dp_mode(struct intel_digital_port *dig_port,
 		return;
 
 	if (DISPLAY_VER(display) >= 12) {
-		ln0 = intel_dkl_phy_read(display, DKL_DP_MODE(tc_port, 0));
-		ln1 = intel_dkl_phy_read(display, DKL_DP_MODE(tc_port, 1));
+		ln0 = intel_hip_reg_read(display, DKL_DP_MODE(tc_port, 0));
+		ln1 = intel_hip_reg_read(display, DKL_DP_MODE(tc_port, 1));
 	} else {
 		ln0 = intel_de_read(display, MG_DP_MODE(0, tc_port));
 		ln1 = intel_de_read(display, MG_DP_MODE(1, tc_port));
@@ -2248,8 +2248,8 @@ icl_program_mg_dp_mode(struct intel_digital_port *dig_port,
 	}
 
 	if (DISPLAY_VER(display) >= 12) {
-		intel_dkl_phy_write(display, DKL_DP_MODE(tc_port, 0), ln0);
-		intel_dkl_phy_write(display, DKL_DP_MODE(tc_port, 1), ln1);
+		intel_hip_reg_write(display, DKL_DP_MODE(tc_port, 0), ln0);
+		intel_hip_reg_write(display, DKL_DP_MODE(tc_port, 1), ln1);
 		 /* WA_14018221282 */
 		if (IS_DISPLAY_VER(display, 12, 13))
 			tgl_dkl_phy_check_and_rewrite(display, tc_port, ln0, ln1);
@@ -3718,7 +3718,7 @@ static void adlp_tbt_to_dp_alt_switch_wa(struct intel_encoder *encoder)
 	int ln;
 
 	for (ln = 0; ln < 2; ln++)
-		intel_dkl_phy_rmw(display, DKL_PCS_DW5(tc_port, ln),
+		intel_hip_reg_rmw(display, DKL_PCS_DW5(tc_port, ln),
 				  DKL_PCS_DW5_CORE_SOFTRESET, 0);
 }
 

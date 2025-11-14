@@ -3635,12 +3635,12 @@ static bool dkl_pll_get_hw_state(struct intel_display *display,
 	 * All registers read here have the same HIP_INDEX_REG even though
 	 * they are on different building blocks
 	 */
-	hw_state->mg_refclkin_ctl = intel_dkl_phy_read(display,
+	hw_state->mg_refclkin_ctl = intel_hip_reg_read(display,
 						       DKL_REFCLKIN_CTL(tc_port));
 	hw_state->mg_refclkin_ctl &= MG_REFCLKIN_CTL_OD_2_MUX_MASK;
 
 	hw_state->mg_clktop2_hsclkctl =
-		intel_dkl_phy_read(display, DKL_CLKTOP2_HSCLKCTL(tc_port));
+		intel_hip_reg_read(display, DKL_CLKTOP2_HSCLKCTL(tc_port));
 	hw_state->mg_clktop2_hsclkctl &=
 		MG_CLKTOP2_HSCLKCTL_TLINEDRV_CLKSEL_MASK |
 		MG_CLKTOP2_HSCLKCTL_CORE_INPUTSEL_MASK |
@@ -3648,32 +3648,32 @@ static bool dkl_pll_get_hw_state(struct intel_display *display,
 		MG_CLKTOP2_HSCLKCTL_DSDIV_RATIO_MASK;
 
 	hw_state->mg_clktop2_coreclkctl1 =
-		intel_dkl_phy_read(display, DKL_CLKTOP2_CORECLKCTL1(tc_port));
+		intel_hip_reg_read(display, DKL_CLKTOP2_CORECLKCTL1(tc_port));
 	hw_state->mg_clktop2_coreclkctl1 &=
 		MG_CLKTOP2_CORECLKCTL1_A_DIVRATIO_MASK;
 
-	hw_state->mg_pll_div0 = intel_dkl_phy_read(display, DKL_PLL_DIV0(tc_port));
+	hw_state->mg_pll_div0 = intel_hip_reg_read(display, DKL_PLL_DIV0(tc_port));
 	val = DKL_PLL_DIV0_MASK;
 	if (display->vbt.override_afc_startup)
 		val |= DKL_PLL_DIV0_AFC_STARTUP_MASK;
 	hw_state->mg_pll_div0 &= val;
 
-	hw_state->mg_pll_div1 = intel_dkl_phy_read(display, DKL_PLL_DIV1(tc_port));
+	hw_state->mg_pll_div1 = intel_hip_reg_read(display, DKL_PLL_DIV1(tc_port));
 	hw_state->mg_pll_div1 &= (DKL_PLL_DIV1_IREF_TRIM_MASK |
 				  DKL_PLL_DIV1_TDC_TARGET_CNT_MASK);
 
-	hw_state->mg_pll_ssc = intel_dkl_phy_read(display, DKL_PLL_SSC(tc_port));
+	hw_state->mg_pll_ssc = intel_hip_reg_read(display, DKL_PLL_SSC(tc_port));
 	hw_state->mg_pll_ssc &= (DKL_PLL_SSC_IREF_NDIV_RATIO_MASK |
 				 DKL_PLL_SSC_STEP_LEN_MASK |
 				 DKL_PLL_SSC_STEP_NUM_MASK |
 				 DKL_PLL_SSC_EN);
 
-	hw_state->mg_pll_bias = intel_dkl_phy_read(display, DKL_PLL_BIAS(tc_port));
+	hw_state->mg_pll_bias = intel_hip_reg_read(display, DKL_PLL_BIAS(tc_port));
 	hw_state->mg_pll_bias &= (DKL_PLL_BIAS_FRAC_EN_H |
 				  DKL_PLL_BIAS_FBDIV_FRAC_MASK);
 
 	hw_state->mg_pll_tdc_coldst_bias =
-		intel_dkl_phy_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
+		intel_hip_reg_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
 	hw_state->mg_pll_tdc_coldst_bias &= (DKL_PLL_TDC_SSC_STEP_SIZE_MASK |
 					     DKL_PLL_TDC_FEED_FWD_GAIN_MASK);
 
@@ -3857,57 +3857,57 @@ static void dkl_pll_write(struct intel_display *display,
 	 * though on different building block
 	 */
 	/* All the registers are RMW */
-	val = intel_dkl_phy_read(display, DKL_REFCLKIN_CTL(tc_port));
+	val = intel_hip_reg_read(display, DKL_REFCLKIN_CTL(tc_port));
 	val &= ~MG_REFCLKIN_CTL_OD_2_MUX_MASK;
 	val |= hw_state->mg_refclkin_ctl;
-	intel_dkl_phy_write(display, DKL_REFCLKIN_CTL(tc_port), val);
+	intel_hip_reg_write(display, DKL_REFCLKIN_CTL(tc_port), val);
 
-	val = intel_dkl_phy_read(display, DKL_CLKTOP2_CORECLKCTL1(tc_port));
+	val = intel_hip_reg_read(display, DKL_CLKTOP2_CORECLKCTL1(tc_port));
 	val &= ~MG_CLKTOP2_CORECLKCTL1_A_DIVRATIO_MASK;
 	val |= hw_state->mg_clktop2_coreclkctl1;
-	intel_dkl_phy_write(display, DKL_CLKTOP2_CORECLKCTL1(tc_port), val);
+	intel_hip_reg_write(display, DKL_CLKTOP2_CORECLKCTL1(tc_port), val);
 
-	val = intel_dkl_phy_read(display, DKL_CLKTOP2_HSCLKCTL(tc_port));
+	val = intel_hip_reg_read(display, DKL_CLKTOP2_HSCLKCTL(tc_port));
 	val &= ~(MG_CLKTOP2_HSCLKCTL_TLINEDRV_CLKSEL_MASK |
 		 MG_CLKTOP2_HSCLKCTL_CORE_INPUTSEL_MASK |
 		 MG_CLKTOP2_HSCLKCTL_HSDIV_RATIO_MASK |
 		 MG_CLKTOP2_HSCLKCTL_DSDIV_RATIO_MASK);
 	val |= hw_state->mg_clktop2_hsclkctl;
-	intel_dkl_phy_write(display, DKL_CLKTOP2_HSCLKCTL(tc_port), val);
+	intel_hip_reg_write(display, DKL_CLKTOP2_HSCLKCTL(tc_port), val);
 
 	val = DKL_PLL_DIV0_MASK;
 	if (display->vbt.override_afc_startup)
 		val |= DKL_PLL_DIV0_AFC_STARTUP_MASK;
-	intel_dkl_phy_rmw(display, DKL_PLL_DIV0(tc_port), val,
+	intel_hip_reg_rmw(display, DKL_PLL_DIV0(tc_port), val,
 			  hw_state->mg_pll_div0);
 
-	val = intel_dkl_phy_read(display, DKL_PLL_DIV1(tc_port));
+	val = intel_hip_reg_read(display, DKL_PLL_DIV1(tc_port));
 	val &= ~(DKL_PLL_DIV1_IREF_TRIM_MASK |
 		 DKL_PLL_DIV1_TDC_TARGET_CNT_MASK);
 	val |= hw_state->mg_pll_div1;
-	intel_dkl_phy_write(display, DKL_PLL_DIV1(tc_port), val);
+	intel_hip_reg_write(display, DKL_PLL_DIV1(tc_port), val);
 
-	val = intel_dkl_phy_read(display, DKL_PLL_SSC(tc_port));
+	val = intel_hip_reg_read(display, DKL_PLL_SSC(tc_port));
 	val &= ~(DKL_PLL_SSC_IREF_NDIV_RATIO_MASK |
 		 DKL_PLL_SSC_STEP_LEN_MASK |
 		 DKL_PLL_SSC_STEP_NUM_MASK |
 		 DKL_PLL_SSC_EN);
 	val |= hw_state->mg_pll_ssc;
-	intel_dkl_phy_write(display, DKL_PLL_SSC(tc_port), val);
+	intel_hip_reg_write(display, DKL_PLL_SSC(tc_port), val);
 
-	val = intel_dkl_phy_read(display, DKL_PLL_BIAS(tc_port));
+	val = intel_hip_reg_read(display, DKL_PLL_BIAS(tc_port));
 	val &= ~(DKL_PLL_BIAS_FRAC_EN_H |
 		 DKL_PLL_BIAS_FBDIV_FRAC_MASK);
 	val |= hw_state->mg_pll_bias;
-	intel_dkl_phy_write(display, DKL_PLL_BIAS(tc_port), val);
+	intel_hip_reg_write(display, DKL_PLL_BIAS(tc_port), val);
 
-	val = intel_dkl_phy_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
+	val = intel_hip_reg_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
 	val &= ~(DKL_PLL_TDC_SSC_STEP_SIZE_MASK |
 		 DKL_PLL_TDC_FEED_FWD_GAIN_MASK);
 	val |= hw_state->mg_pll_tdc_coldst_bias;
-	intel_dkl_phy_write(display, DKL_PLL_TDC_COLDST_BIAS(tc_port), val);
+	intel_hip_reg_write(display, DKL_PLL_TDC_COLDST_BIAS(tc_port), val);
 
-	intel_dkl_phy_posting_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
+	intel_hip_reg_posting_read(display, DKL_PLL_TDC_COLDST_BIAS(tc_port));
 }
 
 static void icl_pll_power_enable(struct intel_display *display,

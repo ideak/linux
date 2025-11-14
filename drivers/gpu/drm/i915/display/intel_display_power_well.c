@@ -558,7 +558,7 @@ icl_tc_phy_aux_power_well_enable(struct intel_display *display,
 
 		tc_port = TGL_AUX_PW_TO_TC_PORT(i915_power_well_instance(power_well)->hsw.idx);
 
-		ret = poll_timeout_us(val = intel_dkl_phy_read(display, DKL_CMN_UC_DW_27(tc_port)),
+		ret = poll_timeout_us(val = intel_hip_reg_read(display, DKL_CMN_UC_DW_27(tc_port)),
 				      val & DKL_CMN_UC_DW27_UC_HEALTH,
 				      100, 1000, false);
 		if (ret)

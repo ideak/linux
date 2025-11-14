@@ -186,7 +186,7 @@ void intel_display_driver_early_probe(struct intel_display *display)
 	mutex_init(&display->hdcp.hdcp_mutex);
 
 	intel_display_irq_init(display);
-	intel_dkl_phy_init(display);
+	intel_hip_reg_init(display);
 	intel_color_init_hooks(display);
 	intel_init_cdclk_hooks(display);
 	intel_audio_hooks_init(display);
