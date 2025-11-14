@@ -264,7 +264,6 @@ xe-$(CONFIG_DRM_XE_DISPLAY) += \
 	i915-display/intel_display_trace.o \
 	i915-display/intel_display_utils.o \
 	i915-display/intel_display_wa.o \
-	i915-display/intel_dkl_phy.o \
 	i915-display/intel_dmc.o \
 	i915-display/intel_dmc_wl.o \
 	i915-display/intel_dp.o \
@@ -294,6 +293,7 @@ xe-$(CONFIG_DRM_XE_DISPLAY) += \
 	i915-display/intel_hdcp.o \
 	i915-display/intel_hdcp_gsc_message.o \
 	i915-display/intel_hdmi.o \
+	i915-display/intel_hip_reg.o \
 	i915-display/intel_hotplug.o \
 	i915-display/intel_hotplug_irq.o \
 	i915-display/intel_hti.o \

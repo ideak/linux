@@ -342,7 +342,6 @@ i915-y += \
 	display/intel_ddi_buf_trans.o \
 	display/intel_display_device.o \
 	display/intel_display_trace.o \
-	display/intel_dkl_phy.o \
 	display/intel_dp.o \
 	display/intel_dp_aux.o \
 	display/intel_dp_aux_backlight.o \
@@ -357,6 +356,7 @@ i915-y += \
 	display/intel_encoder.o \
 	display/intel_gmbus.o \
 	display/intel_hdmi.o \
+	display/intel_hip_reg.o \
 	display/intel_lspcon.o \
 	display/intel_lt_phy.o \
 	display/intel_lvds.o \
