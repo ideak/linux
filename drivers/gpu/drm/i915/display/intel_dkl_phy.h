@@ -12,7 +12,7 @@
 
 struct intel_display;
 
-void intel_dkl_phy_init(struct intel_display *display);
+void intel_hip_reg_init(struct intel_display *display);
 u32
 intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg);
 void
