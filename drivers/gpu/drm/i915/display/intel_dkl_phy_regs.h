@@ -10,6 +10,17 @@
 
 #include "intel_hip_reg_defs.h"
 
+struct intel_dkl_phy_reg {
+	u32 reg:24;
+	u32 bank_idx:4;
+};
+
+#define _DKL_REG(tc_port, offset) ({ \
+	struct intel_hip_reg hr = HIP_REG(tc_port, offset); \
+	struct intel_dkl_phy_reg dr = { hr.reg, hr.bank_idx }; \
+	dr; \
+})
+
 #define _DKL_REG_LN(tc_port, ln_idx, ln0_offs, ln1_offs) \
 	_DKL_REG(tc_port, (ln0_offs) + (ln_idx) * ((ln1_offs) - (ln0_offs)))
 

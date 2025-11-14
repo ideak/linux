@@ -8,7 +8,7 @@
 
 #include "intel_de.h"
 #include "intel_display.h"
-#include "intel_dkl_phy.h"
+#include "intel_hip_reg.h"
 
 /*
  * Each HIP register segment is addressed through a 4KB aperture window. Each segment
@@ -34,7 +34,7 @@ void intel_hip_reg_init(struct intel_display *display)
 }
 
 static void
-hip_reg_set_bank_idx(struct intel_display *display, struct intel_dkl_phy_reg reg)
+hip_reg_set_bank_idx(struct intel_display *display, struct intel_hip_reg reg)
 {
 	int seg_idx = HIP_REG_SEG_IDX(reg);
 
@@ -48,23 +48,23 @@ hip_reg_set_bank_idx(struct intel_display *display, struct intel_dkl_phy_reg reg
 }
 
 /**
- * intel_dkl_phy_read - read a Dekel PHY register
+ * intel_hip_reg_read - read a HIP register
  * @display: intel_display device instance
- * @reg: Dekel PHY register
+ * @reg: HIP register
  *
- * Read the @reg Dekel PHY register.
+ * Read the @reg HIP register.
  *
  * Returns the read value.
  */
 u32
-intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
+intel_hip_reg_read(struct intel_display *display, struct intel_hip_reg reg)
 {
 	u32 val;
 
 	spin_lock(&display->hip_reg.lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	val = intel_de_read(display, DKL_REG_MMIO(reg));
+	val = intel_de_read(display, HIP_REG_MMIO(reg));
 
 	spin_unlock(&display->hip_reg.lock);
 
@@ -72,59 +72,59 @@ intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
 }
 
 /**
- * intel_dkl_phy_write - write a Dekel PHY register
+ * intel_hip_reg_write - write a HIP register
  * @display: intel_display device instance
- * @reg: Dekel PHY register
+ * @reg: HIP register
  * @val: value to write
  *
- * Write @val to the @reg Dekel PHY register.
+ * Write @val to the @reg HIP register.
  */
 void
-intel_dkl_phy_write(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 val)
+intel_hip_reg_write(struct intel_display *display, struct intel_hip_reg reg, u32 val)
 {
 	spin_lock(&display->hip_reg.lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_write(display, DKL_REG_MMIO(reg), val);
+	intel_de_write(display, HIP_REG_MMIO(reg), val);
 
 	spin_unlock(&display->hip_reg.lock);
 }
 
 /**
- * intel_dkl_phy_rmw - read-modify-write a Dekel PHY register
+ * intel_hip_reg_rmw - read-modify-write a HIP register
  * @display: display device instance
- * @reg: Dekel PHY register
+ * @reg: HIP register
  * @clear: mask to clear
  * @set: mask to set
  *
- * Read the @reg Dekel PHY register, clearing then setting the @clear/@set bits in it, and writing
+ * Read the @reg HIP register, clearing then setting the @clear/@set bits in it, and writing
  * this value back to the register if the value differs from the read one.
  */
 void
-intel_dkl_phy_rmw(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 clear, u32 set)
+intel_hip_reg_rmw(struct intel_display *display, struct intel_hip_reg reg, u32 clear, u32 set)
 {
 	spin_lock(&display->hip_reg.lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_rmw(display, DKL_REG_MMIO(reg), clear, set);
+	intel_de_rmw(display, HIP_REG_MMIO(reg), clear, set);
 
 	spin_unlock(&display->hip_reg.lock);
 }
 
 /**
- * intel_dkl_phy_posting_read - do a posting read from a Dekel PHY register
+ * intel_hip_reg_posting_read - do a posting read from a HIP register
  * @display: display device instance
- * @reg: Dekel PHY register
+ * @reg: HIP register
  *
- * Read the @reg Dekel PHY register without returning the read value.
+ * Read the @reg HIP register without returning the read value.
  */
 void
-intel_dkl_phy_posting_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
+intel_hip_reg_posting_read(struct intel_display *display, struct intel_hip_reg reg)
 {
 	spin_lock(&display->hip_reg.lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_posting_read(display, DKL_REG_MMIO(reg));
+	intel_de_posting_read(display, HIP_REG_MMIO(reg));
 
 	spin_unlock(&display->hip_reg.lock);
 }

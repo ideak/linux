@@ -10,7 +10,7 @@
 
 #include "intel_display_reg_defs.h"
 
-struct intel_dkl_phy_reg {
+struct intel_hip_reg {
 	u32 reg:24;
 	u32 bank_idx:4;
 };
@@ -20,8 +20,8 @@ struct intel_dkl_phy_reg {
 
 #define HIP_REG_SEG_NUM					8
 
-/* DEKEL PHY MMIO Address = Phy base + (internal address & ~index_mask) */
-#define DKL_REG_MMIO(__reg)				_MMIO((__reg).reg)
+/* HIP REG MMIO Address = HIP segment base + (internal address & ~segment_index_mask) */
+#define HIP_REG_MMIO(__reg)				_MMIO((__reg).reg)
 
 #define HIP_REG_SEG_IDX(__reg) \
 	(((__reg).reg - _HIP_REG_SEG0_BASE) / (_HIP_REG_SEG1_BASE - _HIP_REG_SEG0_BASE))
@@ -37,8 +37,8 @@ struct intel_dkl_phy_reg {
 #define _HIP_REG_SEG_BANK_IDX(__offset) \
 	(((__offset) >> _HIP_REG_SEG_BANK_SHIFT) & 0xf)
 
-#define _DKL_REG(__seg_idx, __seg_offset)	\
-	((const struct intel_dkl_phy_reg) { \
+#define HIP_REG(__seg_idx, __seg_offset)	\
+	((const struct intel_hip_reg) { \
 		.reg = _HIP_REG_SEG_BASE(__seg_idx) + \
 		       _HIP_REG_SEG_BANK_OFFSET(__seg_offset), \
 		.bank_idx = _HIP_REG_SEG_BANK_IDX(__seg_offset), \
