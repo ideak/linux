@@ -378,11 +378,11 @@ struct intel_display {
 
 	struct {
 		/*
-		 * dkl.phy_lock protects against concurrent access of the
-		 * Dekel TypeC PHYs.
+		 * hip_reg.lock protects against concurrent access of the
+		 * HIP register banks.
 		 */
-		spinlock_t phy_lock;
-	} dkl;
+		spinlock_t lock;
+	} hip_reg;
 
 	struct {
 		struct intel_dmc *dmc;
