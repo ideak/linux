@@ -10,6 +10,8 @@
 
 #include "intel_hip_reg_defs.h"
 
+#define _DKL_REG(tc_port, offset)			HIP_REG(tc_port, offset)
+
 #define _DKL_REG_LN(tc_port, ln_idx, ln0_offs, ln1_offs) \
 	_DKL_REG(tc_port, (ln0_offs) + (ln_idx) * ((ln1_offs) - (ln0_offs)))
 

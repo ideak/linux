@@ -14,12 +14,12 @@ struct intel_display;
 
 void intel_dkl_phy_init(struct intel_display *display);
 u32
-intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg);
+intel_dkl_phy_read(struct intel_display *display, struct intel_hip_reg reg);
 void
-intel_dkl_phy_write(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 val);
+intel_dkl_phy_write(struct intel_display *display, struct intel_hip_reg reg, u32 val);
 void
-intel_dkl_phy_rmw(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 clear, u32 set);
+intel_dkl_phy_rmw(struct intel_display *display, struct intel_hip_reg reg, u32 clear, u32 set);
 void
-intel_dkl_phy_posting_read(struct intel_display *display, struct intel_dkl_phy_reg reg);
+intel_dkl_phy_posting_read(struct intel_display *display, struct intel_hip_reg reg);
 
 #endif /* __INTEL_DKL_PHY_H__ */

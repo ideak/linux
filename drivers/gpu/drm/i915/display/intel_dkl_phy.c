@@ -35,7 +35,7 @@ void intel_dkl_phy_init(struct intel_display *display)
 }
 
 static void
-hip_reg_set_bank_idx(struct intel_display *display, struct intel_dkl_phy_reg reg)
+hip_reg_set_bank_idx(struct intel_display *display, struct intel_hip_reg reg)
 {
 	int seg_idx = HIP_REG_SEG_IDX(reg);
 
@@ -58,14 +58,14 @@ hip_reg_set_bank_idx(struct intel_display *display, struct intel_dkl_phy_reg reg
  * Returns the read value.
  */
 u32
-intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
+intel_dkl_phy_read(struct intel_display *display, struct intel_hip_reg reg)
 {
 	u32 val;
 
 	spin_lock(&display->dkl.phy_lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	val = intel_de_read(display, DKL_REG_MMIO(reg));
+	val = intel_de_read(display, HIP_REG_MMIO(reg));
 
 	spin_unlock(&display->dkl.phy_lock);
 
@@ -81,12 +81,12 @@ intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
  * Write @val to the @reg Dekel PHY register.
  */
 void
-intel_dkl_phy_write(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 val)
+intel_dkl_phy_write(struct intel_display *display, struct intel_hip_reg reg, u32 val)
 {
 	spin_lock(&display->dkl.phy_lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_write(display, DKL_REG_MMIO(reg), val);
+	intel_de_write(display, HIP_REG_MMIO(reg), val);
 
 	spin_unlock(&display->dkl.phy_lock);
 }
@@ -102,12 +102,12 @@ intel_dkl_phy_write(struct intel_display *display, struct intel_dkl_phy_reg reg,
  * this value back to the register if the value differs from the read one.
  */
 void
-intel_dkl_phy_rmw(struct intel_display *display, struct intel_dkl_phy_reg reg, u32 clear, u32 set)
+intel_dkl_phy_rmw(struct intel_display *display, struct intel_hip_reg reg, u32 clear, u32 set)
 {
 	spin_lock(&display->dkl.phy_lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_rmw(display, DKL_REG_MMIO(reg), clear, set);
+	intel_de_rmw(display, HIP_REG_MMIO(reg), clear, set);
 
 	spin_unlock(&display->dkl.phy_lock);
 }
@@ -120,12 +120,12 @@ intel_dkl_phy_rmw(struct intel_display *display, struct intel_dkl_phy_reg reg, u
  * Read the @reg Dekel PHY register without returning the read value.
  */
 void
-intel_dkl_phy_posting_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
+intel_dkl_phy_posting_read(struct intel_display *display, struct intel_hip_reg reg)
 {
 	spin_lock(&display->dkl.phy_lock);
 
 	hip_reg_set_bank_idx(display, reg);
-	intel_de_posting_read(display, DKL_REG_MMIO(reg));
+	intel_de_posting_read(display, HIP_REG_MMIO(reg));
 
 	spin_unlock(&display->dkl.phy_lock);
 }
