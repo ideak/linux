@@ -3,8 +3,8 @@
  * Copyright © 2022 Intel Corporation
  */
 
-#ifndef __INTEL_DKL_PHY_H__
-#define __INTEL_DKL_PHY_H__
+#ifndef __INTEL_HIP_REG_H__
+#define __INTEL_HIP_REG_H__
 
 #include <linux/types.h>
 
@@ -22,4 +22,4 @@ intel_hip_reg_rmw(struct intel_display *display, struct intel_hip_reg reg, u32 c
 void
 intel_hip_reg_posting_read(struct intel_display *display, struct intel_hip_reg reg);
 
-#endif /* __INTEL_DKL_PHY_H__ */
+#endif /* __INTEL_HIP_REG_H__ */

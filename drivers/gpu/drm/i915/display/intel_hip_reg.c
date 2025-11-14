@@ -8,8 +8,8 @@
 
 #include "intel_de.h"
 #include "intel_display.h"
-#include "intel_dkl_phy.h"
-#include "intel_dkl_phy_regs.h"
+#include "intel_hip_reg.h"
+#include "intel_hip_reg_defs.h"
 
 /*
  * Each HIP register segment is addressed through a 4KB aperture window. Each segment
