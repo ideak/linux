@@ -34,7 +34,7 @@ void intel_dkl_phy_init(struct intel_display *display)
 }
 
 static void
-dkl_phy_set_hip_idx(struct intel_display *display, struct intel_dkl_phy_reg reg)
+hip_reg_set_bank_idx(struct intel_display *display, struct intel_dkl_phy_reg reg)
 {
 	int seg_idx = HIP_REG_SEG_IDX(reg);
 
@@ -63,7 +63,7 @@ intel_dkl_phy_read(struct intel_display *display, struct intel_dkl_phy_reg reg)
 
 	spin_lock(&display->dkl.phy_lock);
 
-	dkl_phy_set_hip_idx(display, reg);
+	hip_reg_set_bank_idx(display, reg);
 	val = intel_de_read(display, DKL_REG_MMIO(reg));
 
 	spin_unlock(&display->dkl.phy_lock);
@@ -84,7 +84,7 @@ intel_dkl_phy_write(struct intel_display *display, struct intel_dkl_phy_reg reg,
 {
 	spin_lock(&display->dkl.phy_lock);
 
-	dkl_phy_set_hip_idx(display, reg);
+	hip_reg_set_bank_idx(display, reg);
 	intel_de_write(display, DKL_REG_MMIO(reg), val);
 
 	spin_unlock(&display->dkl.phy_lock);
@@ -105,7 +105,7 @@ intel_dkl_phy_rmw(struct intel_display *display, struct intel_dkl_phy_reg reg, u
 {
 	spin_lock(&display->dkl.phy_lock);
 
-	dkl_phy_set_hip_idx(display, reg);
+	hip_reg_set_bank_idx(display, reg);
 	intel_de_rmw(display, DKL_REG_MMIO(reg), clear, set);
 
 	spin_unlock(&display->dkl.phy_lock);
@@ -123,7 +123,7 @@ intel_dkl_phy_posting_read(struct intel_display *display, struct intel_dkl_phy_r
 {
 	spin_lock(&display->dkl.phy_lock);
 
-	dkl_phy_set_hip_idx(display, reg);
+	hip_reg_set_bank_idx(display, reg);
 	intel_de_posting_read(display, DKL_REG_MMIO(reg));
 
 	spin_unlock(&display->dkl.phy_lock);
