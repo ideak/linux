@@ -2068,10 +2068,9 @@ static bool intel_c10pll_ssc_enabled(const struct intel_c10pll_state *pll_state)
 			  0, sizeof(pll_state->pll[0]) * C10_PLL_SSC_REG_COUNT);
 }
 
-static void intel_c10pll_update_pll(struct intel_encoder *encoder,
+static void intel_c10pll_update_pll(struct intel_display *display,
 				    struct intel_cx0pll_state *pll_state)
 {
-	struct intel_display *display = to_intel_display(encoder);
 	int i;
 
 	if (pll_state->ssc_enabled)
@@ -2194,7 +2193,7 @@ static int intel_c10pll_calc_state_from_table(struct intel_encoder *encoder,
 		if (port_clock == tables[i]->clock) {
 			pll_state->c10 = *tables[i];
 			intel_cx0pll_update_ssc(encoder, pll_state, is_dp);
-			intel_c10pll_update_pll(encoder, pll_state);
+			intel_c10pll_update_pll(display, pll_state);
 
 			pll_state->use_c10 = true;
 			pll_state->lane_count = lane_count;
@@ -2231,7 +2230,7 @@ static int intel_c10pll_calc_state(const struct intel_crtc_state *crtc_state,
 	/* For HDMI PLLs try SNPS PHY algorithm, if there are no precomputed tables */
 	intel_snps_hdmi_pll_compute_c10pll(&hw_state->cx0pll.c10,
 					   crtc_state->port_clock);
-	intel_c10pll_update_pll(encoder, &hw_state->cx0pll);
+	intel_c10pll_update_pll(display, &hw_state->cx0pll);
 
 	hw_state->cx0pll.use_c10 = true;
 	hw_state->cx0pll.lane_count = crtc_state->lane_count;
