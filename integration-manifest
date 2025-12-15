@@ -1,0 +1,36 @@
+drm drm-fixes 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-misc drm-misc-fixes 84318277d6334c6981ab326d4acc87c6a6ddc9b8
+	Merge remote-tracking branch 'drm/drm-fixes' into drm-misc-fixes
+drm-rust drm-rust-fixes 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-intel drm-intel-fixes 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-xe drm-xe-fixes eed5b815fa49c17d513202f54e980eb91955d3ed
+	drm/xe: Restore engine registers before restarting schedulers after GT reset
+drm drm-next 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-misc drm-misc-next-fixes 308eeb8ca3fdee54bcd3ec7272c05688e178299a
+	drm/rcar-du: dsi: Handle both DRM_MODE_FLAG_N.SYNC and !DRM_MODE_FLAG_P.SYNC
+drm-intel drm-intel-next-fixes 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-xe drm-xe-next-fixes 3f1c07fc21c68bd3bd2df9d2c9441f6485e934d9
+	Merge drm/drm-next into drm-xe-next-fixes
+drm-misc drm-misc-next e7a943f0824b584e42847ad9642d7fb751022cf6
+	drm/rockchip: hdmi: add RK3368 controller variant
+drm-rust drm-rust-next 8f0b4cce4481fb22653697cced8d0d04027cb1e8
+	Linux 6.19-rc1
+drm-intel drm-intel-next 63cb6443c7a798467e0a8b154dd8f1f950a5d1d5
+	drm/i915/display: group and sort the parent interface wrappers better
+drm-intel drm-intel-gt-next 18476087f1a18dc279d200d934ad94fba1fb51d5
+	drm/i915: Fix format string truncation warning
+drm-xe drm-xe-next 83f4151787c5dd2f38a426cb01423149baa3bbf5
+	drm/xe/lnl: Drop pre-production workaround support
+drm-intel topic/core-for-CI f7e7d61a4cc9320c6e98acf5948f61c544edf774
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI 7f3219f02c00680d63c06e779926b1715c42b51d
+	topic/for-xe-CI: drm/xe/cri: Define GuC firmware for CRI
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
+drm-intel topic/drm-intel-plane-color-pipeline 860daa4b0d09a398a0ac9ae6fe67efd73a275968
+	drm/i915/color: Enable Plane Color Pipelines
