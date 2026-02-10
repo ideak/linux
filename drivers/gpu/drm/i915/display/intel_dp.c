@@ -1763,13 +1763,27 @@ static int intel_dp_hdmi_compute_bpc(struct intel_dp *intel_dp,
 
 static int intel_dp_max_pipe_bpp(struct intel_dp *intel_dp,
 				 const struct intel_crtc_state *crtc_state,
-				 bool respect_downstream_limits)
+				 bool respect_downstream_limits,
+				 int min_pipe_bpp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_connector *connector = intel_dp->attached_connector;
 	int bpp, bpc;
 
-	bpc = crtc_state->pipe_bpp / 3;
+	/*
+	 * As the base for the maximum pipe BPP for a pipe configuration use:
+	 * - The target pipe BPP, provided that it is not lower than the
+	 *   minimum pipe BPP supported by the platform and output format
+	 *   used, where the target BPP is the max BPP supported by both the
+	 *   platform and the sink's EDID, limited by the connector's max
+	 *   requested BPC property if this is set.
+	 * - The max BPP supported both by the platform and sink's EDID if the
+	 *   above target BPP is lower than the minimum pipe BPP.
+	 */
+	if (crtc_state->pipe_bpp >= min_pipe_bpp)
+		bpc = crtc_state->pipe_bpp / 3;
+	else
+		bpc = crtc_state->max_pipe_bpp / 3;
 
 	if (intel_dp->dfp.max_bpc)
 		bpc = min_t(int, bpc, intel_dp->dfp.max_bpc);
@@ -2729,7 +2743,8 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 		limits->pipe.max_bpp = min(crtc_state->pipe_bpp, 24);
 	} else {
 		limits->pipe.max_bpp = intel_dp_max_pipe_bpp(intel_dp, crtc_state,
-							     respect_downstream_limits);
+							     respect_downstream_limits,
+							     limits->pipe.min_bpp);
 	}
 
 	if (!dsc && intel_dp_in_hdr_mode(conn_state)) {
