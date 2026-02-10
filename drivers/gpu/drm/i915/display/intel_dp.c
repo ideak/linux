@@ -1213,7 +1213,7 @@ intel_dp_output_format(struct intel_connector *connector,
 	return output_format;
 }
 
-int intel_dp_min_bpp(enum intel_output_format output_format)
+static int intel_dp_min_pipe_bpp(enum intel_output_format output_format)
 {
 	if (output_format == INTEL_OUTPUT_FORMAT_RGB)
 		return intel_display_min_pipe_bpp();
@@ -1257,7 +1257,7 @@ intel_dp_mode_min_link_bpp_x16(struct intel_connector *connector,
 	output_format = intel_dp_output_format(connector, sink_format);
 
 	return intel_dp_output_format_link_bpp_x16(output_format,
-						   intel_dp_min_bpp(output_format));
+						   intel_dp_min_pipe_bpp(output_format));
 }
 
 static bool intel_dp_hdisplay_bad(struct intel_display *display,
@@ -1761,9 +1761,9 @@ static int intel_dp_hdmi_compute_bpc(struct intel_dp *intel_dp,
 	return -EINVAL;
 }
 
-static int intel_dp_max_bpp(struct intel_dp *intel_dp,
-			    const struct intel_crtc_state *crtc_state,
-			    bool respect_downstream_limits)
+static int intel_dp_max_pipe_bpp(struct intel_dp *intel_dp,
+				 const struct intel_crtc_state *crtc_state,
+				 bool respect_downstream_limits)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_connector *connector = intel_dp->attached_connector;
@@ -2716,7 +2716,7 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 	limits->min_lane_count = intel_dp_min_lane_count(intel_dp);
 	limits->max_lane_count = intel_dp_max_lane_count(intel_dp);
 
-	limits->pipe.min_bpp = intel_dp_min_bpp(crtc_state->output_format);
+	limits->pipe.min_bpp = intel_dp_min_pipe_bpp(crtc_state->output_format);
 	if (is_mst) {
 		/*
 		 * FIXME: If all the streams can't fit into the link with their
@@ -2728,8 +2728,8 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 		 */
 		limits->pipe.max_bpp = min(crtc_state->pipe_bpp, 24);
 	} else {
-		limits->pipe.max_bpp = intel_dp_max_bpp(intel_dp, crtc_state,
-							respect_downstream_limits);
+		limits->pipe.max_bpp = intel_dp_max_pipe_bpp(intel_dp, crtc_state,
+							     respect_downstream_limits);
 	}
 
 	if (!dsc && intel_dp_in_hdr_mode(conn_state)) {
