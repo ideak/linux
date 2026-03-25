@@ -680,33 +680,41 @@ static bool current_common_caps_match(struct intel_dp *intel_dp,
 	return true;
 }
 
-/* Return %true if any supported or maximum link param changed. */
-static bool intel_dp_set_common_rates(struct intel_dp *intel_dp)
+static void intel_dp_get_common_rates(struct intel_dp *intel_dp,
+				      int common_rates[DP_MAX_SUPPORTED_RATES],
+				      int *num_common_rates)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
+
+	drm_WARN_ON(display->drm,
+		    !intel_dp->num_source_rates || !intel_dp->num_sink_rates);
+
+	*num_common_rates = intersect_rates(intel_dp->source_rates,
+					    intel_dp->num_source_rates,
+					    intel_dp->sink_rates,
+					    intel_dp->num_sink_rates,
+					    common_rates);
+
+	/* Paranoia, there should always be something in common. */
+	if (drm_WARN_ON(display->drm, *num_common_rates == 0)) {
+		common_rates[0] = 162000;
+		*num_common_rates = 1;
+	}
+}
+
+/* Return %true if any supported or maximum link param changed. */
+static bool intel_dp_set_common_link_params(struct intel_dp *intel_dp)
+{
 	int num_old_common_rates = intel_dp->num_common_rates;
 	int old_max_rate_limit = intel_dp->link.max_rate;
 	int old_common_rates[DP_MAX_SUPPORTED_RATES];
 	bool link_params_changed = false;
 	int len;
 
-	drm_WARN_ON(display->drm,
-		    !intel_dp->num_source_rates || !intel_dp->num_sink_rates);
-
 	static_assert(sizeof(old_common_rates) == sizeof(intel_dp->common_rates));
 	memcpy(old_common_rates, intel_dp->common_rates, sizeof(old_common_rates));
 
-	intel_dp->num_common_rates = intersect_rates(intel_dp->source_rates,
-						     intel_dp->num_source_rates,
-						     intel_dp->sink_rates,
-						     intel_dp->num_sink_rates,
-						     intel_dp->common_rates);
-
-	/* Paranoia, there should always be something in common. */
-	if (drm_WARN_ON(display->drm, intel_dp->num_common_rates == 0)) {
-		intel_dp->common_rates[0] = 162000;
-		intel_dp->num_common_rates = 1;
-	}
+	intel_dp_get_common_rates(intel_dp, intel_dp->common_rates, &intel_dp->num_common_rates);
 
 	if (!current_common_caps_match(intel_dp, old_common_rates, num_old_common_rates))
 		link_params_changed = true;
@@ -4772,7 +4780,7 @@ void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 
 	intel_dp_set_sink_rates(intel_dp);
 	intel_dp_set_max_sink_lane_count(intel_dp);
-	if (intel_dp_set_common_rates(intel_dp))
+	if (intel_dp_set_common_link_params(intel_dp))
 		link_params_changed = true;
 
 	current_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
@@ -7059,7 +7067,7 @@ intel_dp_init_connector(struct intel_digital_port *dig_port,
 	}
 
 	intel_dp_set_source_rates(intel_dp);
-	intel_dp_set_common_rates(intel_dp);
+	intel_dp_set_common_link_params(intel_dp);
 	intel_dp_reset_link_params(intel_dp);
 
 	/* init MST on ports that can support it */
