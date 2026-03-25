@@ -688,24 +688,32 @@ int intel_dp_rate_index(const int *rates, int len, int rate)
 	return -1;
 }
 
-static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
+static void intel_dp_get_common_rates(struct intel_dp *intel_dp,
+				      int common_rates[DP_MAX_SUPPORTED_RATES],
+				      int *num_common_rates)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 
-	drm_WARN_ON(display->drm,
-		    !intel_dp->num_source_rates || !intel_dp->num_sink_rates);
+	if (drm_WARN_ON(display->drm,
+		        !intel_dp->num_source_rates || !intel_dp->num_sink_rates))
+		return;
 
-	intel_dp->num_common_rates = intersect_rates(intel_dp->source_rates,
-						     intel_dp->num_source_rates,
-						     intel_dp->sink_rates,
-						     intel_dp->num_sink_rates,
-						     intel_dp->common_rates);
+	*num_common_rates = intersect_rates(intel_dp->source_rates,
+					    intel_dp->num_source_rates,
+					    intel_dp->sink_rates,
+					    intel_dp->num_sink_rates,
+					    common_rates);
 
 	/* Paranoia, there should always be something in common. */
-	if (drm_WARN_ON(display->drm, intel_dp->num_common_rates == 0)) {
-		intel_dp->common_rates[0] = 162000;
-		intel_dp->num_common_rates = 1;
+	if (drm_WARN_ON(display->drm, *num_common_rates == 0)) {
+		common_rates[0] = 162000;
+		*num_common_rates = 1;
 	}
+}
+
+static void intel_dp_set_common_link_params(struct intel_dp *intel_dp)
+{
+	intel_dp_get_common_rates(intel_dp, intel_dp->common_rates, &intel_dp->num_common_rates);
 
 	intel_dp_link_caps_update(intel_dp->link.caps);
 }
@@ -4708,7 +4716,7 @@ void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 {
 	intel_dp_set_sink_rates(intel_dp);
 	intel_dp_set_max_sink_lane_count(intel_dp);
-	intel_dp_set_common_rates(intel_dp);
+	intel_dp_set_common_link_params(intel_dp);
 }
 
 static bool
@@ -7148,7 +7156,7 @@ intel_dp_init_connector(struct intel_digital_port *dig_port,
 	}
 
 	intel_dp_set_source_rates(intel_dp);
-	intel_dp_set_common_rates(intel_dp);
+	intel_dp_set_common_link_params(intel_dp);
 	intel_dp_reset_link_params(intel_dp);
 
 	/* init MST on ports that can support it */
