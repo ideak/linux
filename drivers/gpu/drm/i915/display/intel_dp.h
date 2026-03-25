@@ -8,6 +8,7 @@
 
 #include <linux/types.h>
 
+enum intel_dp_link_state;
 enum intel_output_format;
 enum pipe;
 enum port;
@@ -109,6 +110,8 @@ int intel_dp_max_common_lane_count(struct intel_dp *intel_dp);
 int intel_dp_common_rate(struct intel_dp *intel_dp, int index);
 int intel_dp_rate_index(const int *rates, int len, int rate);
 void intel_dp_update_sink_caps(struct intel_dp *intel_dp);
+void intel_dp_set_link_state(struct intel_dp *intel_dp, enum intel_dp_link_state state);
+enum intel_dp_link_state intel_dp_link_state(struct intel_dp *intel_dp);
 void intel_dp_reset_link_params(struct intel_dp *intel_dp);
 
 void intel_dp_compute_rate(struct intel_dp *intel_dp, int port_clock,

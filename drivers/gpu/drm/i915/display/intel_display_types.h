@@ -1832,7 +1832,12 @@ struct intel_dp {
 	int common_rates[DP_MAX_SUPPORTED_RATES];
 	struct {
 		/* TODO: move the rest of link specific fields to here */
-		bool active;
+		struct {
+			enum intel_dp_link_state {
+				INTEL_DP_LINK_DISABLED,
+				INTEL_DP_LINK_ACTIVE,
+			} state;
+		} hw;
 		/* common rate,lane_count configs in bw order */
 		/* Max lane count for the current link */
 		int max_lane_count;
