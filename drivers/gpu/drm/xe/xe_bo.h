@@ -35,7 +35,7 @@
 #define XE_BO_FLAG_PINNED		BIT(7)
 #define XE_BO_FLAG_NO_RESV_EVICT	BIT(8)
 #define XE_BO_FLAG_DEFER_BACKING	BIT(9)
-#define XE_BO_FLAG_SCANOUT		BIT(10)
+#define XE_BO_FLAG_FORCE_WC		BIT(10)
 #define XE_BO_FLAG_FIXED_PLACEMENT	BIT(11)
 #define XE_BO_FLAG_PAGETABLE		BIT(12)
 #define XE_BO_FLAG_NEEDS_CPU_ACCESS	BIT(13)
@@ -311,6 +311,8 @@ int xe_bo_dumb_create(struct drm_file *file_priv,
 		      struct drm_mode_create_dumb *args);
 
 bool xe_bo_needs_ccs_pages(struct xe_bo *bo);
+
+int xe_bo_decompress(struct xe_bo *bo);
 
 static inline size_t xe_bo_ccs_pages_start(struct xe_bo *bo)
 {
