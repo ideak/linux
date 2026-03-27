@@ -24,6 +24,7 @@ void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 			      int idx, int *link_rate, int *lane_count);
 
 void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
+			       const int *rates, int num_rates,
 			       int max_lane_count);
 
 struct intel_dp_link_caps *intel_dp_link_caps_init(struct intel_dp *dp);
