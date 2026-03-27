@@ -3538,8 +3538,8 @@ void intel_dp_set_link_params(struct intel_dp *intel_dp,
 	memset(intel_dp->train_set, 0, sizeof(intel_dp->train_set));
 	intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_DISABLED);
 	intel_dp->needs_modeset_retry = false;
-	intel_dp->link_rate = link_rate;
-	intel_dp->lane_count = lane_count;
+	intel_dp->link.hw.active_config.rate = link_rate;
+	intel_dp->link.hw.active_config.lane_count = lane_count;
 }
 
 void intel_dp_reset_link_params(struct intel_dp *intel_dp)
@@ -5431,14 +5431,14 @@ static bool intel_dp_link_ok(struct intel_dp *intel_dp,
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
-	bool uhbr = intel_dp->link_rate >= 1000000;
+	bool uhbr = intel_dp->link.hw.active_config.rate >= 1000000;
 	bool ok;
 
 	if (uhbr)
 		ok = drm_dp_128b132b_lane_channel_eq_done(link_status,
-							  intel_dp->lane_count);
+							  intel_dp->link.hw.active_config.lane_count);
 	else
-		ok = drm_dp_channel_eq_ok(link_status, intel_dp->lane_count);
+		ok = drm_dp_channel_eq_ok(link_status, intel_dp->link.hw.active_config.lane_count);
 
 	if (ok)
 		return true;
@@ -5615,8 +5615,8 @@ intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
 	 * we need to call this from the short HPD handler that seems
 	 * a bit hard.
 	 */
-	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link_rate,
-					intel_dp->lane_count))
+	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link.hw.active_config.rate,
+					intel_dp->link.hw.active_config.lane_count))
 		return false;
 
 	if (intel_dp->link.retrain_disabled)

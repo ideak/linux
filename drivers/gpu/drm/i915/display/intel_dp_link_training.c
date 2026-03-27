@@ -1745,7 +1745,7 @@ static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 		return err;
 
 	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE)
-		current_rate = intel_dp->link_rate;
+		current_rate = intel_dp->link.hw.active_config.rate;
 	force_rate = intel_dp->link.force_rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -1843,7 +1843,7 @@ static int i915_dp_force_lane_count_show(struct seq_file *m, void *data)
 		return err;
 
 	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE)
-		current_lane_count = intel_dp->lane_count;
+		current_lane_count = intel_dp->link.hw.active_config.lane_count;
 	force_lane_count = intel_dp->link.force_lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);

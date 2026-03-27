@@ -1805,8 +1805,6 @@ static inline bool intel_dp_link_config_is_null(const struct intel_dp_link_confi
 struct intel_dp {
 	i915_reg_t output_reg;
 	u32 DP;
-	int link_rate;
-	u8 lane_count;
 	u8 sink_count;
 	bool downstream_port_changed;
 	bool needs_modeset_retry;
@@ -1837,6 +1835,7 @@ struct intel_dp {
 				INTEL_DP_LINK_DISABLED,
 				INTEL_DP_LINK_ACTIVE,
 			} state;
+			struct intel_dp_link_config active_config;
 		} hw;
 		/* common rate,lane_count configs in bw order */
 		/* Max lane count for the current link */
