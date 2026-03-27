@@ -1791,6 +1791,17 @@ struct intel_psr {
 	const char *no_psr_reason;
 };
 
+struct intel_dp_link_config {
+	int rate;
+	int lane_count;
+};
+
+#define INTEL_DP_LINK_CONFIG_NULL      ((struct intel_dp_link_config){})
+static inline bool intel_dp_link_config_is_null(const struct intel_dp_link_config *config)
+{
+	return config->rate == 0 && config->lane_count == 0;
+}
+
 struct intel_dp {
 	i915_reg_t output_reg;
 	u32 DP;
