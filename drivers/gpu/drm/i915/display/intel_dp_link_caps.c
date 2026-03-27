@@ -126,6 +126,11 @@ void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
 	*num_rates = link_caps->num_rates;
 }
 
+int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
+{
+	return link_caps->max_lane_count;
+}
+
 static int forced_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
@@ -134,7 +139,7 @@ static int forced_lane_count(struct intel_dp *intel_dp)
 		return 0;
 
 	return clamp(link_caps->forced_params.lane_count,
-		     1, intel_dp_max_common_lane_count(intel_dp));
+		     1, intel_dp_link_caps_max_common_lane_count(link_caps));
 }
 
 static int forced_link_rate(struct intel_dp *intel_dp)
