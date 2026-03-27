@@ -35,6 +35,11 @@ struct intel_dp_link_caps {
 	} configs[INTEL_DP_MAX_LINK_CONFIGS];
 };
 
+int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
+{
+	return link_caps->common_params.max_lane_count;
+}
+
 static int intel_dp_link_config_rate(struct intel_dp_link_caps *link_caps,
 				     const struct intel_dp_link_config_entry *lc)
 {
