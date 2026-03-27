@@ -715,7 +715,8 @@ static void intel_dp_set_common_link_params(struct intel_dp *intel_dp)
 {
 	intel_dp_get_common_rates(intel_dp, intel_dp->common_rates, &intel_dp->num_common_rates);
 
-	intel_dp_link_caps_update(intel_dp->link.caps);
+	intel_dp_link_caps_update(intel_dp->link.caps,
+				  intel_dp_max_common_lane_count(intel_dp));
 }
 
 bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,

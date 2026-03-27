@@ -17,6 +17,10 @@
 struct intel_dp_link_caps {
 	struct intel_dp *dp;
 
+	struct {
+		int max_lane_count;
+	} common_params;
+
 	/* common rate,lane_count configs in bw order */
 	int num_configs;
 #define INTEL_DP_MAX_LANE_COUNT			4
@@ -64,7 +68,8 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 	       intel_dp_link_config_rate(link_caps, lc_b);
 }
 
-void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps)
+void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
+			       int max_lane_count)
 {
 	struct intel_dp *intel_dp = link_caps->dp;
 	struct intel_display *display = to_intel_display(intel_dp);
@@ -73,14 +78,16 @@ void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps)
 	int i;
 	int j;
 
-	if (drm_WARN_ON(display->drm, !is_power_of_2(intel_dp_max_common_lane_count(intel_dp))))
+	if (drm_WARN_ON(display->drm, !is_power_of_2(max_lane_count)))
 		return;
 
-	num_common_lane_configs = ilog2(intel_dp_max_common_lane_count(intel_dp)) + 1;
+	num_common_lane_configs = ilog2(max_lane_count) + 1;
 
 	if (drm_WARN_ON(display->drm, intel_dp->num_common_rates * num_common_lane_configs >
 				    ARRAY_SIZE(link_caps->configs)))
 		return;
+
+	link_caps->common_params.max_lane_count = max_lane_count;
 
 	link_caps->num_configs = intel_dp->num_common_rates * num_common_lane_configs;
 
