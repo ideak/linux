@@ -71,6 +71,7 @@
 #include "intel_dp.h"
 #include "intel_dp_aux.h"
 #include "intel_dp_hdcp.h"
+#include "intel_dp_link_caps.h"
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
 #include "intel_dp_test.h"
@@ -7414,4 +7415,18 @@ bool intel_dp_joiner_candidate_valid(struct intel_connector *connector,
 		return false;
 
 	return true;
+}
+
+int intel_dp_init(struct intel_dp *intel_dp)
+{
+	intel_dp->link.caps = intel_dp_link_caps_init(intel_dp);
+	if (!intel_dp->link.caps)
+		return -ENOMEM;
+
+	return 0;
+}
+
+void intel_dp_cleanup(struct intel_dp *intel_dp)
+{
+	intel_dp_link_caps_cleanup(intel_dp->link.caps);
 }
