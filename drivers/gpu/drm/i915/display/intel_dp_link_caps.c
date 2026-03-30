@@ -5,6 +5,7 @@
 
 #include <linux/slab.h>
 #include <linux/sort.h>
+#include <linux/types.h>
 
 #include <drm/drm_print.h>
 
@@ -15,6 +16,19 @@
 
 struct intel_dp_link_caps {
 	struct intel_dp *dp;
+
+	/* common rate,lane_count configs in bw order */
+	int num_configs;
+#define INTEL_DP_MAX_LANE_COUNT			4
+#define INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS	(ilog2(INTEL_DP_MAX_LANE_COUNT) + 1)
+#define INTEL_DP_LANE_COUNT_EXP_BITS		order_base_2(INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS)
+#define INTEL_DP_LINK_RATE_IDX_BITS		(BITS_PER_TYPE(u8) - INTEL_DP_LANE_COUNT_EXP_BITS)
+#define INTEL_DP_MAX_LINK_CONFIGS		(DP_MAX_SUPPORTED_RATES * \
+						 INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS)
+	struct intel_dp_link_config {
+		u8 link_rate_idx:INTEL_DP_LINK_RATE_IDX_BITS;
+		u8 lane_count_exp:INTEL_DP_LANE_COUNT_EXP_BITS;
+	} configs[INTEL_DP_MAX_LINK_CONFIGS];
 };
 
 static int intel_dp_link_config_rate(struct intel_dp *intel_dp,
@@ -52,6 +66,7 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 
 void intel_dp_link_caps_update(struct intel_dp *intel_dp)
 {
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_config *lc;
 	int num_common_lane_configs;
@@ -64,12 +79,12 @@ void intel_dp_link_caps_update(struct intel_dp *intel_dp)
 	num_common_lane_configs = ilog2(intel_dp_max_common_lane_count(intel_dp)) + 1;
 
 	if (drm_WARN_ON(display->drm, intel_dp->num_common_rates * num_common_lane_configs >
-				    ARRAY_SIZE(intel_dp->link.configs)))
+				    ARRAY_SIZE(link_caps->configs)))
 		return;
 
-	intel_dp->link.num_configs = intel_dp->num_common_rates * num_common_lane_configs;
+	link_caps->num_configs = intel_dp->num_common_rates * num_common_lane_configs;
 
-	lc = &intel_dp->link.configs[0];
+	lc = &link_caps->configs[0];
 	for (i = 0; i < intel_dp->num_common_rates; i++) {
 		for (j = 0; j < num_common_lane_configs; j++) {
 			lc->lane_count_exp = j;
@@ -79,21 +94,22 @@ void intel_dp_link_caps_update(struct intel_dp *intel_dp)
 		}
 	}
 
-	sort_r(intel_dp->link.configs, intel_dp->link.num_configs,
-	       sizeof(intel_dp->link.configs[0]),
+	sort_r(link_caps->configs, link_caps->num_configs,
+	       sizeof(link_caps->configs[0]),
 	       link_config_cmp_by_bw, NULL,
 	       intel_dp);
 }
 
 void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate, int *lane_count)
 {
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_display *display = to_intel_display(intel_dp);
 	const struct intel_dp_link_config *lc;
 
-	if (drm_WARN_ON(display->drm, idx < 0 || idx >= intel_dp->link.num_configs))
+	if (drm_WARN_ON(display->drm, idx < 0 || idx >= link_caps->num_configs))
 		idx = 0;
 
-	lc = &intel_dp->link.configs[idx];
+	lc = &link_caps->configs[idx];
 
 	*link_rate = intel_dp_link_config_rate(intel_dp, lc);
 	*lane_count = intel_dp_link_config_lane_count(lc);
@@ -101,13 +117,14 @@ void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate
 
 int intel_dp_link_config_index(struct intel_dp *intel_dp, int link_rate, int lane_count)
 {
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	int link_rate_idx = intel_dp_rate_index(intel_dp->common_rates, intel_dp->num_common_rates,
 						link_rate);
 	int lane_count_exp = ilog2(lane_count);
 	int i;
 
-	for (i = 0; i < intel_dp->link.num_configs; i++) {
-		const struct intel_dp_link_config *lc = &intel_dp->link.configs[i];
+	for (i = 0; i < link_caps->num_configs; i++) {
+		const struct intel_dp_link_config *lc = &link_caps->configs[i];
 
 		if (lc->lane_count_exp == lane_count_exp &&
 		    lc->link_rate_idx == link_rate_idx)
