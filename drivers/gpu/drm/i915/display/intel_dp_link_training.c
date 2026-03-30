@@ -1214,9 +1214,10 @@ static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
 	int lane_count;
 	int i;
 
-	i = intel_dp_link_config_index(intel_dp, crtc_state->port_clock, crtc_state->lane_count);
+	i = intel_dp_link_config_index(intel_dp->link.caps,
+				       crtc_state->port_clock, crtc_state->lane_count);
 	for (i--; i >= 0; i--) {
-		intel_dp_link_config_get(intel_dp, i, &link_rate, &lane_count);
+		intel_dp_link_config_get(intel_dp->link.caps, i, &link_rate, &lane_count);
 
 		if ((intel_dp->link.force_rate &&
 		     intel_dp->link.force_rate != link_rate) ||
