@@ -707,7 +707,7 @@ static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
 		intel_dp->num_common_rates = 1;
 	}
 
-	intel_dp_link_config_init(intel_dp);
+	intel_dp_link_caps_update(intel_dp);
 }
 
 bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
