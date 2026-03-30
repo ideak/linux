@@ -22,8 +22,10 @@ int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_cap
 void intel_dp_link_caps_get_forced_params(struct intel_dp_link_caps *link_caps,
 					  struct intel_dp_link_config *forced_params);
 
-int intel_dp_link_config_index(struct intel_dp *intel_dp, int link_rate, int lane_count);
-void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate, int *lane_count);
+int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
+			       int link_rate, int lane_count);
+void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
+			      int idx, int *link_rate, int *lane_count);
 
 void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
 				       struct intel_dp_link_config *max_link_limits);
@@ -31,7 +33,7 @@ bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
 				       const struct intel_dp_link_config *max_link_limits);
 void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps);
 
-bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
+bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 			       const int *rates, int num_rates, int max_lane_count);
 void intel_dp_link_caps_reset(struct intel_dp_link_caps *link_caps);
 

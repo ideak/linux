@@ -397,10 +397,10 @@ static bool current_common_caps_match(struct intel_dp_link_caps *link_caps,
 }
 
 /* Return %true if the supported link parameters have changed. */
-bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
+bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 			       const int *rates, int num_rates, int max_lane_count)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp *intel_dp = link_caps->dp;
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_config old_max_limits =
 		link_caps->max_limits;
@@ -472,10 +472,10 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 	return link_params_changed;
 }
 
-void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate, int *lane_count)
+void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
+			      int idx, int *link_rate, int *lane_count)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_display *display = to_intel_display(link_caps->dp);
 	const struct intel_dp_link_config_entry *lc;
 
 	if (drm_WARN_ON(display->drm, idx < 0 || idx >= link_caps->num_configs))
@@ -487,9 +487,9 @@ void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate
 	*lane_count = intel_dp_link_config_lane_count(lc);
 }
 
-int intel_dp_link_config_index(struct intel_dp *intel_dp, int link_rate, int lane_count)
+int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
+			       int link_rate, int lane_count)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	int link_rate_idx = intel_dp_rate_index(link_caps->rates, link_caps->num_rates,
 						link_rate);
 	int lane_count_exp = ilog2(lane_count);
