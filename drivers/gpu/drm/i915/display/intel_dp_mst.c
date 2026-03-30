@@ -1171,18 +1171,23 @@ static void mst_stream_pre_pll_enable(struct intel_atomic_state *state,
 					     to_intel_crtc(pipe_config->uapi.crtc));
 }
 
-static bool intel_mst_probed_link_params_valid(struct intel_dp *intel_dp,
+static bool intel_mst_probed_link_params_valid(const struct intel_dp *intel_dp,
 					       int link_rate, int lane_count)
 {
-	return intel_dp->link.mst_probed_rate == link_rate &&
-		intel_dp->link.mst_probed_lane_count == lane_count;
+	return intel_dp->mst.probed_link_config.rate == link_rate &&
+		intel_dp->mst.probed_link_config.lane_count == lane_count;
 }
 
 static void intel_mst_set_probed_link_params(struct intel_dp *intel_dp,
 					     int link_rate, int lane_count)
 {
-	intel_dp->link.mst_probed_rate = link_rate;
-	intel_dp->link.mst_probed_lane_count = lane_count;
+	intel_dp->mst.probed_link_config.rate = link_rate;
+	intel_dp->mst.probed_link_config.lane_count = lane_count;
+}
+
+void intel_dp_mst_reset_link_params(struct intel_dp *intel_dp)
+{
+	intel_dp->mst.probed_link_config = INTEL_DP_LINK_CONFIG_NULL;
 }
 
 static void intel_mst_reprobe_topology(struct intel_dp *intel_dp,

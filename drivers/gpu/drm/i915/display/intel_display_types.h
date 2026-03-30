@@ -1838,14 +1838,6 @@ struct intel_dp {
 		int max_lane_count;
 		/* Max rate for the current link */
 		int max_rate;
-		/*
-		 * Link parameters for which the MST topology was probed.
-		 * Tracking these ensures that the MST path resources are
-		 * re-enumerated whenever the link is retrained with new link
-		 * parameters, as required by the DP standard.
-		 */
-		int mst_probed_lane_count;
-		int mst_probed_rate;
 		int force_lane_count;
 		int force_rate;
 		bool retrain_disabled;
@@ -1876,10 +1868,18 @@ struct intel_dp {
 	struct drm_dp_tunnel *tunnel;
 	bool tunnel_suspended:1;
 
+	/* TODO: Move the following to an internal struct in intel_dp_mst.c */
 	struct {
 		struct intel_dp_mst_encoder *stream_encoders[I915_MAX_PIPES];
 		struct drm_dp_mst_topology_mgr mgr;
 		int active_streams;
+		/*
+		 * Link parameters for which the MST topology was probed.
+		 * Tracking these ensures that the MST path resources are
+		 * re-enumerated whenever the link is retrained with new link
+		 * parameters, as required by the DP standard.
+		 */
+		struct intel_dp_link_config probed_link_config;
 	} mst;
 
 	u32 (*get_aux_clock_divider)(struct intel_dp *dp, int index);
