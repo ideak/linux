@@ -31,10 +31,10 @@ struct intel_dp_link_caps {
 	} configs[INTEL_DP_MAX_LINK_CONFIGS];
 };
 
-static int intel_dp_link_config_rate(struct intel_dp *intel_dp,
+static int intel_dp_link_config_rate(struct intel_dp_link_caps *link_caps,
 				     const struct intel_dp_link_config *lc)
 {
-	return intel_dp_common_rate(intel_dp, lc->link_rate_idx);
+	return intel_dp_common_rate(link_caps->dp, lc->link_rate_idx);
 }
 
 static int intel_dp_link_config_lane_count(const struct intel_dp_link_config *lc)
@@ -42,26 +42,26 @@ static int intel_dp_link_config_lane_count(const struct intel_dp_link_config *lc
 	return 1 << lc->lane_count_exp;
 }
 
-static int intel_dp_link_config_bw(struct intel_dp *intel_dp,
+static int intel_dp_link_config_bw(struct intel_dp_link_caps *link_caps,
 				   const struct intel_dp_link_config *lc)
 {
-	return drm_dp_max_dprx_data_rate(intel_dp_link_config_rate(intel_dp, lc),
+	return drm_dp_max_dprx_data_rate(intel_dp_link_config_rate(link_caps, lc),
 					 intel_dp_link_config_lane_count(lc));
 }
 
 static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 {
-	struct intel_dp *intel_dp = (struct intel_dp *)p;	/* remove const */
+	struct intel_dp_link_caps *link_caps = (struct intel_dp_link_caps *)p;	/* remove const */
 	const struct intel_dp_link_config *lc_a = a;
 	const struct intel_dp_link_config *lc_b = b;
-	int bw_a = intel_dp_link_config_bw(intel_dp, lc_a);
-	int bw_b = intel_dp_link_config_bw(intel_dp, lc_b);
+	int bw_a = intel_dp_link_config_bw(link_caps, lc_a);
+	int bw_b = intel_dp_link_config_bw(link_caps, lc_b);
 
 	if (bw_a != bw_b)
 		return bw_a - bw_b;
 
-	return intel_dp_link_config_rate(intel_dp, lc_a) -
-	       intel_dp_link_config_rate(intel_dp, lc_b);
+	return intel_dp_link_config_rate(link_caps, lc_a) -
+	       intel_dp_link_config_rate(link_caps, lc_b);
 }
 
 void intel_dp_link_caps_update(struct intel_dp *intel_dp)
@@ -111,7 +111,7 @@ void intel_dp_link_config_get(struct intel_dp *intel_dp, int idx, int *link_rate
 
 	lc = &link_caps->configs[idx];
 
-	*link_rate = intel_dp_link_config_rate(intel_dp, lc);
+	*link_rate = intel_dp_link_config_rate(link_caps, lc);
 	*lane_count = intel_dp_link_config_lane_count(lc);
 }
 
