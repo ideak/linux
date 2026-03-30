@@ -711,7 +711,7 @@ static bool intel_dp_set_common_rates(struct intel_dp *intel_dp)
 	if (!current_common_caps_match(intel_dp, old_common_rates, num_old_common_rates))
 		link_params_changed = true;
 
-	intel_dp_link_config_init(intel_dp);
+	intel_dp_link_caps_update(intel_dp);
 
 	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
 	if (len > 0)
