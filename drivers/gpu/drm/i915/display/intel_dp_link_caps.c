@@ -74,6 +74,15 @@ int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 	return intel_dp_link_caps_common_rate(link_caps, intel_dp->num_common_rates - 1);
 }
 
+void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
+					 const int **rates, int *num_rates)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	*rates = intel_dp->common_rates;
+	*num_rates = intel_dp->num_common_rates;
+}
+
 int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
 {
 	return link_caps->common_params.max_lane_count;

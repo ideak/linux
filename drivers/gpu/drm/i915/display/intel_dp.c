@@ -1492,6 +1492,8 @@ static void intel_dp_print_rates(struct intel_dp *intel_dp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	DECLARE_SEQ_BUF(s, 128); /* FIXME: too big for stack? */
+	const int *common_rates;
+	int num_common_rates;
 
 	if (!drm_debug_enabled(DRM_UT_KMS))
 		return;
@@ -1504,7 +1506,9 @@ static void intel_dp_print_rates(struct intel_dp *intel_dp)
 	drm_dbg_kms(display->drm, "sink rates: %s\n", seq_buf_str(&s));
 
 	seq_buf_clear(&s);
-	seq_buf_print_array(&s, intel_dp->common_rates, intel_dp->num_common_rates);
+	intel_dp_link_caps_all_common_rates(intel_dp->link.caps,
+					    &common_rates, &num_common_rates);
+	seq_buf_print_array(&s, common_rates, num_common_rates);
 	drm_dbg_kms(display->drm, "common rates: %s\n", seq_buf_str(&s));
 }
 
