@@ -39,6 +39,11 @@ struct intel_dp_link_caps {
 	} configs[INTEL_DP_MAX_LINK_CONFIGS];
 };
 
+static struct intel_dp_link_caps *connector_to_link_caps(struct intel_connector *connector)
+{
+	return intel_attached_dp(connector)->link.caps;
+}
+
 /* Get length of common rates array potentially limited by max_rate. */
 int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *link_caps,
 					     int max_rate)
@@ -202,7 +207,8 @@ static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 {
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
+	struct intel_dp *intel_dp = link_caps->dp;
 	int current_rate = -1;
 	int force_rate;
 	int err;
@@ -273,7 +279,8 @@ static ssize_t i915_dp_force_link_rate_write(struct file *file,
 	struct seq_file *m = file->private_data;
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
+	struct intel_dp *intel_dp = link_caps->dp;
 	int rate;
 	int err;
 
@@ -300,7 +307,8 @@ static int i915_dp_force_lane_count_show(struct seq_file *m, void *data)
 {
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
+	struct intel_dp *intel_dp = link_caps->dp;
 	int current_lane_count = -1;
 	int force_lane_count;
 	int err;
@@ -375,7 +383,8 @@ static ssize_t i915_dp_force_lane_count_write(struct file *file,
 	struct seq_file *m = file->private_data;
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
+	struct intel_dp *intel_dp = link_caps->dp;
 	int lane_count;
 	int err;
 
