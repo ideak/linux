@@ -37,6 +37,12 @@ struct intel_dp_link_caps {
 		u8 link_rate_idx:INTEL_DP_LINK_RATE_IDX_BITS;
 		u8 lane_count_exp:INTEL_DP_LANE_COUNT_EXP_BITS;
 	} configs[INTEL_DP_MAX_LINK_CONFIGS];
+
+	/*
+	 * Forced parameters requested via debugfs. Remains set across sink
+	 * disconnects.
+	 */
+	struct intel_dp_link_config forced_params;
 };
 
 static struct intel_dp_link_caps *connector_to_link_caps(struct intel_connector *connector)
@@ -95,24 +101,21 @@ int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_cap
 
 int intel_dp_link_caps_forced_lane_count(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	if (intel_dp->link.force_lane_count == 0)
+	if (link_caps->forced_params.lane_count == 0)
 		return 0;
 
-	return clamp(intel_dp->link.force_lane_count,
+	return clamp(link_caps->forced_params.lane_count,
 		     1, intel_dp_link_caps_max_common_lane_count(link_caps));
 }
 
 int intel_dp_link_caps_forced_link_rate(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
 	int len;
 
-	if (intel_dp->link.force_rate == 0)
+	if (link_caps->forced_params.rate == 0)
 		return 0;
 
-	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.force_rate);
+	len = intel_dp_link_caps_common_len_rate_limit(link_caps, link_caps->forced_params.rate);
 	if (len == 0)
 		return intel_dp_link_caps_common_rate(link_caps, 0);
 
@@ -246,7 +249,7 @@ static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 
 	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE)
 		current_rate = intel_dp->link.hw.active_config.rate;
-	force_rate = intel_dp->link.force_rate;
+	force_rate = link_caps->forced_params.rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -319,7 +322,7 @@ static ssize_t i915_dp_force_link_rate_write(struct file *file,
 		return err;
 
 	intel_dp_reset_link_params(intel_dp);
-	intel_dp->link.force_rate = rate;
+	link_caps->forced_params.rate = rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -346,7 +349,7 @@ static int i915_dp_force_lane_count_show(struct seq_file *m, void *data)
 
 	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE)
 		current_lane_count = intel_dp->link.hw.active_config.lane_count;
-	force_lane_count = intel_dp->link.force_lane_count;
+	force_lane_count = link_caps->forced_params.lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -423,7 +426,7 @@ static ssize_t i915_dp_force_lane_count_write(struct file *file,
 		return err;
 
 	intel_dp_reset_link_params(intel_dp);
-	intel_dp->link.force_lane_count = lane_count;
+	link_caps->forced_params.lane_count = lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
