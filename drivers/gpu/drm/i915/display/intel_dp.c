@@ -353,17 +353,6 @@ static int intel_dp_max_common_lane_count(struct intel_dp *intel_dp)
 	return min3(source_max, sink_max, lane_max);
 }
 
-static int forced_lane_count(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-
-	if (intel_dp->link.force_lane_count == 0)
-		return 0;
-
-	return clamp(intel_dp->link.force_lane_count,
-		     1, intel_dp_link_caps_max_common_lane_count(link_caps));
-}
-
 int intel_dp_max_lane_count(struct intel_dp *intel_dp)
 {
 	int lane_count = forced_lane_count(intel_dp);
@@ -1516,22 +1505,6 @@ static void intel_dp_print_rates(struct intel_dp *intel_dp)
 					    &common_rates, &num_common_rates);
 	seq_buf_print_array(&s, common_rates, num_common_rates);
 	drm_dbg_kms(display->drm, "common rates: %s\n", seq_buf_str(&s));
-}
-
-static int forced_link_rate(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int len;
-
-	if (intel_dp->link.force_rate == 0)
-		return 0;
-
-	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.force_rate);
-
-	if (len == 0)
-		return intel_dp_link_caps_common_rate(link_caps, 0);
-
-	return intel_dp_link_caps_common_rate(link_caps, len - 1);
 }
 
 int
