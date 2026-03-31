@@ -357,17 +357,18 @@ static int forced_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 
+	if (intel_dp->link.force_lane_count == 0)
+		return 0;
+
 	return clamp(intel_dp->link.force_lane_count,
 		     1, intel_dp_link_caps_max_common_lane_count(link_caps));
 }
 
 int intel_dp_max_lane_count(struct intel_dp *intel_dp)
 {
-	int lane_count;
+	int lane_count = forced_lane_count(intel_dp);
 
-	if (intel_dp->link.force_lane_count)
-		lane_count = forced_lane_count(intel_dp);
-	else
+	if (lane_count == 0)
 		lane_count = intel_dp->link.max_lane_count;
 
 	switch (lane_count) {
@@ -383,8 +384,10 @@ int intel_dp_max_lane_count(struct intel_dp *intel_dp)
 
 static int intel_dp_min_lane_count(struct intel_dp *intel_dp)
 {
-	if (intel_dp->link.force_lane_count)
-		return forced_lane_count(intel_dp);
+	int lane_count = forced_lane_count(intel_dp);
+
+	if (lane_count != 0)
+		return lane_count;
 
 	return 1;
 }
@@ -1518,8 +1521,12 @@ static void intel_dp_print_rates(struct intel_dp *intel_dp)
 static int forced_link_rate(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	int len;
 
-	int len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.force_rate);
+	if (intel_dp->link.force_rate == 0)
+		return 0;
+
+	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.force_rate);
 
 	if (len == 0)
 		return intel_dp_link_caps_common_rate(link_caps, 0);
@@ -1531,10 +1538,11 @@ int
 intel_dp_max_link_rate(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	int forced_rate = forced_link_rate(intel_dp);
 	int len;
 
-	if (intel_dp->link.force_rate)
-		return forced_link_rate(intel_dp);
+	if (forced_rate != 0)
+		return forced_rate;
 
 	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.max_rate);
 
@@ -1545,9 +1553,10 @@ static int
 intel_dp_min_link_rate(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	int forced_rate = forced_link_rate(intel_dp);
 
-	if (intel_dp->link.force_rate)
-		return forced_link_rate(intel_dp);
+	if (forced_rate != 0)
+		return forced_rate;
 
 	return intel_dp_link_caps_common_rate(link_caps, 0);
 }
