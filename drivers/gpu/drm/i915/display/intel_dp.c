@@ -665,21 +665,6 @@ int intel_dp_rate_index(const int *rates, int len, int rate)
 	return -1;
 }
 
-static bool current_common_caps_match(struct intel_dp *intel_dp,
-				      const int *rates, int num_rates)
-{
-	const int *current_rates = intel_dp->common_rates;
-	int num_current_rates = intel_dp->num_common_rates;
-
-	if (num_current_rates != num_rates)
-		return false;
-
-	if (memcmp(current_rates, rates, num_rates * sizeof(rates[0])))
-		return false;
-
-	return true;
-}
-
 static void intel_dp_get_common_rates(struct intel_dp *intel_dp,
 				      int common_rates[DP_MAX_SUPPORTED_RATES],
 				      int *num_common_rates)
@@ -705,21 +690,16 @@ static void intel_dp_get_common_rates(struct intel_dp *intel_dp,
 /* Return %true if any supported or maximum link param changed. */
 static bool intel_dp_set_common_link_params(struct intel_dp *intel_dp)
 {
-	int num_old_common_rates = intel_dp->num_common_rates;
 	int old_max_rate_limit = intel_dp->link.max_rate;
-	int old_common_rates[DP_MAX_SUPPORTED_RATES];
+	int num_common_rates;
+	int common_rates[DP_MAX_SUPPORTED_RATES];
 	bool link_params_changed = false;
 	int len;
 
-	static_assert(sizeof(old_common_rates) == sizeof(intel_dp->common_rates));
-	memcpy(old_common_rates, intel_dp->common_rates, sizeof(old_common_rates));
-
-	intel_dp_get_common_rates(intel_dp, intel_dp->common_rates, &intel_dp->num_common_rates);
-
-	if (!current_common_caps_match(intel_dp, old_common_rates, num_old_common_rates))
+	intel_dp_get_common_rates(intel_dp, common_rates, &num_common_rates);
+	if (intel_dp_link_caps_update(intel_dp,
+				      common_rates, num_common_rates))
 		link_params_changed = true;
-
-	intel_dp_link_caps_update(intel_dp);
 
 	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
 	if (len > 0)
