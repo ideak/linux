@@ -43,6 +43,27 @@ struct intel_dp_link_caps {
 	 * disconnects.
 	 */
 	struct intel_dp_link_config forced_params;
+
+	/*
+	 * Cached upper bounds of the allowed link configurations.
+	 *
+	 * The max rate and max lane count may come from different allowed
+	 * configurations, IOW the max rate and max lane count may not form an
+	 * actual allowed configuration.
+	 *
+	 * Currently max_limits also constrains the allowed configs, so it may
+	 * need to increase while the sink remains connected, e.g. after link
+	 * training fallback selects a config above the previous max_limits.
+	 *
+	 * These limits are reset on sink disconnect and when forcing a link
+	 * rate or lane count, restoring them to the maximum parameters of the
+	 * enabled configurations, constrained only by any forced parameters.
+	 *
+	 * TODO: Make max_limits just reflect the maximum of the allowed
+	 * configs at all times. Then it will no longer constrain them and
+	 * will never need to increase.
+	 */
+	struct intel_dp_link_config max_limits;
 };
 
 static struct intel_dp_link_caps *connector_to_link_caps(struct intel_connector *connector)
@@ -136,19 +157,13 @@ static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_ent
 void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
 				       struct intel_dp_link_config *max_link_limits)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	max_link_limits->rate = intel_dp->link.max_rate;
-	max_link_limits->lane_count = intel_dp->link.max_lane_count;
+	*max_link_limits = link_caps->max_limits;
 }
 
 void intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
 				       const struct intel_dp_link_config *max_link_limits)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	intel_dp->link.max_rate = max_link_limits->rate;
-	intel_dp->link.max_lane_count = max_link_limits->lane_count;
+	link_caps->max_limits = *max_link_limits;
 }
 
 static int intel_dp_link_config_bw(struct intel_dp_link_caps *link_caps,

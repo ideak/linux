@@ -1835,10 +1835,6 @@ struct intel_dp {
 			struct intel_dp_link_config active_config;
 		} hw;
 		/* common rate,lane_count configs in bw order */
-		/* Max lane count for the current link */
-		int max_lane_count;
-		/* Max rate for the current link */
-		int max_rate;
 		bool retrain_disabled;
 		/* Sequential link training failures after a passing LT */
 		int seq_train_failures;
