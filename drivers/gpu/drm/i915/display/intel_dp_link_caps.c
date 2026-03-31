@@ -93,9 +93,9 @@ int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_cap
 	return link_caps->common_params.max_lane_count;
 }
 
-int forced_lane_count(struct intel_dp *intel_dp)
+int intel_dp_link_caps_forced_lane_count(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp *intel_dp = link_caps->dp;
 
 	if (intel_dp->link.force_lane_count == 0)
 		return 0;
@@ -104,16 +104,15 @@ int forced_lane_count(struct intel_dp *intel_dp)
 		     1, intel_dp_link_caps_max_common_lane_count(link_caps));
 }
 
-int forced_link_rate(struct intel_dp *intel_dp)
+int intel_dp_link_caps_forced_link_rate(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp *intel_dp = link_caps->dp;
 	int len;
 
 	if (intel_dp->link.force_rate == 0)
 		return 0;
 
 	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.force_rate);
-
 	if (len == 0)
 		return intel_dp_link_caps_common_rate(link_caps, 0);
 
