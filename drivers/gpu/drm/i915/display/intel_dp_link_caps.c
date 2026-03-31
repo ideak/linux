@@ -45,6 +45,36 @@ struct intel_dp_link_caps {
 	 * disconnects.
 	 */
 	struct intel_dp_link_config forced_params;
+
+	/*
+	 * Cached / settable upper bounds of the allowed configurations.
+	 *
+	 * max_limits is set via the link caps API and kept updated to the
+	 * actual maximal parameter bounds of the allowed configurations.
+	 * Such updates do not increase max_limits above the value set via the
+	 * API, except when max_limits is reset, see below. The limits (set
+	 * via the API) will constrain the allowed configurations.
+	 *
+	 * max_limits is reset in the same cases as the disabled configuration
+	 * mask (see config_table.disabled_config_mask). This restores
+	 * max_limits to the maximum parameters of the allowed configurations
+	 * as defined above, with the previous max_limits constraint removed
+	 * and the disabled configuration mask cleared, i.e. constrained only
+	 * by forced_params.
+	 *
+	 * max_limits.rate and max_limits.lane_count may come from different
+	 * allowed configurations, i.e. the (max_limits.rate,
+	 * max_limits.lane_count) tuple itself may not be an allowed
+	 * configuration.
+	 *
+	 * TODO: List the events that reset max_limits, after the
+	 * introduction of disabled_config_mask.
+	 *
+	 * TODO: Make max_limits reflect the maximum of the allowed
+	 * configurations at all times and stop making it settable via the
+	 * API, removing it as a constraint on the allowed configurations.
+	 */
+	struct intel_dp_link_config max_limits;
 };
 
 /* Get length of common rates array potentially limited by max_rate. */
@@ -226,10 +256,7 @@ static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 static void set_max_link_limits_no_update(struct intel_dp_link_caps *link_caps,
 					  const struct intel_dp_link_config *max_link_limits)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	intel_dp->link.max_rate = max_link_limits->rate;
-	intel_dp->link.max_lane_count = max_link_limits->lane_count;
+	link_caps->max_limits = *max_link_limits;
 }
 
 static void reset_max_link_limits_no_update(struct intel_dp_link_caps *link_caps)
@@ -266,10 +293,7 @@ static void reset_max_link_limits_no_update(struct intel_dp_link_caps *link_caps
 void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
 				       struct intel_dp_link_config *max_link_limits)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	max_link_limits->rate = intel_dp->link.max_rate;
-	max_link_limits->lane_count = intel_dp->link.max_lane_count;
+	*max_link_limits = link_caps->max_limits;
 }
 
 static bool max_link_limits_valid(struct intel_dp_link_caps *link_caps,
@@ -380,8 +404,8 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_display *display = to_intel_display(intel_dp);
-	int old_max_lane_count_limit = intel_dp->link.max_lane_count;
-	int old_max_rate_limit = intel_dp->link.max_rate;
+	struct intel_dp_link_config old_max_limits =
+		link_caps->max_limits;
 	int old_rates[DP_MAX_SUPPORTED_RATES];
 	struct intel_dp_link_config_entry *lc;
 	bool link_params_changed = false;
@@ -434,17 +458,17 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 		link_params_changed = true;
 
 	/* TODO: Update these as part of the rest of max param updates. */
-	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
+	len = intel_dp_common_len_rate_limit(intel_dp, link_caps->max_limits.rate);
 	if (len > 0)
-		intel_dp->link.max_rate = intel_dp_common_rate(intel_dp, len - 1);
+		link_caps->max_limits.rate = intel_dp_common_rate(intel_dp, len - 1);
 
-	if (intel_dp->link.max_rate != old_max_rate_limit)
+	if (link_caps->max_limits.rate != old_max_limits.rate)
 		link_params_changed = true;
 
-	intel_dp->link.max_lane_count = min(intel_dp->link.max_lane_count,
-					    max_lane_count);
+	link_caps->max_limits.lane_count = min(link_caps->max_limits.lane_count,
+					       max_lane_count);
 
-	if (intel_dp->link.max_lane_count != old_max_lane_count_limit)
+	if (link_caps->max_limits.lane_count != old_max_limits.lane_count)
 		link_params_changed = true;
 
 	return link_params_changed;
