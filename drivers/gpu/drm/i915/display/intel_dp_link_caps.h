@@ -4,6 +4,7 @@
 #ifndef __INTEL_DP_LINK_CAPS_H__
 #define __INTEL_DP_LINK_CAPS_H__
 
+struct intel_connector;
 struct intel_dp;
 struct intel_dp_link_caps;
 
@@ -26,6 +27,8 @@ void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 			       const int *rates, int num_rates,
 			       int max_lane_count);
+
+void intel_dp_link_caps_debugfs_add(struct intel_connector *connector);
 
 struct intel_dp_link_caps *intel_dp_link_caps_init(struct intel_dp *dp);
 void intel_dp_link_caps_cleanup(struct intel_dp_link_caps *link_caps);
