@@ -60,6 +60,31 @@ int intel_dp_common_rate(struct intel_dp *intel_dp, int index)
 	return intel_dp->common_rates[index];
 }
 
+/**
+ * intel_dp_link_caps_common_rate_idx - get index of a common link rate
+ * @link_caps: link capabilities state
+ * @rate: common link rate to look up
+ *
+ * Look up @rate in the rate list currently supported by @link_caps, common to
+ * both the source and the sink.
+ *
+ * The returned value is an index into the common rate list returned by
+ * intel_dp_link_caps_all_common_rates() and accepted by
+ * intel_dp_link_caps_common_rate().
+ *
+ * Return:
+ * - Index of @rate in the current common rate list.
+ * - %-1 if @rate is not present.
+ */
+int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	return intel_dp_rate_index(intel_dp->common_rates,
+				   intel_dp->num_common_rates,
+				   rate);
+}
+
 /* Theoretical max between source and sink */
 int intel_dp_max_common_rate(struct intel_dp *intel_dp)
 {
