@@ -1736,44 +1736,6 @@ void intel_dp_128b132b_sdp_crc16(struct intel_dp *intel_dp,
 	lt_dbg(intel_dp, DP_PHY_DPRX, "DP2.0 SDP CRC16 for 128b/132b enabled\n");
 }
 
-static int i915_dp_max_link_rate_show(void *data, u64 *val)
-{
-	struct intel_connector *connector = to_intel_connector(data);
-	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
-	int err;
-
-	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
-	if (err)
-		return err;
-
-	*val = intel_dp->link.max_rate;
-
-	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
-
-	return 0;
-}
-DEFINE_DEBUGFS_ATTRIBUTE(i915_dp_max_link_rate_fops, i915_dp_max_link_rate_show, NULL, "%llu\n");
-
-static int i915_dp_max_lane_count_show(void *data, u64 *val)
-{
-	struct intel_connector *connector = to_intel_connector(data);
-	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
-	int err;
-
-	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
-	if (err)
-		return err;
-
-	*val = intel_dp->link.max_lane_count;
-
-	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
-
-	return 0;
-}
-DEFINE_DEBUGFS_ATTRIBUTE(i915_dp_max_lane_count_fops, i915_dp_max_lane_count_show, NULL, "%llu\n");
-
 static int i915_dp_force_link_training_failure_show(void *data, u64 *val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
@@ -1883,12 +1845,6 @@ void intel_dp_link_training_debugfs_add(struct intel_connector *connector)
 	if (connector->base.connector_type != DRM_MODE_CONNECTOR_DisplayPort &&
 	    connector->base.connector_type != DRM_MODE_CONNECTOR_eDP)
 		return;
-
-	debugfs_create_file("i915_dp_max_link_rate", 0444, root,
-			    connector, &i915_dp_max_link_rate_fops);
-
-	debugfs_create_file("i915_dp_max_lane_count", 0444, root,
-			    connector, &i915_dp_max_lane_count_fops);
 
 	debugfs_create_file("i915_dp_force_link_training_failure", 0644, root,
 			    connector, &i915_dp_force_link_training_failure_fops);
