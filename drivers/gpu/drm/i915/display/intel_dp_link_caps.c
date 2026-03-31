@@ -42,55 +42,44 @@ struct intel_dp_link_caps {
 int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *link_caps,
 					     int max_rate)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	return intel_dp_rate_limit_len(intel_dp->common_rates,
-				       intel_dp->num_common_rates, max_rate);
+	return intel_dp_rate_limit_len(link_caps->common_params.rates,
+				       link_caps->common_params.num_rates, max_rate);
 }
 
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_display *display = to_intel_display(link_caps->dp);
 
 	if (drm_WARN_ON(display->drm,
-			index < 0 || index >= intel_dp->num_common_rates))
+			index < 0 || index >= link_caps->common_params.num_rates))
 		return 162000;
 
-	return intel_dp->common_rates[index];
+	return link_caps->common_params.rates[index];
 }
 
 int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	return intel_dp_rate_index(intel_dp->common_rates,
-				   intel_dp->num_common_rates,
+	return intel_dp_rate_index(link_caps->common_params.rates,
+				   link_caps->common_params.num_rates,
 				   rate);
 }
 
 /* Theoretical max between source and sink */
 int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	return intel_dp_link_caps_common_rate(link_caps, intel_dp->num_common_rates - 1);
+	return intel_dp_link_caps_common_rate(link_caps, link_caps->common_params.num_rates - 1);
 }
 
 int intel_dp_link_caps_num_common_rates(struct intel_dp_link_caps *link_caps)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	return intel_dp->num_common_rates;
+	return link_caps->common_params.num_rates;
 }
 
 void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
 					 const int **rates, int *num_rates)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-
-	*rates = intel_dp->common_rates;
-	*num_rates = intel_dp->num_common_rates;
+	*rates = link_caps->common_params.rates;
+	*num_rates = link_caps->common_params.num_rates;
 }
 
 int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
@@ -191,9 +180,8 @@ void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
 			       int link_rate, int lane_count)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-	int link_rate_idx = intel_dp_rate_index(intel_dp->common_rates,
-						intel_dp->num_common_rates,
+	int link_rate_idx = intel_dp_rate_index(link_caps->common_params.rates,
+						link_caps->common_params.num_rates,
 						link_rate);
 	int lane_count_exp = ilog2(lane_count);
 	int i;
