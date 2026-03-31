@@ -36,15 +36,18 @@ struct intel_dp_link_caps {
 };
 
 /* Get length of common rates array potentially limited by max_rate. */
-int intel_dp_common_len_rate_limit(const struct intel_dp *intel_dp,
-				   int max_rate)
+int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *link_caps,
+					     int max_rate)
 {
+	struct intel_dp *intel_dp = link_caps->dp;
+
 	return intel_dp_rate_limit_len(intel_dp->common_rates,
 				       intel_dp->num_common_rates, max_rate);
 }
 
-int intel_dp_common_rate(struct intel_dp *intel_dp, int index)
+int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index)
 {
+	struct intel_dp *intel_dp = link_caps->dp;
 	struct intel_display *display = to_intel_display(intel_dp);
 
 	if (drm_WARN_ON(display->drm,
@@ -55,9 +58,11 @@ int intel_dp_common_rate(struct intel_dp *intel_dp, int index)
 }
 
 /* Theoretical max between source and sink */
-int intel_dp_max_common_rate(struct intel_dp *intel_dp)
+int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 {
-	return intel_dp_common_rate(intel_dp, intel_dp->num_common_rates - 1);
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	return intel_dp_link_caps_common_rate(link_caps, intel_dp->num_common_rates - 1);
 }
 
 int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
@@ -68,7 +73,7 @@ int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_cap
 static int intel_dp_link_config_rate(struct intel_dp_link_caps *link_caps,
 				     const struct intel_dp_link_config_entry *lc)
 {
-	return intel_dp_common_rate(link_caps->dp, lc->link_rate_idx);
+	return intel_dp_link_caps_common_rate(link_caps, lc->link_rate_idx);
 }
 
 static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_entry *lc)
