@@ -1316,6 +1316,8 @@ static bool reduce_link_params(struct intel_dp *intel_dp, const struct intel_crt
 static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 						   const struct intel_crtc_state *crtc_state)
 {
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits;
 	int new_link_rate;
 	int new_lane_count;
 
@@ -1341,8 +1343,7 @@ static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 	       crtc_state->lane_count, crtc_state->port_clock,
 	       new_lane_count, new_link_rate);
 
-	intel_dp->link.max_rate = new_link_rate;
-	intel_dp->link.max_lane_count = new_lane_count;
+	intel_dp_link_caps_set_max_limits(link_caps, &max_link_limits);
 
 	return 0;
 }

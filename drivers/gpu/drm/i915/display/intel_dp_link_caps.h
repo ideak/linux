@@ -7,6 +7,7 @@
 struct intel_connector;
 struct intel_dp;
 struct intel_dp_link_caps;
+struct intel_dp_link_config;
 
 int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *link_caps,
 					     int max_rate);
@@ -26,6 +27,11 @@ int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
 			       int link_rate, int lane_count);
 void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 			      int idx, int *link_rate, int *lane_count);
+
+void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
+				       struct intel_dp_link_config *max_link_limits);
+void intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
+				       const struct intel_dp_link_config *max_link_limits);
 
 void intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 			       const int *rates, int num_rates,

@@ -357,9 +357,11 @@ int intel_dp_max_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	int lane_count = intel_dp_link_caps_forced_lane_count(link_caps);
+	struct intel_dp_link_config max_link_limits;
 
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
 	if (lane_count == 0)
-		lane_count = intel_dp->link.max_lane_count;
+		lane_count = max_link_limits.lane_count;
 
 	switch (lane_count) {
 	case 1:
@@ -697,17 +699,22 @@ static void intel_dp_set_common_link_params(struct intel_dp *intel_dp)
 bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
 				u8 lane_count)
 {
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits;
+
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+
 	/*
 	 * FIXME: we need to synchronize the current link parameters with
 	 * hardware readout. Currently fast link training doesn't work on
 	 * boot-up.
 	 */
 	if (link_rate == 0 ||
-	    link_rate > intel_dp->link.max_rate)
+	    link_rate > max_link_limits.rate)
 		return false;
 
 	if (lane_count == 0 ||
-	    lane_count > intel_dp_max_lane_count(intel_dp))
+	    lane_count > max_link_limits.lane_count)
 		return false;
 
 	return true;
@@ -1514,12 +1521,14 @@ intel_dp_max_link_rate(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	int forced_rate = intel_dp_link_caps_forced_link_rate(link_caps);
+	struct intel_dp_link_config max_link_limits;
 	int len;
 
 	if (forced_rate != 0)
 		return forced_rate;
 
-	len = intel_dp_link_caps_common_len_rate_limit(link_caps, intel_dp->link.max_rate);
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+	len = intel_dp_link_caps_common_len_rate_limit(link_caps, max_link_limits.rate);
 
 	return intel_dp_link_caps_common_rate(link_caps, len - 1);
 }
@@ -3530,9 +3539,12 @@ void intel_dp_set_link_params(struct intel_dp *intel_dp,
 void intel_dp_reset_link_params(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits = {
+		.rate = intel_dp_link_caps_max_common_rate(link_caps),
+		.lane_count = intel_dp_link_caps_max_common_lane_count(link_caps),
+	};
 
-	intel_dp->link.max_lane_count = intel_dp_link_caps_max_common_lane_count(link_caps);
-	intel_dp->link.max_rate = intel_dp_link_caps_max_common_rate(link_caps);
+	intel_dp_link_caps_set_max_limits(link_caps, &max_link_limits);
 	intel_dp_mst_reset_link_params(intel_dp);
 	intel_dp->link.retrain_disabled = false;
 	intel_dp->link.seq_train_failures = 0;

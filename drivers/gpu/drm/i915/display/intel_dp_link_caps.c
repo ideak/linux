@@ -133,6 +133,24 @@ static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_ent
 	return 1 << lc->lane_count_exp;
 }
 
+void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
+				       struct intel_dp_link_config *max_link_limits)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	max_link_limits->rate = intel_dp->link.max_rate;
+	max_link_limits->lane_count = intel_dp->link.max_lane_count;
+}
+
+void intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
+				       const struct intel_dp_link_config *max_link_limits)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	intel_dp->link.max_rate = max_link_limits->rate;
+	intel_dp->link.max_lane_count = max_link_limits->lane_count;
+}
+
 static int intel_dp_link_config_bw(struct intel_dp_link_caps *link_caps,
 				   const struct intel_dp_link_config_entry *lc)
 {
@@ -441,14 +459,15 @@ static int i915_dp_max_link_rate_show(void *data, u64 *val)
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
 	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
-	struct intel_dp *intel_dp = link_caps->dp;
+	struct intel_dp_link_config max_link_limits;
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.max_rate;
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+	*val = max_link_limits.rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -461,14 +480,15 @@ static int i915_dp_max_lane_count_show(void *data, u64 *val)
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
 	struct intel_dp_link_caps *link_caps = connector_to_link_caps(connector);
-	struct intel_dp *intel_dp = link_caps->dp;
+	struct intel_dp_link_config max_link_limit;
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.max_lane_count;
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limit);
+	*val = max_link_limit.lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
