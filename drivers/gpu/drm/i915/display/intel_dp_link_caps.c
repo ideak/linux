@@ -66,6 +66,29 @@ int intel_dp_max_common_rate(struct intel_dp *intel_dp)
 	return intel_dp_common_rate(intel_dp, intel_dp->num_common_rates - 1);
 }
 
+/**
+ * intel_dp_link_caps_all_common_rates - get all common link rates
+ * @link_caps: link capabilities state
+ * @rates: returned pointer to the common rate array
+ * @num_rates: returned number of entries in @rates
+ *
+ * Return all link rates through @rates and @num_rates that are currently
+ * supported by @link_caps, common to both the source and the sink. The
+ * returned array is owned by @link_caps.
+ *
+ * Besides the usual locking requirement for API access, the caller must
+ * also serialize any dereference of the returned array against concurrent
+ * updates to @link_caps.
+ */
+void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
+					 const int **rates, int *num_rates)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	*rates = intel_dp->common_rates;
+	*num_rates = intel_dp->num_common_rates;
+}
+
 static int forced_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
