@@ -1812,7 +1812,7 @@ static int reduce_link_rate(struct intel_dp *intel_dp, int current_rate)
 	if (rate_index <= 0)
 		return -1;
 
-	new_rate = intel_dp_common_rate(link_caps, rate_index - 1);
+	new_rate = intel_dp_link_caps_common_rate(link_caps, rate_index - 1);
 
 	/* TODO: Make switching from UHBR to non-UHBR rates work. */
 	if (drm_dp_is_uhbr_rate(current_rate) != drm_dp_is_uhbr_rate(new_rate))
@@ -1847,7 +1847,7 @@ static bool reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
 	link_rate = reduce_link_rate(intel_dp, crtc_state->port_clock);
 	if (link_rate < 0) {
 		lane_count = reduce_lane_count(intel_dp, crtc_state->lane_count);
-		link_rate = intel_dp_max_common_rate(link_caps);
+		link_rate = intel_dp_link_caps_max_common_rate(link_caps);
 	}
 
 	if (lane_count < 0)

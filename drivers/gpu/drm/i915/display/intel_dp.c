@@ -1573,7 +1573,7 @@ intel_dp_min_link_rate(struct intel_dp *intel_dp)
 	if (forced_params.rate)
 		return forced_params.rate;
 
-	return intel_dp_common_rate(link_caps, 0);
+	return intel_dp_link_caps_common_rate(link_caps, 0);
 }
 
 int intel_dp_rate_select(struct intel_dp *intel_dp, int rate)
@@ -1768,7 +1768,7 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 			intel_dp_output_format_link_bpp_x16(pipe_config->output_format, bpp);
 
 		for (i = 0; i < intel_dp_link_caps_num_common_rates(intel_dp->link.caps); i++) {
-			link_rate = intel_dp_common_rate(link_caps, i);
+			link_rate = intel_dp_link_caps_common_rate(link_caps, i);
 			if (link_rate < limits->min_rate ||
 			    link_rate > limits->max_rate)
 				continue;
@@ -1998,7 +1998,7 @@ static int dsc_compute_link_config(struct intel_dp *intel_dp,
 	int i;
 
 	for (i = 0; i < intel_dp_link_caps_num_common_rates(intel_dp->link.caps); i++) {
-		link_rate = intel_dp_common_rate(link_caps, i);
+		link_rate = intel_dp_link_caps_common_rate(link_caps, i);
 		if (link_rate < limits->min_rate || link_rate > limits->max_rate)
 			continue;
 
