@@ -57,6 +57,15 @@ int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int ind
 	return intel_dp->common_rates[index];
 }
 
+int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate)
+{
+	struct intel_dp *intel_dp = link_caps->dp;
+
+	return intel_dp_rate_index(intel_dp->common_rates,
+				   intel_dp->num_common_rates,
+				   rate);
+}
+
 /* Theoretical max between source and sink */
 int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 {
