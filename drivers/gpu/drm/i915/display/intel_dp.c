@@ -33,7 +33,6 @@
 #include <linux/notifier.h>
 #include <linux/seq_buf.h>
 #include <linux/slab.h>
-#include <linux/sort.h>
 #include <linux/string_helpers.h>
 #include <linux/timekeeping.h>
 #include <linux/types.h>
@@ -353,38 +352,6 @@ static int intel_dp_max_common_lane_count(struct intel_dp *intel_dp)
 	return min3(source_max, sink_max, lane_max);
 }
 
-int intel_dp_max_lane_count(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int lane_count = intel_dp_link_caps_forced_lane_count(link_caps);
-	struct intel_dp_link_config max_link_limits;
-
-	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
-	if (lane_count == 0)
-		lane_count = max_link_limits.lane_count;
-
-	switch (lane_count) {
-	case 1:
-	case 2:
-	case 4:
-		return lane_count;
-	default:
-		MISSING_CASE(lane_count);
-		return 1;
-	}
-}
-
-static int intel_dp_min_lane_count(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int lane_count = intel_dp_link_caps_forced_lane_count(link_caps);
-
-	if (lane_count != 0)
-		return lane_count;
-
-	return 1;
-}
-
 int intel_dp_link_bw_overhead(int link_clock, int lane_count, int hdisplay,
 			      int dsc_slice_count, int bpp_x16, unsigned long flags)
 {
@@ -702,6 +669,24 @@ bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_dp_link_config max_link_limits;
 
+	/*
+	 * Lockless sanity check for link parameters.
+	 *
+	 * Use the current upper bounds to reject obviously bogus values before
+	 * queuing (retraining or autotest) commit work from an HPD IRQ context
+	 * that can't serialize against modesets.
+	 *
+	 * This is not a full validation against the currently allowed link
+	 * configurations. That requires serialized access to the allowed config
+	 * table, so an exact check is deferred to the commit path.
+	 *
+	 * max_link_limits only provides independent upper bounds for rate
+	 * and lane count. Callers must not assume it is itself an allowed
+	 * link configuration. Although that happens to be true for now, it
+	 * will stop being guaranteed once
+	 * intel_dp_get_link_train_fallback_values() switches fallback to
+	 * depend only on disabled configs.
+	 */
 	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
 
 	/*
@@ -1340,10 +1325,12 @@ intel_dp_mode_valid(struct drm_connector *_connector,
 	struct intel_display *display = to_intel_display(_connector->dev);
 	struct intel_connector *connector = to_intel_connector(_connector);
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	enum intel_output_format sink_format, output_format;
 	const struct drm_display_mode *fixed_mode;
 	int target_clock = mode->clock;
 	int max_rate, mode_rate, max_lanes, max_link_clock;
+	struct intel_dp_link_config max_link_config;
 	u16 dsc_max_compressed_bpp = 0;
 	enum drm_mode_status status;
 	bool dsc = false;
@@ -1375,8 +1362,9 @@ intel_dp_mode_valid(struct drm_connector *_connector,
 	sink_format = intel_dp_sink_format(connector, mode);
 	output_format = intel_dp_output_format(connector, sink_format);
 
-	max_link_clock = intel_dp_max_link_rate(intel_dp);
-	max_lanes = intel_dp_max_lane_count(intel_dp);
+	intel_dp_link_caps_max_bw_config(link_caps, &max_link_config);
+	max_link_clock = max_link_config.rate;
+	max_lanes = max_link_config.lane_count;
 
 	max_rate = intel_dp_max_link_data_rate(intel_dp, max_link_clock, max_lanes);
 
@@ -1514,35 +1502,6 @@ static void intel_dp_print_rates(struct intel_dp *intel_dp)
 					    &common_rates, &num_common_rates);
 	seq_buf_print_array(&s, common_rates, num_common_rates);
 	drm_dbg_kms(display->drm, "common rates: %s\n", seq_buf_str(&s));
-}
-
-int
-intel_dp_max_link_rate(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int forced_rate = intel_dp_link_caps_forced_link_rate(link_caps);
-	struct intel_dp_link_config max_link_limits;
-	int len;
-
-	if (forced_rate != 0)
-		return forced_rate;
-
-	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
-	len = intel_dp_link_caps_common_len_rate_limit(link_caps, max_link_limits.rate);
-
-	return intel_dp_link_caps_common_rate(link_caps, len - 1);
-}
-
-static int
-intel_dp_min_link_rate(struct intel_dp *intel_dp)
-{
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int forced_rate = intel_dp_link_caps_forced_link_rate(link_caps);
-
-	if (forced_rate != 0)
-		return forced_rate;
-
-	return intel_dp_link_caps_common_rate(link_caps, 0);
 }
 
 int intel_dp_rate_select(struct intel_dp *intel_dp, int rate)
@@ -1726,43 +1685,40 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 				  const struct drm_connector_state *conn_state,
 				  const struct link_config_limits *limits)
 {
+	struct intel_connector *connector = to_intel_connector(conn_state->connector);
+	int bpp, clock = intel_dp_mode_clock(pipe_config, conn_state);
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int bpp, i, lane_count, clock = intel_dp_mode_clock(pipe_config, conn_state);
-	int link_rate, link_avail;
+	struct intel_dp_link_caps_config_order order =
+		intel_dp_link_caps_config_order_for_connector(connector);
+	int link_avail;
 
 	for (bpp = fxp_q4_to_int(limits->link.max_bpp_x16);
 	     bpp >= fxp_q4_to_int(limits->link.min_bpp_x16);
 	     bpp -= 2 * 3) {
 		int link_bpp_x16 =
 			intel_dp_output_format_link_bpp_x16(pipe_config->output_format, bpp);
+		struct intel_dp_link_config link_config;
 
-		for (i = 0; i < intel_dp_link_caps_num_common_rates(link_caps); i++) {
-			link_rate = intel_dp_link_caps_common_rate(link_caps, i);
-			if (link_rate < limits->min_rate ||
-			    link_rate > limits->max_rate)
-				continue;
-
-			for (lane_count = limits->min_lane_count;
-			     lane_count <= limits->max_lane_count;
-			     lane_count <<= 1) {
-				const struct drm_display_mode *adjusted_mode =
+		for_each_dp_link_config(link_caps, order, limits->link_config_mask, &link_config) {
+			const struct drm_display_mode *adjusted_mode =
 					&pipe_config->hw.adjusted_mode;
-				int mode_rate =
-					intel_dp_link_required(link_rate, lane_count,
-							       clock, adjusted_mode->hdisplay,
-							       link_bpp_x16, 0);
+			int mode_rate;
 
-				link_avail = intel_dp_max_link_data_rate(intel_dp,
-									 link_rate,
-									 lane_count);
+			mode_rate = intel_dp_link_required(link_config.rate,
+							   link_config.lane_count,
+							   clock, adjusted_mode->hdisplay,
+							   link_bpp_x16, 0);
 
-				if (mode_rate <= link_avail) {
-					pipe_config->lane_count = lane_count;
-					pipe_config->pipe_bpp = bpp;
-					pipe_config->port_clock = link_rate;
+			link_avail = intel_dp_max_link_data_rate(intel_dp,
+								 link_config.rate,
+								 link_config.lane_count);
 
-					return 0;
-				}
+			if (mode_rate <= link_avail) {
+				pipe_config->lane_count = link_config.lane_count;
+				pipe_config->pipe_bpp = bpp;
+				pipe_config->port_clock = link_config.rate;
+
+				return 0;
 			}
 		}
 	}
@@ -1961,60 +1917,54 @@ static int dsc_compute_link_config(struct intel_dp *intel_dp,
 				   const struct link_config_limits *limits,
 				   int dsc_bpp_x16)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	const struct drm_display_mode *adjusted_mode = &pipe_config->hw.adjusted_mode;
-	int link_rate, lane_count;
-	int i;
+	struct intel_connector *connector = to_intel_connector(conn_state->connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_caps_config_order order =
+		intel_dp_link_caps_config_order_for_connector(connector);
+	struct intel_dp_link_config link_config;
 
-	for (i = 0; i < intel_dp_link_caps_num_common_rates(link_caps); i++) {
-		link_rate = intel_dp_link_caps_common_rate(link_caps, i);
-		if (link_rate < limits->min_rate || link_rate > limits->max_rate)
-			continue;
+	for_each_dp_link_config(link_caps, order, limits->link_config_mask, &link_config) {
+		/*
+		 * FIXME: intel_dp_mtp_tu_compute_config() requires
+		 * ->lane_count and ->port_clock set before we know
+		 * they'll work. If we end up failing altogether,
+		 * they'll remain in crtc state. This shouldn't matter,
+		 * as we'd then bail out from compute config, but it's
+		 * just ugly.
+		 */
+		pipe_config->lane_count = link_config.lane_count;
+		pipe_config->port_clock = link_config.rate;
 
-		for (lane_count = limits->min_lane_count;
-		     lane_count <= limits->max_lane_count;
-		     lane_count <<= 1) {
+		if (drm_dp_is_uhbr_rate(link_config.rate)) {
+			int ret;
 
-			/*
-			 * FIXME: intel_dp_mtp_tu_compute_config() requires
-			 * ->lane_count and ->port_clock set before we know
-			 * they'll work. If we end up failing altogether,
-			 * they'll remain in crtc state. This shouldn't matter,
-			 * as we'd then bail out from compute config, but it's
-			 * just ugly.
-			 */
-			pipe_config->lane_count = lane_count;
-			pipe_config->port_clock = link_rate;
+			ret = intel_dp_mtp_tu_compute_config(intel_dp,
+							     pipe_config,
+							     conn_state,
+							     dsc_bpp_x16,
+							     dsc_bpp_x16,
+							     0, true);
+			if (ret)
+				continue;
+		} else {
+			unsigned long bw_overhead_flags =
+				pipe_config->fec_enable ? DRM_DP_BW_OVERHEAD_FEC : 0;
+			int line_slice_count =
+				intel_dsc_line_slice_count(&pipe_config->dsc.slice_config);
 
-			if (drm_dp_is_uhbr_rate(link_rate)) {
-				int ret;
-
-				ret = intel_dp_mtp_tu_compute_config(intel_dp,
-								     pipe_config,
-								     conn_state,
-								     dsc_bpp_x16,
-								     dsc_bpp_x16,
-								     0, true);
-				if (ret)
-					continue;
-			} else {
-				unsigned long bw_overhead_flags =
-					pipe_config->fec_enable ? DRM_DP_BW_OVERHEAD_FEC : 0;
-				int line_slice_count =
-					intel_dsc_line_slice_count(&pipe_config->dsc.slice_config);
-
-				if (!is_bw_sufficient_for_dsc_config(intel_dp,
-								     link_rate, lane_count,
-								     adjusted_mode->crtc_clock,
-								     adjusted_mode->hdisplay,
-								     line_slice_count,
-								     dsc_bpp_x16,
-								     bw_overhead_flags))
-					continue;
-			}
-
-			return 0;
+			if (!is_bw_sufficient_for_dsc_config(intel_dp,
+							     link_config.rate,
+							     link_config.lane_count,
+							     adjusted_mode->crtc_clock,
+							     adjusted_mode->hdisplay,
+							     line_slice_count,
+							     dsc_bpp_x16,
+							     bw_overhead_flags))
+				continue;
 		}
+
+		return 0;
 	}
 
 	return -EINVAL;
@@ -2175,6 +2125,40 @@ static int align_max_compressed_bpp_x16(const struct intel_connector *connector,
 	}
 }
 
+static int
+intel_dp_get_connector_max_link_config_idx(struct intel_connector *connector,
+					   const struct link_config_limits *limits)
+{
+	struct intel_display *display = to_intel_display(connector);
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_caps_config_order order =
+		intel_dp_link_caps_config_order_for_connector(connector);
+	int config_idx;
+
+	config_idx = intel_dp_link_caps_max_config_idx(link_caps, order.key,
+						       limits->link_config_mask);
+	drm_WARN_ON(display->drm, config_idx < 0);
+
+	return config_idx;
+}
+
+bool
+intel_dp_get_connector_max_link_config(struct intel_connector *connector,
+				       const struct link_config_limits *limits,
+				       struct intel_dp_link_config *max_link_config)
+{
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	int config_idx;
+
+	config_idx = intel_dp_get_connector_max_link_config_idx(connector, limits);
+	if (config_idx < 0)
+		return false;
+
+	return intel_dp_link_caps_config_at(link_caps, config_idx, max_link_config);
+}
+
 /*
  * Find the max compressed BPP we can find a link configuration for. The BPPs to
  * try depend on the source (platform) and sink.
@@ -2186,7 +2170,7 @@ static int dsc_compute_compressed_bpp(struct intel_dp *intel_dp,
 				      int pipe_bpp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
-	const struct intel_connector *connector = to_intel_connector(conn_state->connector);
+	struct intel_connector *connector = to_intel_connector(conn_state->connector);
 	int min_bpp_x16, max_bpp_x16, bpp_step_x16;
 	int bpp_x16;
 	int ret;
@@ -2198,8 +2182,19 @@ static int dsc_compute_compressed_bpp(struct intel_dp *intel_dp,
 	max_bpp_x16 = align_max_compressed_bpp_x16(connector, pipe_config->output_format,
 						   pipe_bpp, max_bpp_x16);
 	if (intel_dp_is_edp(intel_dp)) {
-		pipe_config->port_clock = limits->max_rate;
-		pipe_config->lane_count = limits->max_lane_count;
+		struct intel_dp_link_config max_link_config;
+
+		/*
+		 * FIXME: Clarify why eDP does not use the regular SST BW
+		 * check and instead always uses the maximum link config,
+		 * regardless of intel_dp::use_max_params. Then unify this eDP
+		 * path with the regular DP path.
+		 */
+		if (!intel_dp_get_connector_max_link_config(connector, limits, &max_link_config))
+			return -EINVAL;
+
+		pipe_config->port_clock = max_link_config.rate;
+		pipe_config->lane_count = max_link_config.lane_count;
 
 		pipe_config->dsc.compressed_bpp_x16 = max_bpp_x16;
 
@@ -2528,6 +2523,7 @@ intel_dp_compute_config_link_bpp_limits(struct intel_connector *connector,
 		&crtc_state->hw.adjusted_mode;
 	const struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	struct intel_dp_link_config max_link_config;
 	int max_link_bpp_x16;
 
 	max_link_bpp_x16 = min(crtc_state->max_link_bpp_x16,
@@ -2557,14 +2553,17 @@ intel_dp_compute_config_link_bpp_limits(struct intel_connector *connector,
 
 	limits->link.max_bpp_x16 = max_link_bpp_x16;
 
+	if (!intel_dp_get_connector_max_link_config(connector, limits, &max_link_config))
+		return false;
+
 	drm_dbg_kms(display->drm,
-		    "[ENCODER:%d:%s][CRTC:%d:%s] DP link limits: pixel clock %d kHz DSC %s max lanes %d max rate %d max pipe_bpp %d min link_bpp " FXP_Q4_FMT " max link_bpp " FXP_Q4_FMT "\n",
+		    "[ENCODER:%d:%s][CRTC:%d:%s] DP link limits: pixel clock %d kHz DSC %s max link %dx%d max pipe_bpp %d min link_bpp " FXP_Q4_FMT " max link_bpp " FXP_Q4_FMT "\n",
 		    encoder->base.base.id, encoder->base.name,
 		    crtc->base.base.id, crtc->base.name,
 		    adjusted_mode->crtc_clock,
 		    str_on_off(dsc),
-		    limits->max_lane_count,
-		    limits->max_rate,
+		    max_link_config.lane_count,
+		    max_link_config.rate,
 		    limits->pipe.max_bpp,
 		    FXP_Q4_ARGS(limits->link.min_bpp_x16),
 		    FXP_Q4_ARGS(limits->link.max_bpp_x16));
@@ -2615,17 +2614,12 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 			       struct link_config_limits *limits)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	bool is_mst = intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DP_MST);
 	struct intel_connector *connector =
 		to_intel_connector(conn_state->connector);
 
-	limits->min_rate = intel_dp_min_link_rate(intel_dp);
-	limits->max_rate = intel_dp_max_link_rate(intel_dp);
-
-	limits->min_rate = min(limits->min_rate, limits->max_rate);
-
-	limits->min_lane_count = intel_dp_min_lane_count(intel_dp);
-	limits->max_lane_count = intel_dp_max_lane_count(intel_dp);
+	limits->link_config_mask = intel_dp_link_caps_allowed_config_mask(link_caps);
 
 	limits->pipe.min_bpp = intel_dp_min_bpp(crtc_state->output_format);
 	if (is_mst) {
@@ -2701,11 +2695,18 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 		 * configuration, and typically on older panels these
 		 * values correspond to the native resolution of the panel.
 		 */
-		limits->min_lane_count = limits->max_lane_count;
-		limits->min_rate = limits->max_rate;
+		int max_config_idx;
+
+		max_config_idx = intel_dp_get_connector_max_link_config_idx(connector,
+									    limits);
+		if (max_config_idx < 0)
+			return false;
+
+		limits->link_config_mask = BIT(max_config_idx);
 	}
 
-	intel_dp_test_compute_config(intel_dp, crtc_state, limits);
+	if (!intel_dp_test_compute_config(connector, crtc_state, limits))
+		return false;
 
 	return intel_dp_compute_config_link_bpp_limits(connector,
 						       crtc_state,
@@ -3526,6 +3527,17 @@ enum intel_dp_link_state intel_dp_link_state(struct intel_dp *intel_dp)
 	return intel_dp->link.hw.state;
 }
 
+bool intel_dp_link_active_config(struct intel_dp *intel_dp,
+				 struct intel_dp_link_config *config)
+{
+	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_DISABLED)
+		return false;
+
+	*config = intel_dp->link.hw.active_config;
+
+	return true;
+}
+
 void intel_dp_set_link_params(struct intel_dp *intel_dp,
 			      int link_rate, int lane_count)
 {
@@ -3538,16 +3550,9 @@ void intel_dp_set_link_params(struct intel_dp *intel_dp,
 
 void intel_dp_reset_link_params(struct intel_dp *intel_dp)
 {
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	struct intel_dp_link_config max_link_limits = {
-		.rate = intel_dp_link_caps_max_common_rate(link_caps),
-		.lane_count = intel_dp_link_caps_max_common_lane_count(link_caps),
-	};
-
-	intel_dp_link_caps_set_max_limits(link_caps, &max_link_limits);
+	intel_dp_link_caps_reset(intel_dp->link.caps);
 	intel_dp_mst_reset_link_params(intel_dp);
-	intel_dp->link.retrain_disabled = false;
-	intel_dp->link.seq_train_failures = 0;
+	intel_dp_link_training_reset_link_params(intel_dp->link.training);
 }
 
 /* Enable backlight PWM and backlight PP control. */
@@ -5425,19 +5430,26 @@ void intel_read_dp_sdp(struct intel_encoder *encoder,
 	}
 }
 
-static bool intel_dp_link_ok(struct intel_dp *intel_dp,
-			     u8 link_status[DP_LINK_STATUS_SIZE])
+bool intel_dp_link_ok(struct intel_dp *intel_dp,
+		      u8 link_status[DP_LINK_STATUS_SIZE])
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
-	bool uhbr = intel_dp->link.hw.active_config.rate >= 1000000;
+	struct intel_dp_link_config active_config;
+	bool uhbr;
 	bool ok;
+
+	/* Disabled link doesn't need to be retrained. */
+	if (!intel_dp_link_active_config(intel_dp, &active_config))
+		return true;
+
+	uhbr = active_config.rate >= 1000000;
 
 	if (uhbr)
 		ok = drm_dp_128b132b_lane_channel_eq_done(link_status,
-							  intel_dp->link.hw.active_config.lane_count);
+							  active_config.lane_count);
 	else
-		ok = drm_dp_channel_eq_ok(link_status, intel_dp->link.hw.active_config.lane_count);
+		ok = drm_dp_channel_eq_ok(link_status, active_config.lane_count);
 
 	if (ok)
 		return true;
@@ -5484,7 +5496,7 @@ static bool
 intel_dp_check_mst_status(struct intel_dp *intel_dp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
-	bool force_retrain = intel_dp->link.force_retrain;
+	bool force_retrain = intel_dp_link_training_get_force_retrain(intel_dp->link.training);
 	bool reprobe_needed = false;
 
 	for (;;) {
@@ -5557,7 +5569,7 @@ intel_dp_handle_hdmi_link_status_change(struct intel_dp *intel_dp)
 	}
 }
 
-static int
+int
 intel_dp_read_link_status(struct intel_dp *intel_dp, u8 link_status[DP_LINK_STATUS_SIZE])
 {
 	int err;
@@ -5579,54 +5591,6 @@ intel_dp_read_link_status(struct intel_dp *intel_dp, u8 link_status[DP_LINK_STAT
 		WRITE_ONCE(intel_dp->downstream_port_changed, true);
 
 	return 0;
-}
-
-static bool
-intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
-{
-	u8 link_status[DP_LINK_STATUS_SIZE];
-
-	if (intel_dp_link_state(intel_dp) != INTEL_DP_LINK_ACTIVE)
-		return false;
-
-	/*
-	 * While PSR source HW is enabled, it will control main-link sending
-	 * frames, enabling and disabling it so trying to do a retrain will fail
-	 * as the link would or not be on or it could mix training patterns
-	 * and frame data at the same time causing retrain to fail.
-	 * Also when exiting PSR, HW will retrain the link anyways fixing
-	 * any link status error.
-	 */
-	if (intel_psr_enabled(intel_dp))
-		return false;
-
-	if (intel_dp->link.force_retrain)
-		return true;
-
-	if (intel_dp_read_link_status(intel_dp, link_status) < 0)
-		return false;
-
-	/*
-	 * Validate the cached values of intel_dp->link_rate and
-	 * intel_dp->lane_count before attempting to retrain.
-	 *
-	 * FIXME would be nice to user the crtc state here, but since
-	 * we need to call this from the short HPD handler that seems
-	 * a bit hard.
-	 */
-	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link.hw.active_config.rate,
-					intel_dp->link.hw.active_config.lane_count))
-		return false;
-
-	if (intel_dp->link.retrain_disabled)
-		return false;
-
-	if (intel_dp->link.seq_train_failures)
-		return true;
-
-	/* Retrain if link not ok */
-	return !intel_dp_link_ok(intel_dp, link_status) &&
-		!intel_psr_link_ok(intel_dp);
 }
 
 bool intel_dp_has_connector(struct intel_dp *intel_dp,
@@ -5720,84 +5684,12 @@ void intel_dp_flush_connector_commits(struct intel_connector *connector)
 	wait_for_connector_hw_done(connector->base.state);
 }
 
-static bool intel_dp_is_connected(struct intel_dp *intel_dp)
+bool intel_dp_is_connected(struct intel_dp *intel_dp)
 {
 	struct intel_connector *connector = intel_dp->attached_connector;
 
 	return connector->base.status == connector_status_connected ||
 		intel_dp->is_mst;
-}
-
-static int intel_dp_retrain_link(struct intel_encoder *encoder,
-				 struct drm_modeset_acquire_ctx *ctx)
-{
-	struct intel_display *display = to_intel_display(encoder);
-	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
-	u8 pipe_mask;
-	int ret;
-
-	if (!intel_dp_is_connected(intel_dp))
-		return 0;
-
-	ret = drm_modeset_lock(&display->drm->mode_config.connection_mutex,
-			       ctx);
-	if (ret)
-		return ret;
-
-	if (!intel_dp_needs_link_retrain(intel_dp))
-		return 0;
-
-	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
-	if (ret)
-		return ret;
-
-	if (pipe_mask == 0)
-		return 0;
-
-	if (!intel_dp_needs_link_retrain(intel_dp))
-		return 0;
-
-	drm_dbg_kms(display->drm,
-		    "[ENCODER:%d:%s] retraining link (forced %s)\n",
-		    encoder->base.base.id, encoder->base.name,
-		    str_yes_no(intel_dp->link.force_retrain));
-
-	ret = intel_modeset_commit_pipes(display, pipe_mask, ctx);
-	if (ret == -EDEADLK)
-		return ret;
-
-	intel_dp->link.force_retrain = false;
-
-	if (ret)
-		drm_dbg_kms(display->drm,
-			    "[ENCODER:%d:%s] link retraining failed: %pe\n",
-			    encoder->base.base.id, encoder->base.name,
-			    ERR_PTR(ret));
-
-	return ret;
-}
-
-void intel_dp_link_check(struct intel_encoder *encoder)
-{
-	struct drm_modeset_acquire_ctx ctx;
-	int ret;
-
-	intel_modeset_lock_ctx_retry(&ctx, NULL, 0, ret)
-		ret = intel_dp_retrain_link(encoder, &ctx);
-}
-
-void intel_dp_check_link_state(struct intel_dp *intel_dp)
-{
-	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
-	struct intel_encoder *encoder = &dig_port->base;
-
-	if (!intel_dp_is_connected(intel_dp))
-		return;
-
-	if (!intel_dp_needs_link_retrain(intel_dp))
-		return;
-
-	intel_encoder_link_check_queue_work(encoder, 0);
 }
 
 static void intel_dp_handle_device_service_irq(struct intel_dp *intel_dp, u8 irq_mask)
@@ -5835,7 +5727,7 @@ static bool intel_dp_handle_link_service_irq(struct intel_dp *intel_dp, u8 irq_m
 		reprobe_needed = true;
 
 	if (irq_mask & LINK_STATUS_CHANGED)
-		intel_dp_check_link_state(intel_dp);
+		intel_dp_check_link_state(intel_dp->link.training);
 
 	if (irq_mask & HDMI_LINK_STATUS_CHANGED)
 		intel_dp_handle_hdmi_link_status_change(intel_dp);
@@ -5893,7 +5785,7 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 	/*
 	 * Force checking the link status for DPCD_REV < 1.2
 	 * TODO: let the link status check depend on LINK_STATUS_CHANGED
-	 * or intel_dp->link.force_retrain for DPCD_REV >= 1.2
+	 * or intel_dp->link.training.force_retrain for DPCD_REV >= 1.2
 	 */
 	esi[3] |= LINK_STATUS_CHANGED;
 	if (intel_dp_handle_link_service_irq(intel_dp, esi[3]))
@@ -6346,7 +6238,7 @@ intel_dp_detect(struct drm_connector *_connector,
 	 * synchronization tends to occur.
 	 */
 	if (!intel_dp_is_edp(intel_dp))
-		intel_dp_check_link_state(intel_dp);
+		intel_dp_check_link_state(intel_dp->link.training);
 
 	/*
 	 * Clearing NACK and defer counts to get their exact values
@@ -7331,10 +7223,18 @@ int intel_dp_init(struct intel_dp *intel_dp)
 	if (!intel_dp->link.caps)
 		return -ENOMEM;
 
+	intel_dp->link.training = intel_dp_link_training_init(intel_dp);
+	if (!intel_dp->link.training) {
+		intel_dp_link_caps_cleanup(intel_dp->link.caps);
+
+		return -ENOMEM;
+	}
+
 	return 0;
 }
 
 void intel_dp_cleanup(struct intel_dp *intel_dp)
 {
+	intel_dp_link_training_cleanup(intel_dp->link.training);
 	intel_dp_link_caps_cleanup(intel_dp->link.caps);
 }

@@ -46,6 +46,7 @@
 #include "intel_display_wa.h"
 #include "intel_dp.h"
 #include "intel_dp_hdcp.h"
+#include "intel_dp_link_caps.h"
 #include "intel_dp_link_training.h"
 #include "intel_dp_mst.h"
 #include "intel_dp_test.h"
@@ -444,8 +445,20 @@ static int mst_stream_compute_link_config(struct intel_dp *intel_dp,
 					  struct drm_connector_state *conn_state,
 					  const struct link_config_limits *limits)
 {
-	crtc_state->lane_count = limits->max_lane_count;
-	crtc_state->port_clock = limits->max_rate;
+	struct intel_connector *connector = to_intel_connector(conn_state->connector);
+	struct intel_dp_link_config max_link_config;
+
+	/*
+	 * FIXME: Use a proper iteration over the link configurations, instead
+	 * of using only the max BW config. For instance UHBR rate configs may
+	 * have additional limitations over non-UHBR ones, due to the DSC DPT
+	 * bpp maximum limit.
+	 */
+	if (!intel_dp_get_connector_max_link_config(connector, limits, &max_link_config))
+		return -EINVAL;
+
+	crtc_state->port_clock = max_link_config.rate;
+	crtc_state->lane_count = max_link_config.lane_count;
 
 	/*
 	 * FIXME: allocate the BW according to link_bpp, which in the case of
@@ -464,6 +477,7 @@ static int mst_stream_dsc_compute_link_config(struct intel_dp *intel_dp,
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_connector *connector = to_intel_connector(conn_state->connector);
+	struct intel_dp_link_config max_link_config;
 
 	crtc_state->pipe_bpp = limits->pipe.max_bpp;
 
@@ -471,8 +485,17 @@ static int mst_stream_dsc_compute_link_config(struct intel_dp *intel_dp,
 		    "DSC Sink supported compressed min bpp " FXP_Q4_FMT " compressed max bpp " FXP_Q4_FMT "\n",
 		    FXP_Q4_ARGS(limits->link.min_bpp_x16), FXP_Q4_ARGS(limits->link.max_bpp_x16));
 
-	crtc_state->lane_count = limits->max_lane_count;
-	crtc_state->port_clock = limits->max_rate;
+	/*
+	 * FIXME: Use a proper iteration over the link configurations, instead
+	 * of using only the max BW config. For instance UHBR rate configs may
+	 * have additional limitations over non-UHBR ones, due to the DSC DPT
+	 * bpp maximum limit.
+	 */
+	if (!intel_dp_get_connector_max_link_config(connector, limits, &max_link_config))
+		return -EINVAL;
+
+	crtc_state->port_clock = max_link_config.rate;
+	crtc_state->lane_count = max_link_config.lane_count;
 
 	return intel_dp_mtp_tu_compute_config(intel_dp, crtc_state, conn_state,
 					      limits->link.min_bpp_x16,
@@ -486,6 +509,20 @@ static int mode_hblank_period_ns(const struct drm_display_mode *mode)
 	return DIV_ROUND_CLOSEST_ULL(mul_u32_u32(mode->htotal - mode->hdisplay,
 						 NSEC_PER_SEC / 1000),
 				     mode->crtc_clock);
+}
+
+static int get_connector_max_rate(const struct intel_connector *connector,
+				  const struct link_config_limits *limits)
+{
+	struct intel_dp *intel_dp = intel_attached_dp((struct intel_connector *)connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_config;
+
+	intel_dp_link_caps_max_config(link_caps,
+				      INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE,
+				      limits->link_config_mask, &max_link_config);
+
+	return max_link_config.rate;
 }
 
 static bool
@@ -502,7 +539,8 @@ hblank_expansion_quirk_needs_dsc(const struct intel_connector *connector,
 	if (!connector->dp.dsc_hblank_expansion_quirk)
 		return false;
 
-	if (is_uhbr_sink && !drm_dp_is_uhbr_rate(limits->max_rate))
+	if (is_uhbr_sink &&
+	    !drm_dp_is_uhbr_rate(get_connector_max_rate(connector, limits)))
 		return false;
 
 	if (mode_hblank_period_ns(adjusted_mode) > hblank_limit)
@@ -524,6 +562,7 @@ adjust_limits_for_dsc_hblank_expansion_quirk(struct intel_dp *intel_dp,
 	struct intel_display *display = to_intel_display(connector);
 	const struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	int min_bpp_x16 = limits->link.min_bpp_x16;
+	int max_rate;
 
 	if (!hblank_expansion_quirk_needs_dsc(connector, crtc_state, limits))
 		return true;
@@ -550,11 +589,16 @@ adjust_limits_for_dsc_hblank_expansion_quirk(struct intel_dp *intel_dp,
 		return true;
 	}
 
-	drm_WARN_ON(display->drm, limits->min_rate != limits->max_rate);
+	/*
+	 * Atm, supporting only a single allowed link configuration, which
+	 * ensures that max_rate == min_rate.
+	 */
+	drm_WARN_ON(display->drm, !is_power_of_2(limits->link_config_mask));
 
-	if (limits->max_rate < 540000)
+	max_rate = get_connector_max_rate(connector, limits);
+	if (max_rate < 540000)
 		min_bpp_x16 = fxp_q4_from_int(13);
-	else if (limits->max_rate < 810000)
+	else if (max_rate < 810000)
 		min_bpp_x16 = fxp_q4_from_int(10);
 
 	if (limits->link.min_bpp_x16 >= min_bpp_x16)
@@ -1469,12 +1513,14 @@ mst_connector_mode_valid_ctx(struct drm_connector *_connector,
 	struct intel_connector *connector = to_intel_connector(_connector);
 	struct intel_display *display = to_intel_display(connector);
 	struct intel_dp *intel_dp = connector->mst.dp;
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct drm_dp_mst_topology_mgr *mgr = &intel_dp->mst.mgr;
 	struct drm_dp_mst_port *port = connector->mst.port;
 	int max_rate, mode_rate, max_lanes, max_link_clock;
 	unsigned long bw_overhead_flags =
 		DRM_DP_BW_OVERHEAD_MST | DRM_DP_BW_OVERHEAD_SSC_REF_CLK;
 	int min_link_bpp_x16 = fxp_q4_from_int(18);
+	struct intel_dp_link_config max_link_config;
 	static bool supports_dsc;
 	int ret;
 	bool dsc = false;
@@ -1507,8 +1553,9 @@ mst_connector_mode_valid_ctx(struct drm_connector *_connector,
 		min_link_bpp_x16 = intel_dp_compute_min_compressed_bpp_x16(connector,
 									   INTEL_OUTPUT_FORMAT_RGB);
 
-	max_link_clock = intel_dp_max_link_rate(intel_dp);
-	max_lanes = intel_dp_max_lane_count(intel_dp);
+	intel_dp_link_caps_max_bw_config(link_caps, &max_link_config);
+	max_link_clock = max_link_config.rate;
+	max_lanes = max_link_config.lane_count;
 
 	max_rate = intel_dp_max_link_data_rate(intel_dp,
 					       max_link_clock, max_lanes);
@@ -2134,24 +2181,30 @@ bool intel_dp_mst_crtc_needs_modeset(struct intel_atomic_state *state,
  */
 void intel_dp_mst_prepare_probe(struct intel_dp *intel_dp)
 {
-	int link_rate = intel_dp_max_link_rate(intel_dp);
-	int lane_count = intel_dp_max_lane_count(intel_dp);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits;
 	u8 rate_select;
 	u8 link_bw;
 
-	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE)
+	if (intel_dp_link_state(intel_dp) != INTEL_DP_LINK_DISABLED)
 		return;
 
-	if (intel_mst_probed_link_params_valid(intel_dp, link_rate, lane_count))
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+
+	if (intel_mst_probed_link_params_valid(intel_dp,
+					       max_link_limits.rate,
+					       max_link_limits.lane_count))
 		return;
 
-	intel_dp_compute_rate(intel_dp, link_rate, &link_bw, &rate_select);
+	intel_dp_compute_rate(intel_dp, max_link_limits.rate, &link_bw, &rate_select);
 
-	intel_dp_link_training_set_mode(intel_dp, link_rate, false);
-	intel_dp_link_training_set_bw(intel_dp, link_bw, rate_select, lane_count,
+	intel_dp_link_training_set_mode(intel_dp, max_link_limits.rate, false);
+	intel_dp_link_training_set_bw(intel_dp, link_bw, rate_select, max_link_limits.lane_count,
 				      drm_dp_enhanced_frame_cap(intel_dp->dpcd));
 
-	intel_mst_set_probed_link_params(intel_dp, link_rate, lane_count);
+	intel_mst_set_probed_link_params(intel_dp,
+					 max_link_limits.rate,
+					 max_link_limits.lane_count);
 }
 
 /*

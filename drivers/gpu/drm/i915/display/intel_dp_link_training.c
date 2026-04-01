@@ -36,7 +36,9 @@
 #include "intel_dp_link_training.h"
 #include "intel_encoder.h"
 #include "intel_hotplug.h"
+#include "intel_modeset_lock.h"
 #include "intel_panel.h"
+#include "intel_psr.h"
 
 #define LT_MSG_PREFIX			"[CONNECTOR:%d:%s][ENCODER:%d:%s][%s] "
 #define LT_MSG_ARGS(_intel_dp, _dp_phy)	(_intel_dp)->attached_connector->base.base.id, \
@@ -60,6 +62,21 @@
 } while (0)
 
 #define MAX_SEQ_TRAIN_FAILURES 2
+
+struct intel_dp_link_training {
+	struct intel_dp *dp;
+
+	bool retrain_disabled;
+	/* Sequential link training failures after a passing LT */
+	int seq_train_failures;
+	int force_train_failure;
+	bool force_retrain;
+};
+
+static struct intel_dp_link_training *connector_to_link_training(struct intel_connector *connector)
+{
+	return intel_attached_dp(connector)->link.training;
+}
 
 static void intel_dp_reset_lttpr_common_caps(struct intel_dp *intel_dp)
 {
@@ -169,7 +186,7 @@ static int intel_dp_init_lttpr_phys(struct intel_dp *intel_dp, const u8 dpcd[DP_
 	 * resetting its internal state when the mode is changed from
 	 * non-transparent to transparent.
 	 */
-	if (intel_dp_link_state(intel_dp) == INTEL_DP_LINK_ACTIVE) {
+	if (intel_dp_link_state(intel_dp) != INTEL_DP_LINK_DISABLED) {
 		if (lttpr_count < 0 || intel_dp_lttpr_transparent_mode_enabled(intel_dp))
 			goto out_reset_lttpr_count;
 
@@ -1138,9 +1155,19 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 {
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	struct intel_dp_link_training *link_training = intel_dp->link.training;
+	int check_delay_ms = -1;
 	int ret;
 
-	intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_ACTIVE);
+	if (!link_training->seq_train_failures) {
+		check_delay_ms = 2000;
+		intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_ACTIVE);
+	} else if (link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES) {
+		check_delay_ms = 0;
+		intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_ACTIVE_NEEDS_RETRAIN);
+	} else {
+		intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_ACTIVE_UNRETRAINABLE);
+	}
 
 	intel_dp_program_link_training_pattern(intel_dp, crtc_state, DP_PHY_DPRX,
 					       DP_TRAINING_PATTERN_DISABLE);
@@ -1155,12 +1182,8 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 
 	intel_hpd_unblock(encoder);
 
-	if (!display->hotplug.ignore_long_hpd &&
-	    intel_dp->link.seq_train_failures < MAX_SEQ_TRAIN_FAILURES) {
-		int delay_ms = intel_dp->link.seq_train_failures ? 0 : 2000;
-
-		intel_encoder_link_check_queue_work(encoder, delay_ms);
-	}
+	if (!display->hotplug.ignore_long_hpd && check_delay_ms >= 0)
+		intel_encoder_link_check_queue_work(encoder, check_delay_ms);
 }
 
 static bool
@@ -1206,56 +1229,53 @@ static bool intel_dp_can_link_train_fallback_for_edp(struct intel_dp *intel_dp,
 	return true;
 }
 
-static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
-					   const struct intel_crtc_state *crtc_state,
-					   int *new_link_rate, int *new_lane_count)
+static bool
+reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
+			       const struct intel_dp_link_config *current_link_config,
+			       struct intel_dp_link_config *new_link_config)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int forced_lane_count = intel_dp_link_caps_forced_lane_count(link_caps);
-	int forced_rate = intel_dp_link_caps_forced_link_rate(link_caps);
-	int link_rate;
-	int lane_count;
+	struct intel_dp_link_config forced_link_config;
 	int i;
 
-	i = intel_dp_link_config_index(intel_dp->link.caps,
-				       crtc_state->port_clock, crtc_state->lane_count);
-	for (i--; i >= 0; i--) {
-		intel_dp_link_config_get(intel_dp->link.caps, i, &link_rate, &lane_count);
+	intel_dp_link_caps_forced_params(link_caps, &forced_link_config);
 
-		if ((forced_rate &&
-		     forced_rate != link_rate) ||
-		    (forced_lane_count &&
-		     forced_lane_count != lane_count))
+	i = intel_dp_link_caps_find_allowed_config(link_caps, current_link_config,
+						   INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT);
+	for (i--; i >= 0; i--) {
+		if (!intel_dp_link_caps_config_at(link_caps, i, new_link_config))
+			return false;
+
+		if ((forced_link_config.rate &&
+		     forced_link_config.rate != new_link_config->rate) ||
+		    (forced_link_config.lane_count &&
+		     forced_link_config.lane_count != new_link_config->lane_count))
 			continue;
 
 		break;
 	}
 
-	if (i < 0)
-		return false;
-
-	*new_link_rate = link_rate;
-	*new_lane_count = lane_count;
-
-	return true;
+	return i >= 0;
 }
 
 static int reduce_link_rate(struct intel_dp *intel_dp, int current_rate)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config forced_link_config;
 	int rate_index;
 	int new_rate;
 
-	if (intel_dp_link_caps_forced_link_rate(link_caps))
+	intel_dp_link_caps_forced_params(link_caps, &forced_link_config);
+	if (forced_link_config.rate)
 		return -1;
 
 	rate_index = intel_dp_link_caps_common_rate_idx(link_caps,
 							current_rate);
-
 	if (rate_index <= 0)
 		return -1;
 
-	new_rate = intel_dp_link_caps_common_rate(link_caps, rate_index - 1);
+	new_rate = intel_dp_link_caps_common_rate_at(link_caps,
+						     rate_index - 1);
 
 	/* TODO: Make switching from UHBR to non-UHBR rates work. */
 	if (drm_dp_is_uhbr_rate(current_rate) != drm_dp_is_uhbr_rate(new_rate))
@@ -1267,8 +1287,10 @@ static int reduce_link_rate(struct intel_dp *intel_dp, int current_rate)
 static int reduce_lane_count(struct intel_dp *intel_dp, int current_lane_count)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config forced_link_config;
 
-	if (intel_dp_link_caps_forced_lane_count(link_caps))
+	intel_dp_link_caps_forced_params(link_caps, &forced_link_config);
+	if (forced_link_config.lane_count)
 		return -1;
 
 	if (current_lane_count == 1)
@@ -1277,49 +1299,102 @@ static int reduce_lane_count(struct intel_dp *intel_dp, int current_lane_count)
 	return current_lane_count >> 1;
 }
 
-static bool reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
-						  const struct intel_crtc_state *crtc_state,
-						  int *new_link_rate, int *new_lane_count)
+static bool
+__reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
+					const struct intel_dp_link_config *current_link_config,
+					struct intel_dp_link_config *new_link_config_ret)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int link_rate;
-	int lane_count;
+	struct intel_dp_link_config new_link_config;
 
-	lane_count = crtc_state->lane_count;
-	link_rate = reduce_link_rate(intel_dp, crtc_state->port_clock);
-	if (link_rate < 0) {
-		lane_count = reduce_lane_count(intel_dp, crtc_state->lane_count);
-		link_rate = intel_dp_link_caps_max_common_rate(link_caps);
+	new_link_config.lane_count = current_link_config->lane_count;
+	new_link_config.rate = reduce_link_rate(intel_dp, current_link_config->rate);
+	if (new_link_config.rate < 0) {
+		new_link_config.lane_count = reduce_lane_count(intel_dp,
+							       current_link_config->lane_count);
+		new_link_config.rate = intel_dp_link_caps_max_common_rate(link_caps);
 	}
 
-	if (lane_count < 0)
+	if (new_link_config.lane_count < 0)
 		return false;
 
-	*new_link_rate = link_rate;
-	*new_lane_count = lane_count;
+	*new_link_config_ret = new_link_config;
 
 	return true;
 }
 
-static bool reduce_link_params(struct intel_dp *intel_dp, const struct intel_crtc_state *crtc_state,
-			       int *new_link_rate, int *new_lane_count)
+static bool
+reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
+				      const struct intel_dp_link_config *current_link_config,
+				      struct intel_dp_link_config *new_link_config)
+{
+	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config old_link_config = *current_link_config;
+
+	/*
+	 * Guaranteed to terminate: either the rate decreases, or the rate wraps
+	 * to maximum and the lane decreases, guaranteeing that the minimum
+	 * (rate, lane) combination is reached.
+	 */
+	for (;;) {
+		struct intel_dp_link_config target_link_config;
+
+		if (!__reduce_link_params_in_rate_lane_order(intel_dp,
+							     &old_link_config,
+							     &target_link_config))
+			return false;
+
+		if (drm_WARN_ON(display->drm,
+				target_link_config.rate >=
+					old_link_config.rate &&
+				target_link_config.lane_count >=
+					old_link_config.lane_count))
+			return false;
+
+		/*
+		 * Rate and lane count were reduced independently, so the
+		 * resulting tuple may not be enabled at all, and either
+		 * parameter may even lie outside the range of enabled
+		 * configs. Stop only on an exact enabled match.
+		 */
+		if (intel_dp_link_caps_find_allowed_config(link_caps,
+							   &target_link_config,
+							   INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT) >= 0) {
+			*new_link_config = target_link_config;
+
+			return true;
+		}
+
+		old_link_config = target_link_config;
+	}
+}
+
+static bool reduce_link_params(struct intel_dp *intel_dp, bool is_mst,
+			       const struct intel_dp_link_config *current_link_config,
+			       struct intel_dp_link_config *new_link_config)
 {
 	/* TODO: Use the same fallback logic on SST as on MST. */
-	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DP_MST))
-		return reduce_link_params_in_bw_order(intel_dp, crtc_state,
-						      new_link_rate, new_lane_count);
+	if (is_mst)
+		return reduce_link_params_in_bw_order(intel_dp,
+						      current_link_config, new_link_config);
 	else
-		return reduce_link_params_in_rate_lane_order(intel_dp, crtc_state,
-							     new_link_rate, new_lane_count);
+		return reduce_link_params_in_rate_lane_order(intel_dp,
+							     current_link_config, new_link_config);
 }
 
 static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 						   const struct intel_crtc_state *crtc_state)
 {
+	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	struct intel_dp_link_config max_link_limits;
-	int new_link_rate;
-	int new_lane_count;
+	struct intel_dp_link_config current_link_config = {
+		.rate = crtc_state->port_clock,
+		.lane_count = crtc_state->lane_count,
+	};
+	struct intel_dp_link_config reduced_link_config;
+	struct intel_dp_link_config old_max_limits;
+	int current_config_idx;
 
 	if (intel_dp_is_edp(intel_dp) && !intel_dp->use_max_params) {
 		lt_dbg(intel_dp, DP_PHY_DPRX,
@@ -1328,22 +1403,89 @@ static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 		return 0;
 	}
 
-	if (!reduce_link_params(intel_dp, crtc_state, &new_link_rate, &new_lane_count))
+	current_config_idx =
+		intel_dp_link_caps_find_allowed_config(link_caps,
+						       &current_link_config,
+						       INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE);
+	if (drm_WARN_ON(display->drm, current_config_idx < 0))
 		return -1;
 
+	/*
+	 * Read back the configuration containing the nominal link rate, which
+	 * can differ from crtc_state->port_clock, due to platform specific
+	 * PLL divider constraints.
+	 */
+	if (!intel_dp_link_caps_config_at(link_caps,
+					  current_config_idx, &current_link_config))
+		return -1;
+
+	/*
+	 * Temporarily reset the max link limit before selecting the fallback
+	 * config.
+	 *
+	 * After fallback, the current logic narrows the allowed configurations
+	 * to the selected config's rate and lane count. That can make a later
+	 * fallback candidate fall outside the current max_limit, so reset it
+	 * before searching.
+	 *
+	 * TODO: Make max_limit just reflect the maximum of the allowed configs
+	 * at all times. Then fallback will stop narrowing the allowed set this
+	 * way, the limit will never need to increase, and this reset can be
+	 * removed.
+	 */
+	intel_dp_link_caps_get_max_limits(link_caps, &old_max_limits);
+	intel_dp_link_caps_reset_max_limits(link_caps);
+
+	/*
+	 * TODO: Make fallback depend only on disabling the current config,
+	 * once max_limit no longer constrains the allowed config set. Then
+	 * disabling the current config will define the allowed configs for
+	 * the subsequent modeset, so there will be no need to select a
+	 * reduced config separately here.
+	 */
+	if (!reduce_link_params(intel_dp,
+				intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DP_MST),
+				&current_link_config, &reduced_link_config)) {
+		intel_dp_link_caps_set_max_limits(link_caps, &old_max_limits);
+
+		return -1;
+	}
+
 	if (intel_dp_is_edp(intel_dp) &&
-	    !intel_dp_can_link_train_fallback_for_edp(intel_dp, new_link_rate, new_lane_count)) {
+	    !intel_dp_can_link_train_fallback_for_edp(intel_dp,
+						      reduced_link_config.rate,
+						      reduced_link_config.lane_count)) {
 		lt_dbg(intel_dp, DP_PHY_DPRX,
 		       "Retrying Link training for eDP with same parameters\n");
+
+		intel_dp_link_caps_set_max_limits(link_caps, &old_max_limits);
+
 		return 0;
 	}
 
-	lt_dbg(intel_dp, DP_PHY_DPRX,
-	       "Reducing link parameters from %dx%d to %dx%d\n",
-	       crtc_state->lane_count, crtc_state->port_clock,
-	       new_lane_count, new_link_rate);
+	/*
+	 * Shouldn't fail: the current config was enabled, and reducing the
+	 * link parameters should still leave the fallback config allowed.
+	 *
+	 * On failure the helper resets all limits and re-enables all configs.
+	 */
+	if (!intel_dp_link_caps_disable_config(link_caps, current_config_idx))
+		return -1;
 
-	intel_dp_link_caps_set_max_limits(link_caps, &max_link_limits);
+	/*
+	 * Shouldn't fail: setting max_limits can only fail if they drop below
+	 * the optionally forced rate/lane-count parameters, but the reduced
+	 * config was chosen to satisfy those constraints.
+	 *
+	 * On failure the helper resets all limits and re-enables all configs.
+	 */
+	if (!intel_dp_link_caps_set_max_limits(link_caps, &reduced_link_config))
+		return -1;
+
+	lt_dbg(intel_dp, DP_PHY_DPRX,
+	       "Disable link parameters %dx%d, maximum is %dx%d\n",
+	       crtc_state->lane_count, crtc_state->port_clock,
+	       reduced_link_config.lane_count, reduced_link_config.rate);
 
 	return 0;
 }
@@ -1653,6 +1795,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	struct intel_display *display = to_intel_display(state);
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	struct intel_encoder *encoder = &dig_port->base;
+	struct intel_dp_link_training *link_training = intel_dp->link.training;
 	bool passed;
 	/*
 	 * Reinit the LTTPRs here to ensure that they are switched to
@@ -1676,15 +1819,15 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	else
 		passed = intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count);
 
-	if (intel_dp->link.force_train_failure) {
-		intel_dp->link.force_train_failure--;
+	if (link_training->force_train_failure) {
+		link_training->force_train_failure--;
 		lt_dbg(intel_dp, DP_PHY_DPRX, "Forcing link training failure\n");
 	} else if (passed) {
-		intel_dp->link.seq_train_failures = 0;
+		link_training->seq_train_failures = 0;
 		return;
 	}
 
-	intel_dp->link.seq_train_failures++;
+	link_training->seq_train_failures++;
 
 	/*
 	 * Ignore the link failure in CI
@@ -1703,13 +1846,13 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (intel_dp->link.seq_train_failures < MAX_SEQ_TRAIN_FAILURES)
+	if (link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES)
 		return;
 
 	if (intel_dp_schedule_fallback_link_training(state, intel_dp, crtc_state))
 		return;
 
-	intel_dp->link.retrain_disabled = true;
+	link_training->retrain_disabled = true;
 
 	if (!passed)
 		lt_err(intel_dp, DP_PHY_DPRX, "Can't reduce link training parameters after failure\n");
@@ -1737,18 +1880,164 @@ void intel_dp_128b132b_sdp_crc16(struct intel_dp *intel_dp,
 	lt_dbg(intel_dp, DP_PHY_DPRX, "DP2.0 SDP CRC16 for 128b/132b enabled\n");
 }
 
+static bool
+intel_dp_needs_link_retrain(const struct intel_dp_link_training *link_training)
+{
+	struct intel_dp_link_config active_link_config;
+	u8 link_status[DP_LINK_STATUS_SIZE];
+
+	if (!intel_dp_link_active_config(link_training->dp,
+					 &active_link_config))
+		return false;
+
+	/* Force the retrain even for an unretrainable link. */
+	if (link_training->force_retrain)
+		return true;
+
+	if (intel_dp_link_state(link_training->dp) ==
+	    INTEL_DP_LINK_ACTIVE_UNRETRAINABLE)
+		return false;
+
+	/*
+	 * While PSR source HW is enabled, it will control main-link sending
+	 * frames, enabling and disabling it so trying to do a retrain will fail
+	 * as the link would or not be on or it could mix training patterns
+	 * and frame data at the same time causing retrain to fail.
+	 * Also when exiting PSR, HW will retrain the link anyways fixing
+	 * any link status error.
+	 */
+	if (intel_psr_enabled(link_training->dp))
+		return false;
+
+	if (intel_dp_read_link_status(link_training->dp, link_status) < 0)
+		return false;
+
+	/*
+	 * Validate the cached values of intel_dp->link_rate and
+	 * intel_dp->lane_count before attempting to retrain.
+	 *
+	 * FIXME would be nice to user the crtc state here, but since
+	 * we need to call this from the short HPD handler that seems
+	 * a bit hard.
+	 */
+	if (!intel_dp_link_params_valid(link_training->dp,
+					active_link_config.rate,
+					active_link_config.lane_count))
+		return false;
+
+	if (link_training->retrain_disabled)
+		return false;
+
+	if (link_training->seq_train_failures)
+		return true;
+
+	/* Retrain if link not ok */
+	return !intel_dp_link_ok(link_training->dp, link_status) &&
+		!intel_psr_link_ok(link_training->dp);
+}
+
+static int intel_dp_retrain_link(struct intel_dp_link_training *link_training,
+				 struct drm_modeset_acquire_ctx *ctx)
+{
+	struct intel_dp *intel_dp = link_training->dp;
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	struct intel_display *display = to_intel_display(encoder);
+	u8 pipe_mask;
+	int ret;
+
+	if (!intel_dp_is_connected(intel_dp))
+		return 0;
+
+	ret = drm_modeset_lock(&display->drm->mode_config.connection_mutex,
+			       ctx);
+	if (ret)
+		return ret;
+
+	if (!intel_dp_needs_link_retrain(link_training))
+		return 0;
+
+	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
+	if (ret)
+		return ret;
+
+	if (pipe_mask == 0)
+		return 0;
+
+	if (!intel_dp_needs_link_retrain(link_training))
+		return 0;
+
+	drm_dbg_kms(display->drm,
+		    "[ENCODER:%d:%s] retraining link (forced %s)\n",
+		    encoder->base.base.id, encoder->base.name,
+		    str_yes_no(intel_dp_link_training_get_force_retrain(link_training)));
+
+	ret = intel_modeset_commit_pipes(display, pipe_mask, ctx);
+	if (ret == -EDEADLK)
+		return ret;
+
+	link_training->force_retrain = false;
+
+	if (ret) {
+		drm_dbg_kms(display->drm,
+			    "[ENCODER:%d:%s] link retraining failed: %pe, disable auto-retraining\n",
+			    encoder->base.base.id, encoder->base.name,
+			    ERR_PTR(ret));
+		intel_dp_set_link_state(intel_dp, INTEL_DP_LINK_ACTIVE_UNRETRAINABLE);
+	}
+
+	return ret;
+}
+
+void intel_dp_link_check(struct intel_encoder *encoder)
+{
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+	struct drm_modeset_acquire_ctx ctx;
+	int ret;
+
+	intel_modeset_lock_ctx_retry(&ctx, NULL, 0, ret)
+		ret = intel_dp_retrain_link(intel_dp->link.training, &ctx);
+}
+
+void intel_dp_check_link_state(const struct intel_dp_link_training *link_training)
+{
+	struct intel_dp *intel_dp = link_training->dp;
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	struct intel_encoder *encoder = &dig_port->base;
+
+	if (!intel_dp_is_connected(intel_dp))
+		return;
+
+	/*
+	 * NOTE: This may race with an ongoing modeset updating the link state
+	 * and max BW params, so intel_dp_link_params_valid() may observe stale
+	 * values.
+	 *
+	 * This is harmless: stale valid captured params can spuriously allow
+	 * retraining here, but the decision is rechecked later in a properly
+	 * serialized context. Stale invalid captured params can cause
+	 * retraining to be skipped, but that can only happen before the
+	 * modeset has completed its own link training for the new config params
+	 * (which are valid), so skipping retrain is harmless.
+	 */
+	if (!intel_dp_needs_link_retrain(link_training))
+		return;
+
+	intel_encoder_link_check_queue_work(encoder, 0);
+}
+
 static int i915_dp_force_link_training_failure_show(void *data, u64 *val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	const struct intel_dp_link_training *link_training =
+		connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.force_train_failure;
+	*val = link_training->force_train_failure;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -1759,7 +2048,8 @@ static int i915_dp_force_link_training_failure_write(void *data, u64 val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training =
+		connector_to_link_training(connector);
 	int err;
 
 	if (val > 2)
@@ -1769,7 +2059,9 @@ static int i915_dp_force_link_training_failure_write(void *data, u64 val)
 	if (err)
 		return err;
 
-	intel_dp->link.force_train_failure = val;
+	intel_dp_flush_connector_commits(connector);
+
+	link_training->force_train_failure = val;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -1783,14 +2075,17 @@ static int i915_dp_force_link_retrain_show(void *data, u64 *val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	const struct intel_dp_link_training *link_training =
+		connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.force_retrain;
+	intel_dp_flush_connector_commits(connector);
+
+	*val = link_training->force_retrain;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -1801,14 +2096,18 @@ static int i915_dp_force_link_retrain_write(void *data, u64 val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training =
+		connector_to_link_training(connector);
+	struct intel_dp *intel_dp = link_training->dp;
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	intel_dp->link.force_retrain = val;
+	intel_dp_flush_connector_commits(connector);
+
+	link_training->force_retrain = val;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -1824,14 +2123,17 @@ static int i915_dp_link_retrain_disabled_show(struct seq_file *m, void *data)
 {
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	const struct intel_dp_link_training *link_training =
+		connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	seq_printf(m, "%s\n", str_yes_no(intel_dp->link.retrain_disabled));
+	intel_dp_flush_connector_commits(connector);
+
+	seq_printf(m, "%s\n", str_yes_no(link_training->retrain_disabled));
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -1855,4 +2157,33 @@ void intel_dp_link_training_debugfs_add(struct intel_connector *connector)
 
 	debugfs_create_file("i915_dp_link_retrain_disabled", 0444, root,
 			    connector, &i915_dp_link_retrain_disabled_fops);
+}
+
+bool intel_dp_link_training_get_force_retrain(const struct intel_dp_link_training *link_training)
+{
+	return link_training->force_retrain;
+}
+
+void intel_dp_link_training_reset_link_params(struct intel_dp_link_training *link_training)
+{
+	link_training->retrain_disabled = false;
+	link_training->seq_train_failures = 0;
+}
+
+struct intel_dp_link_training *intel_dp_link_training_init(struct intel_dp *dp)
+{
+	struct intel_dp_link_training *link_training;
+
+	link_training = kzalloc_obj(*link_training);
+	if (!link_training)
+		return NULL;
+
+	link_training->dp = dp;
+
+	return link_training;
+}
+
+void intel_dp_link_training_cleanup(struct intel_dp_link_training *link_training)
+{
+	kfree(link_training);
 }

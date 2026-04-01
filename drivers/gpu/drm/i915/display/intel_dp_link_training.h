@@ -12,6 +12,10 @@ struct intel_atomic_state;
 struct intel_connector;
 struct intel_crtc_state;
 struct intel_dp;
+struct intel_dp_link_training;
+struct intel_encoder;
+
+enum intel_dp_link_state;
 
 int intel_dp_read_dprx_caps(struct intel_dp *intel_dp, u8 dpcd[DP_RECEIVER_CAP_SIZE]);
 int intel_dp_init_lttpr_and_dprx_caps(struct intel_dp *intel_dp);
@@ -54,5 +58,13 @@ void intel_dp_128b132b_sdp_crc16(struct intel_dp *intel_dp,
 				 const struct intel_crtc_state *crtc_state);
 
 void intel_dp_link_training_debugfs_add(struct intel_connector *connector);
+
+bool intel_dp_link_training_get_force_retrain(const struct intel_dp_link_training *link_training);
+void intel_dp_link_training_reset_link_params(struct intel_dp_link_training *link_training);
+void intel_dp_link_check(struct intel_encoder *encoder);
+void intel_dp_check_link_state(const struct intel_dp_link_training *link_training);
+
+struct intel_dp_link_training *intel_dp_link_training_init(struct intel_dp *dp);
+void intel_dp_link_training_cleanup(struct intel_dp_link_training *link_training);
 
 #endif /* __INTEL_DP_LINK_TRAINING_H__ */

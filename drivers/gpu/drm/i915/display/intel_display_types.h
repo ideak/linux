@@ -59,6 +59,7 @@ struct drm_printer;
 struct intel_connector;
 struct intel_ddi_buf_trans;
 struct intel_dp_link_caps;
+struct intel_dp_link_training;
 struct intel_fbc;
 struct intel_global_objs_state;
 struct intel_hdcp_shim;
@@ -1831,16 +1832,13 @@ struct intel_dp {
 			enum intel_dp_link_state {
 				INTEL_DP_LINK_DISABLED,
 				INTEL_DP_LINK_ACTIVE,
+				INTEL_DP_LINK_ACTIVE_NEEDS_RETRAIN,
+				INTEL_DP_LINK_ACTIVE_UNRETRAINABLE,
 			} state;
 			struct intel_dp_link_config active_config;
 		} hw;
-		/* common rate,lane_count configs in bw order */
-		bool retrain_disabled;
-		/* Sequential link training failures after a passing LT */
-		int seq_train_failures;
-		int force_train_failure;
-		bool force_retrain;
 		struct intel_dp_link_caps *caps;
+		struct intel_dp_link_training *training;
 	} link;
 	bool reset_link_params;
 	int mso_link_count;
