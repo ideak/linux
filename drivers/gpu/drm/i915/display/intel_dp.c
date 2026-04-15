@@ -7546,3 +7546,34 @@ bool intel_dp_joiner_candidate_valid(struct intel_connector *connector,
 
 	return true;
 }
+
+/**
+ * intel_dp_link_init - initialize link state
+ * @intel_dp: DP encoder state
+ *
+ * Initialize the link state for @intel_dp and the connectors attached
+ * to it.
+ *
+ * Return:
+ * - %0 in case of successful initialization.
+ * - negative error code in case of failure.
+ */
+int intel_dp_link_init(struct intel_dp *intel_dp)
+{
+	intel_dp->link.training = intel_dp_link_training_init(intel_dp);
+	if (!intel_dp->link.training)
+		return -ENOMEM;
+
+	return 0;
+}
+
+/**
+ * intel_dp_link_cleanup - clean up link state
+ * @intel_dp: DP encoder state
+ *
+ * Clean up the link state for @intel_dp.
+ */
+void intel_dp_link_cleanup(struct intel_dp *intel_dp)
+{
+	intel_dp_link_training_cleanup(intel_dp->link.training);
+}
