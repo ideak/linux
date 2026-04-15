@@ -1866,8 +1866,11 @@ static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	if (intel_dp->link.active)
 		current_rate = intel_dp->link_rate;
+
 	force_rate = intel_dp->link.force_rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -1939,6 +1942,8 @@ static ssize_t i915_dp_force_link_rate_write(struct file *file,
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	intel_dp_reset_link_params(intel_dp);
 	intel_dp->link.force_rate = rate;
 
@@ -1963,6 +1968,8 @@ static int i915_dp_force_lane_count_show(struct seq_file *m, void *data)
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
+
+	intel_dp_flush_connector_commits(connector);
 
 	if (intel_dp->link.active)
 		current_lane_count = intel_dp->lane_count;
@@ -2041,6 +2048,8 @@ static ssize_t i915_dp_force_lane_count_write(struct file *file,
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	intel_dp_reset_link_params(intel_dp);
 	intel_dp->link.force_lane_count = lane_count;
 
@@ -2063,6 +2072,8 @@ static int i915_dp_max_link_rate_show(void *data, u64 *val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	*val = intel_dp->link.max_rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2082,6 +2093,8 @@ static int i915_dp_max_lane_count_show(void *data, u64 *val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	*val = intel_dp->link.max_lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2100,6 +2113,8 @@ static int i915_dp_force_link_training_failure_show(void *data, u64 *val)
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
+
+	intel_dp_flush_connector_commits(connector);
 
 	*val = intel_dp->link.force_train_failure;
 
@@ -2122,6 +2137,8 @@ static int i915_dp_force_link_training_failure_write(void *data, u64 val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	intel_dp->link.force_train_failure = val;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2143,6 +2160,8 @@ static int i915_dp_force_link_retrain_show(void *data, u64 *val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	*val = intel_dp->link.force_retrain;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2160,6 +2179,8 @@ static int i915_dp_force_link_retrain_write(void *data, u64 val)
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
+
+	intel_dp_flush_connector_commits(connector);
 
 	intel_dp->link.force_retrain = val;
 
@@ -2183,6 +2204,8 @@ static int i915_dp_link_retrain_disabled_show(struct seq_file *m, void *data)
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
+
+	intel_dp_flush_connector_commits(connector);
 
 	seq_printf(m, "%s\n", str_yes_no(intel_dp->link.retrain_disabled));
 
