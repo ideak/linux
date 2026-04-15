@@ -85,6 +85,18 @@ static int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *l
 				       link_caps->num_rates, max_rate);
 }
 
+/**
+ * intel_dp_link_caps_common_rate - get common link rate at a given index
+ * @link_caps: link capabilities state
+ * @index: index into the common rate list
+ *
+ * Return the link rate identified by @idx currently supported by @link_caps,
+ * common to both the source and the sink.
+ *
+ * Return:
+ * - Common link rate at @idx.
+ * - 162000 if @idx is out of range.
+ */
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index)
 {
 	struct intel_dp *intel_dp = link_caps->dp;
@@ -120,7 +132,14 @@ int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int
 				   rate);
 }
 
-/* Theoretical max between source and sink */
+/**
+ * intel_dp_link_caps_max_common_rate - get the maximum common link rate
+ * @link_caps: link capabilities state
+ *
+ * Return:
+ * Maximum link rate currently supported by @link_caps, common to both the
+ * source and the sink.
+ */
 int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 {
 	return intel_dp_link_caps_common_rate(link_caps, link_caps->num_rates - 1);
@@ -389,7 +408,34 @@ static bool current_common_caps_match(struct intel_dp_link_caps *link_caps,
 	return true;
 }
 
-/* Return %true if the supported link parameters have changed. */
+/**
+ * intel_dp_link_caps_update - rebuild the supported link configuration state
+ * @link_caps: link capabilities state
+ * @rates: supported common link rates
+ * @num_rates: number of entries in @rates
+ * @max_lane_count: supported maximum lane count
+ *
+ * Rebuild the supported link configuration state from @rates and
+ * @max_lane_count.
+ *
+ * Configuration indices are not stable across calls to this function, so
+ * callers should not cache such indices and masks built from them across
+ * updates via this function.
+ *
+ * This function is called regularly, at least after a sink is connected,
+ * but it may also be called later whenever the sink capabilities may have
+ * changed, for example in response to HPD IRQ / RX_CAP_CHANGED signaling.
+ *
+ * In the Intel driver this function is currently called whenever the
+ * connector detect handler runs, after reading the sink capabilities. This
+ * may change if those capabilities are cached until the sink is
+ * disconnected, or until RX_CAP_CHANGED is signaled. In any case, this
+ * function should be called whenever the sink capabilities were read out
+ * and may have changed.
+ *
+ * Returns:
+ * - %true if the supported link parameters have changed, %false otherwise.
+ */
 bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 			       const int *rates, int num_rates, int max_lane_count)
 {
