@@ -313,31 +313,15 @@ static int link_config_idx_to_lane_count_exp(int config_idx)
 	return config_idx % INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS;
 }
 
-static int intel_dp_link_config_rate(const struct intel_dp_link_caps_config_table *table,
-				     const struct intel_dp_link_config_entry *lc)
-{
-	return lookup_rate(table, link_config_idx_to_rate_idx(lc->config_idx));
-}
-
-static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_entry *lc)
-{
-	return 1 << link_config_idx_to_lane_count_exp(lc->config_idx);
-}
-
 static int link_config_idx_to_rate(const struct intel_dp_link_caps_config_table *table,
 				   int config_idx)
 {
-	const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
-
-	return intel_dp_link_config_rate(table, lc);
+	return lookup_rate(table, link_config_idx_to_rate_idx(config_idx));
 }
 
-static int link_config_idx_to_lane_count(const struct intel_dp_link_caps_config_table *table,
-					 int config_idx)
+static int link_config_idx_to_lane_count(int config_idx)
 {
-	const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
-
-	return intel_dp_link_config_lane_count(lc);
+	return 1 << link_config_idx_to_lane_count_exp(config_idx);
 }
 
 /*
@@ -372,7 +356,7 @@ to_intel_dp_link_config(const struct intel_dp_link_caps_config_table *table,
 			int config_idx, struct intel_dp_link_config *config)
 {
 	config->rate = link_config_idx_to_rate(table, config_idx);
-	config->lane_count = link_config_idx_to_lane_count(table, config_idx);
+	config->lane_count = link_config_idx_to_lane_count(config_idx);
 }
 
 static bool
@@ -800,8 +784,8 @@ void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 static int intel_dp_link_config_bw(const struct intel_dp_link_caps_config_table *table,
 				   const struct intel_dp_link_config_entry *lc)
 {
-	return drm_dp_max_dprx_data_rate(intel_dp_link_config_rate(table, lc),
-					 intel_dp_link_config_lane_count(lc));
+	return drm_dp_max_dprx_data_rate(link_config_idx_to_rate(table, lc->config_idx),
+					 link_config_idx_to_lane_count(lc->config_idx));
 }
 
 static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
@@ -815,8 +799,8 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 	if (bw_a != bw_b)
 		return bw_a - bw_b;
 
-	return intel_dp_link_config_rate(table, lc_a) -
-	       intel_dp_link_config_rate(table, lc_b);
+	return link_config_idx_to_rate(table, lc_a->config_idx) -
+	       link_config_idx_to_rate(table, lc_b->config_idx);
 }
 
 static bool config_tables_match(const struct intel_dp_link_caps_config_table *table_a,
