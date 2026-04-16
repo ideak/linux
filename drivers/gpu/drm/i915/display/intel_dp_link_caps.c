@@ -733,28 +733,26 @@ void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 	update_max_link_info(link_caps);
 }
 
-static int intel_dp_link_config_bw(struct intel_dp_link_caps *link_caps,
+static int intel_dp_link_config_bw(const struct intel_dp_link_caps_config_table *table,
 				   const struct intel_dp_link_config_entry *lc)
 {
-	return drm_dp_max_dprx_data_rate(intel_dp_link_config_rate(&link_caps->config_table, lc),
+	return drm_dp_max_dprx_data_rate(intel_dp_link_config_rate(table, lc),
 					 intel_dp_link_config_lane_count(lc));
 }
 
 static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 {
-	struct intel_dp *intel_dp = (struct intel_dp *)p;	/* remove const */
-	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-
+	const struct intel_dp_link_caps_config_table *table = p;
 	const struct intel_dp_link_config_entry *lc_a = a;
 	const struct intel_dp_link_config_entry *lc_b = b;
-	int bw_a = intel_dp_link_config_bw(link_caps, lc_a);
-	int bw_b = intel_dp_link_config_bw(link_caps, lc_b);
+	int bw_a = intel_dp_link_config_bw(table, lc_a);
+	int bw_b = intel_dp_link_config_bw(table, lc_b);
 
 	if (bw_a != bw_b)
 		return bw_a - bw_b;
 
-	return intel_dp_link_config_rate(&link_caps->config_table, lc_a) -
-	       intel_dp_link_config_rate(&link_caps->config_table, lc_b);
+	return intel_dp_link_config_rate(table, lc_a) -
+	       intel_dp_link_config_rate(table, lc_b);
 }
 
 static bool current_common_caps_match(struct intel_dp_link_caps_config_table *table,
@@ -857,7 +855,7 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	sort_r(table->configs, table->num_configs,
 	       sizeof(table->configs[0]),
 	       link_config_cmp_by_bw, NULL,
-	       intel_dp);
+	       table);
 
 	if (!current_common_caps_match(table, old_rates, num_old_rates,
 				       old_max_lane_count))
