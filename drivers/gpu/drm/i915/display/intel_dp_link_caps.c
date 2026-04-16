@@ -103,9 +103,6 @@ struct intel_dp_link_caps {
 		 * with a fixed lane stride of
 		 * INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS.
 		 *
-		 * For now the above index is stored in struct
-		 * intel_dp_link_config_entry::config_idx.
-		 *
 		 * A configuration can be reconstructed from its index as:
 		 *
 		 *   rate_idx  = idx / INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS
@@ -126,9 +123,14 @@ struct intel_dp_link_caps {
 
 #define INTEL_DP_MAX_LINK_CONFIGS		(DP_MAX_SUPPORTED_RATES * \
 						 INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS)
-		struct intel_dp_link_config_entry {
-			u8 config_idx;
-		} configs[INTEL_DP_MAX_LINK_CONFIGS];
+		/*
+		 * Indices of configurations sorted in ascending bandwidth
+		 * order.
+		 *
+		 * Each entry is an index into the virtual configuration space
+		 * described above.
+		 */
+		u8 bw_order_map[INTEL_DP_MAX_LINK_CONFIGS];
 	} config_table;
 
 	/*
@@ -379,7 +381,7 @@ get_table_config_by_pos(const struct intel_dp_link_caps_config_table *config_tab
 
 	switch (config_order.key) {
 	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW:
-		*config_idx = config_table->configs[iter_pos].config_idx;
+		*config_idx = config_table->bw_order_map[iter_pos];
 
 		break;
 	default:
@@ -781,26 +783,31 @@ void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 	update_max_link_info(link_caps);
 }
 
-static int intel_dp_link_config_bw(const struct intel_dp_link_caps_config_table *table,
-				   const struct intel_dp_link_config_entry *lc)
+static int intel_dp_link_config_bw(const struct intel_dp_link_config *link_config)
 {
-	return drm_dp_max_dprx_data_rate(link_config_idx_to_rate(table, lc->config_idx),
-					 link_config_idx_to_lane_count(lc->config_idx));
+	return drm_dp_max_dprx_data_rate(link_config->rate, link_config->lane_count);
 }
 
 static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 {
 	const struct intel_dp_link_caps_config_table *table = p;
-	const struct intel_dp_link_config_entry *lc_a = a;
-	const struct intel_dp_link_config_entry *lc_b = b;
-	int bw_a = intel_dp_link_config_bw(table, lc_a);
-	int bw_b = intel_dp_link_config_bw(table, lc_b);
+	struct intel_dp_link_config link_config_a;
+	struct intel_dp_link_config link_config_b;
+	u8 idx_a = *(u8 *)a;
+	u8 idx_b = *(u8 *)b;
+	int bw_a;
+	int bw_b;
+
+	to_intel_dp_link_config(table, idx_a, &link_config_a);
+	to_intel_dp_link_config(table, idx_b, &link_config_b);
+
+	bw_a = intel_dp_link_config_bw(&link_config_a);
+	bw_b = intel_dp_link_config_bw(&link_config_b);
 
 	if (bw_a != bw_b)
 		return bw_a - bw_b;
 
-	return link_config_idx_to_rate(table, lc_a->config_idx) -
-	       link_config_idx_to_rate(table, lc_b->config_idx);
+	return link_config_a.rate - link_config_b.rate;
 }
 
 static bool config_tables_match(const struct intel_dp_link_caps_config_table *table_a,
@@ -819,8 +826,8 @@ static bool config_tables_match(const struct intel_dp_link_caps_config_table *ta
 		   table_a->num_rates * sizeof(table_a->rates[0])))
 		return false;
 
-	if (memcmp(table_a->configs, table_b->configs,
-		   table_a->num_configs * sizeof(table_a->configs[0])))
+	if (memcmp(table_a->bw_order_map, table_b->bw_order_map,
+		   table_a->num_configs * sizeof(table_a->bw_order_map[0])))
 		return false;
 
 	return true;
@@ -830,8 +837,8 @@ static bool build_config_table(struct intel_display *display,
 			       const int *rates, int num_rates, int max_lane_count,
 			       struct intel_dp_link_caps_config_table *table)
 {
-	struct intel_dp_link_config_entry *lc;
 	int num_common_lane_configs;
+	u8 *bw_order_map;
 	int i;
 
 	if (drm_WARN_ON(display->drm,
@@ -850,7 +857,7 @@ static bool build_config_table(struct intel_display *display,
 	num_common_lane_configs = ilog2(max_lane_count) + 1;
 
 	if (drm_WARN_ON(display->drm, num_rates * num_common_lane_configs >
-				    ARRAY_SIZE(table->configs)))
+				    ARRAY_SIZE(table->bw_order_map)))
 		return false;
 
 	memset(table, 0, sizeof(*table));
@@ -861,7 +868,7 @@ static bool build_config_table(struct intel_display *display,
 
 	table->num_configs = num_rates * num_common_lane_configs;
 
-	lc = &table->configs[0];
+	bw_order_map = table->bw_order_map;
 	for (i = 0; i < table->num_configs; i++) {
 		int config_idx;
 
@@ -869,12 +876,12 @@ static bool build_config_table(struct intel_display *display,
 		if (config_idx < 0)
 			return false;
 
-		lc->config_idx = config_idx;
-		lc++;
+		*bw_order_map = config_idx;
+		bw_order_map++;
 	}
 
-	sort_r(table->configs, table->num_configs,
-	       sizeof(table->configs[0]),
+	sort_r(table->bw_order_map, table->num_configs,
+	       sizeof(table->bw_order_map[0]),
 	       link_config_cmp_by_bw, NULL,
 	       table);
 
