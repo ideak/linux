@@ -698,7 +698,8 @@ static bool intel_dp_set_common_link_params(struct intel_dp *intel_dp)
 
 	intel_dp_get_common_rates(intel_dp, common_rates, &num_common_rates);
 	if (intel_dp_link_caps_update(intel_dp,
-				      common_rates, num_common_rates))
+				      common_rates, num_common_rates,
+				      intel_dp_max_common_lane_count(intel_dp)))
 		link_params_changed = true;
 
 	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
