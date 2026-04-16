@@ -89,18 +89,45 @@ struct intel_dp_link_caps {
 		int rates[DP_MAX_SUPPORTED_RATES];
 		int max_lane_count;
 
-		/* common rate,lane_count configs in bw order */
+		/*
+		 * Number of configurations supported for the current sink
+		 * connection.
+		 */
 		int num_configs;
+		/*
+		 * Virtual rate/lane configuration space.
+		 *
+		 * Configurations are not stored explicitly. Instead, each
+		 * configuration is identified by an index in a conceptual
+		 * table ordered by (rate_idx, lane_count) in ascending order,
+		 * with a fixed lane stride of
+		 * INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS.
+		 *
+		 * For now the above index is stored in struct
+		 * intel_dp_link_config_entry::config_idx.
+		 *
+		 * A configuration can be reconstructed from its index as:
+		 *
+		 *   rate_idx  = idx / INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS
+		 *   lane_exp  = idx % INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS
+		 *   rate      = rates[rate_idx]
+		 *   lane_count = 1 << lane_exp
+		 *
+		 * In this conceptual table, only entries within the current
+		 * sink limits are valid, i.e. those allowed by the current
+		 * number of rates and maximum lane count.
+		 */
 #define INTEL_DP_MAX_LANE_COUNT			4
-#define INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS	(ilog2(INTEL_DP_MAX_LANE_COUNT) + 1)
-#define INTEL_DP_LANE_COUNT_EXP_BITS		order_base_2(INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS)
-#define INTEL_DP_LINK_RATE_IDX_BITS		(BITS_PER_TYPE(u8) - INTEL_DP_LANE_COUNT_EXP_BITS)
+
+#define INTEL_DP_LANE_COUNT_CONFIGS(__lane_count) \
+		(ilog2(__lane_count) + 1)
+#define INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS \
+		INTEL_DP_LANE_COUNT_CONFIGS(INTEL_DP_MAX_LANE_COUNT)
+
 #define INTEL_DP_MAX_LINK_CONFIGS		(DP_MAX_SUPPORTED_RATES * \
 						 INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS)
 		struct intel_dp_link_config_entry {
-			/* index into rates[] */
-			u8 link_rate_idx:INTEL_DP_LINK_RATE_IDX_BITS;
-			u8 lane_count_exp:INTEL_DP_LANE_COUNT_EXP_BITS;
+			u8 config_idx;
 		} configs[INTEL_DP_MAX_LINK_CONFIGS];
 	} config_table;
 
@@ -276,15 +303,25 @@ void intel_dp_link_caps_get_forced_params(struct intel_dp_link_caps *link_caps,
 	forced_params->lane_count = forced_lane_count(link_caps);
 }
 
+static int link_config_idx_to_rate_idx(int config_idx)
+{
+	return config_idx / INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS;
+}
+
+static int link_config_idx_to_lane_count_exp(int config_idx)
+{
+	return config_idx % INTEL_DP_MAX_SUPPORTED_LANE_CONFIGS;
+}
+
 static int intel_dp_link_config_rate(const struct intel_dp_link_caps_config_table *table,
 				     const struct intel_dp_link_config_entry *lc)
 {
-	return lookup_rate(table, lc->link_rate_idx);
+	return lookup_rate(table, link_config_idx_to_rate_idx(lc->config_idx));
 }
 
 static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_entry *lc)
 {
-	return 1 << lc->lane_count_exp;
+	return 1 << link_config_idx_to_lane_count_exp(lc->config_idx);
 }
 
 static int link_config_idx_to_rate(const struct intel_dp_link_caps_config_table *table,
@@ -301,6 +338,33 @@ static int link_config_idx_to_lane_count(const struct intel_dp_link_caps_config_
 	const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
 
 	return intel_dp_link_config_lane_count(lc);
+}
+
+/*
+ * Remap @from_pos, referring to the (row, col) point in row-major
+ * table-a with @from_cols columns per row, to the position in table-b
+ * with @to_cols columns per row referring to the same (row, col) point.
+ */
+static int remap_table_pos(int from_pos, int from_cols, int to_cols)
+{
+	int col = from_pos % from_cols;
+
+	if (WARN_ON(col >= to_cols))
+		return -1;
+
+	return from_pos / from_cols * to_cols + col;
+}
+
+static int remap_lane_stride_pos(int from_pos, int from_max_lane_count, int to_max_lane_count)
+{
+	return remap_table_pos(from_pos,
+			       INTEL_DP_LANE_COUNT_CONFIGS(from_max_lane_count),
+			       INTEL_DP_LANE_COUNT_CONFIGS(to_max_lane_count));
+}
+
+static int rate_lane_iter_pos_to_config_idx(int iter_pos, int max_lane_count)
+{
+	return remap_lane_stride_pos(iter_pos, max_lane_count, INTEL_DP_MAX_LANE_COUNT);
 }
 
 static void
@@ -331,7 +395,7 @@ get_table_config_by_pos(const struct intel_dp_link_caps_config_table *config_tab
 
 	switch (config_order.key) {
 	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW:
-		*config_idx = iter_pos;
+		*config_idx = config_table->configs[iter_pos].config_idx;
 
 		break;
 	default:
@@ -785,7 +849,13 @@ static bool build_config_table(struct intel_display *display,
 	struct intel_dp_link_config_entry *lc;
 	int num_common_lane_configs;
 	int i;
-	int j;
+
+	if (drm_WARN_ON(display->drm,
+			num_rates < 1 || num_rates > ARRAY_SIZE(table->rates)))
+		return false;
+
+	if (drm_WARN_ON(display->drm, max_lane_count > INTEL_DP_MAX_LANE_COUNT))
+		return false;
 
 	if (drm_WARN_ON(display->drm, !is_power_of_2(max_lane_count)))
 		return false;
@@ -808,13 +878,15 @@ static bool build_config_table(struct intel_display *display,
 	table->num_configs = num_rates * num_common_lane_configs;
 
 	lc = &table->configs[0];
-	for (i = 0; i < num_rates; i++) {
-		for (j = 0; j < num_common_lane_configs; j++) {
-			lc->lane_count_exp = j;
-			lc->link_rate_idx = i;
+	for (i = 0; i < table->num_configs; i++) {
+		int config_idx;
 
-			lc++;
-		}
+		config_idx = rate_lane_iter_pos_to_config_idx(i, max_lane_count);
+		if (config_idx < 0)
+			return false;
+
+		lc->config_idx = config_idx;
+		lc++;
 	}
 
 	sort_r(table->configs, table->num_configs,
