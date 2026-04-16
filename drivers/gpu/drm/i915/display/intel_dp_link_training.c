@@ -1760,10 +1760,20 @@ static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
 					   const struct intel_crtc_state *crtc_state,
 					   int *new_link_rate, int *new_lane_count)
 {
+	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_caps_config_order bw_asc_order = {
+		.key = INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW,
+		.dir = INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC,
+	};
+	struct intel_dp_link_config link_config = {
+		.rate = crtc_state->port_clock,
+		.lane_count = crtc_state->lane_count,
+	};
 	struct intel_dp_link_config forced_params;
 	int forced_lane_count;
 	int forced_rate;
+	int link_config_idx;
 	int link_rate;
 	int lane_count;
 	int i;
@@ -1775,7 +1785,24 @@ static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
 	i = intel_dp_link_config_index(intel_dp->link.caps,
 				       crtc_state->port_clock, crtc_state->lane_count);
 	for (i--; i >= 0; i--) {
-		intel_dp_link_config_get(intel_dp->link.caps, i, &link_rate, &lane_count);
+		bool config_found;
+
+		config_found = intel_dp_link_caps_get_config_by_pos(link_caps,
+								    bw_asc_order, i,
+								    &link_config,
+								    &link_config_idx);
+		if (drm_WARN_ON(display->drm, !config_found))
+			return false;
+
+		/*
+		 * Atm, the index of the configuration must match its
+		 * iteration position.
+		 */
+		if (drm_WARN_ON(display->drm, link_config_idx != i))
+			return false;
+
+		link_rate = link_config.rate;
+		lane_count = link_config.lane_count;
 
 		if ((forced_rate &&
 		     forced_rate != link_rate) ||

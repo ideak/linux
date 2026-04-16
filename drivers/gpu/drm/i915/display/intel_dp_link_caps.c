@@ -879,23 +879,6 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	return link_params_changed;
 }
 
-void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
-			      int idx, int *link_rate, int *lane_count)
-{
-	struct intel_display *display = to_intel_display(link_caps->dp);
-	const struct intel_dp_link_caps_config_table *table =
-		&link_caps->config_table;
-	struct intel_dp_link_config config;
-
-	if (drm_WARN_ON(display->drm, idx < 0 || idx >= table->num_configs))
-		idx = 0;
-
-	to_intel_dp_link_config(table, idx, &config);
-
-	*link_rate = config.rate;
-	*lane_count = config.lane_count;
-}
-
 int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
 			       int link_rate, int lane_count)
 {
