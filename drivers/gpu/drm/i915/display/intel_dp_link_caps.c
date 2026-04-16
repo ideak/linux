@@ -6,6 +6,7 @@
 #include <linux/bitops.h>
 #include <linux/debugfs.h>
 #include <linux/log2.h>
+#include <linux/math.h>
 #include <linux/slab.h>
 #include <linux/sort.h>
 #include <linux/string.h>
@@ -441,6 +442,93 @@ bool intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 {
 	return get_table_config_by_pos(&link_caps->config_table, config_order, iter_pos,
 				       config, config_idx);
+}
+
+static bool is_within_percent(int actual, int nominal, int percent)
+{
+	int diff = abs(actual - nominal);
+
+	if (WARN_ON(percent == 0 ||
+		    diff > INT_MAX / 100 || nominal > INT_MAX / percent))
+		return false;
+
+	return diff * 100 <= nominal * percent;
+}
+
+static int
+find_config_table_entry_pos(const struct intel_dp_link_caps_config_table *config_table,
+			    struct intel_dp_link_caps_config_order config_order, u32 config_mask,
+			    enum intel_dp_link_caps_config_match_type match_type,
+			    const struct intel_dp_link_config *link_config)
+{
+	struct intel_dp_link_config iter_config;
+	int iter_config_idx;
+	int iter_pos;
+
+	for (iter_pos = 0;
+	     get_table_config_by_pos(config_table, config_order, iter_pos,
+				     &iter_config, &iter_config_idx);
+	     iter_pos++) {
+		if (!(BIT(iter_config_idx) & config_mask))
+			continue;
+
+		if (iter_config.lane_count != link_config->lane_count)
+			continue;
+
+		/*
+		 * link_config->rate may be platform-derived rather than the nominal
+		 * supported link rate.
+		 *
+		 * When the caller requests fuzzy rate matching, accept a nominal rate
+		 * within 1 percent of the requested rate.
+		 *
+		 * The DP spec seems to allow at most 300 ppm of symbol clock tolerance,
+		 * excluding SSC. However, at least on g4x, the 2.7 Gbps rate exceeds
+		 * that (~5000ppm); see intel_dp_compute_rate(). So allow 10000 ppm, or
+		 * a 1 percent difference.
+		 *
+		 * The first match is also the best one, since nominal rates are guaranteed
+		 * to be spaced much farther apart than 1 percent.
+		 *
+		 * TODO: Track the nominal link rate separately, pass it here, and require
+		 * an exact match.
+		 */
+		if (iter_config.rate != link_config->rate &&
+		    (match_type == INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT ||
+		     !is_within_percent(link_config->rate, iter_config.rate, 1)))
+			continue;
+
+		return iter_pos;
+	}
+
+	return -1;
+}
+
+/**
+ * intel_dp_link_caps_find_allowed_config_pos - find matching allowed config position
+ * @link_caps: link capabilities state
+ * @config_order: iteration order
+ * @match_type: requested match type
+ * @link_config: link configuration to match
+ *
+ * Search the currently allowed link configurations for a match to
+ * @link_config.
+ *
+ * Return:
+ * - The position of the first matching allowed configuration in the
+ *   @config_order iteration.
+ * - %-1 if no allowed configuration matches.
+ */
+int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_caps,
+					       struct intel_dp_link_caps_config_order config_order,
+					       enum intel_dp_link_caps_config_match_type match_type,
+					       const struct intel_dp_link_config *link_config)
+{
+	u32 allowed_config_mask = intel_dp_link_caps_get_allowed_config_mask(link_caps);
+
+	return find_config_table_entry_pos(&link_caps->config_table, config_order,
+					   allowed_config_mask, match_type,
+					   link_config);
 }
 
 static void set_max_link_limits_no_update(struct intel_dp_link_caps *link_caps,
