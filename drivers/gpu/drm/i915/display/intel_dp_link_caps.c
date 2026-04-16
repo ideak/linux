@@ -15,6 +15,7 @@
 
 #include "intel_display_core.h"
 #include "intel_display_types.h"
+#include "intel_display_utils.h"
 #include "intel_dp.h"
 #include "intel_dp_link_caps.h"
 
@@ -309,6 +310,46 @@ to_intel_dp_link_config(const struct intel_dp_link_caps_config_table *table,
 	config->lane_count = link_config_idx_to_lane_count(table, config_idx);
 }
 
+static bool
+get_table_config_by_pos(const struct intel_dp_link_caps_config_table *config_table,
+			struct intel_dp_link_caps_config_order config_order,
+			int iter_pos,
+			struct intel_dp_link_config *config, int *config_idx)
+{
+	if (!in_range(iter_pos, 0, config_table->num_configs))
+		goto out_fail;
+
+	switch (config_order.dir) {
+	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC:
+		break;
+	default:
+		MISSING_CASE(config_order.dir);
+
+		goto out_fail;
+	}
+
+	switch (config_order.key) {
+	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW:
+		*config_idx = iter_pos;
+
+		break;
+	default:
+		MISSING_CASE(config_order.key);
+
+		goto out_fail;
+	}
+
+	to_intel_dp_link_config(config_table, *config_idx, config);
+
+	return true;
+
+out_fail:
+	*config = INTEL_DP_LINK_CONFIG_NULL;
+	*config_idx = -1;
+
+	return false;
+}
+
 static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 				    u32 disabled_config_mask,
 				    const struct intel_dp_link_config *max_limits,
@@ -368,6 +409,38 @@ u32 intel_dp_link_caps_get_allowed_config_mask(struct intel_dp_link_caps *link_c
 
 	return calc_allowed_config_mask(link_caps, disabled_mask,
 					&link_caps->max_limits, &forced_params);
+}
+
+/**
+ * intel_dp_link_caps_get_config_by_pos - get config at a given iterator position
+ * @link_caps: link capability state
+ * @config_order: iteration order
+ * @iter_pos: position in the @config_order iteration order
+ * @config: returned link configuration
+ * @config_idx: returned config index
+ *
+ * Look up the link config at iterator position @iter_pos in the order
+ * described by @config_order.
+ *
+ * Note that any mapping between @iter_pos and @config_idx is an
+ * implementation detail defined by @config_order and must not be
+ * relied upon. The returned @config_idx always, regardless of
+ * @config_order, uses the canonical configuration index/mask scheme
+ * shared by the link-caps API.
+ *
+ * Return:
+ * - %true  if @iter_pos is valid, storing the configuration in @config and
+ *          its index in @config_idx.
+ * - %false if @iter_pos is out of range, storing %INTEL_DP_LINK_CONFIG_NULL
+ *          in @config and -1 in @config_idx.
+ */
+bool intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
+					  struct intel_dp_link_caps_config_order config_order,
+					  int iter_pos,
+					  struct intel_dp_link_config *config, int *config_idx)
+{
+	return get_table_config_by_pos(&link_caps->config_table, config_order, iter_pos,
+				       config, config_idx);
 }
 
 static void set_max_link_limits_no_update(struct intel_dp_link_caps *link_caps,
