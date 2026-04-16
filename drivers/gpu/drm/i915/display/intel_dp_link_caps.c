@@ -48,8 +48,8 @@ struct intel_dp_link_caps {
 };
 
 /* Get length of common rates array potentially limited by max_rate. */
-int intel_dp_common_len_rate_limit(const struct intel_dp *intel_dp,
-				   int max_rate)
+static int intel_dp_common_len_rate_limit(const struct intel_dp *intel_dp,
+					  int max_rate)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 
@@ -223,12 +223,15 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_display *display = to_intel_display(intel_dp);
+	int old_max_lane_count_limit = intel_dp->link.max_lane_count;
+	int old_max_rate_limit = intel_dp->link.max_rate;
 	int old_rates[DP_MAX_SUPPORTED_RATES];
 	struct intel_dp_link_config_entry *lc;
 	bool link_params_changed = false;
 	int num_common_lane_configs;
 	int old_max_lane_count;
 	int num_old_rates;
+	int len;
 	int i;
 	int j;
 
@@ -273,7 +276,20 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 				       old_max_lane_count))
 		link_params_changed = true;
 
-	/* TODO: Also detect a change in the max link limits. */
+	/* TODO: Update these as part of the rest of max param updates. */
+	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
+	if (len > 0)
+		intel_dp->link.max_rate = intel_dp_common_rate(intel_dp, len - 1);
+
+	if (intel_dp->link.max_rate != old_max_rate_limit)
+		link_params_changed = true;
+
+	intel_dp->link.max_lane_count = min(intel_dp->link.max_lane_count,
+					    max_lane_count);
+
+	if (intel_dp->link.max_lane_count != old_max_lane_count_limit)
+		link_params_changed = true;
+
 	return link_params_changed;
 }
 
