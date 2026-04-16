@@ -771,6 +771,53 @@ static bool config_tables_match(const struct intel_dp_link_caps_config_table *ta
 	return true;
 }
 
+static bool build_config_table(struct intel_display *display,
+			       const int *rates, int num_rates, int max_lane_count,
+			       struct intel_dp_link_caps_config_table *table)
+{
+	struct intel_dp_link_config_entry *lc;
+	int num_common_lane_configs;
+	int i;
+	int j;
+
+	if (drm_WARN_ON(display->drm, !is_power_of_2(max_lane_count)))
+		return false;
+
+	if (drm_WARN_ON(display->drm, num_rates > ARRAY_SIZE(table->rates)))
+		return false;
+
+	num_common_lane_configs = ilog2(max_lane_count) + 1;
+
+	if (drm_WARN_ON(display->drm, num_rates * num_common_lane_configs >
+				    ARRAY_SIZE(table->configs)))
+		return false;
+
+	memset(table, 0, sizeof(*table));
+
+	memcpy(table->rates, rates, num_rates * sizeof(rates[0]));
+	table->num_rates = num_rates;
+	table->max_lane_count = max_lane_count;
+
+	table->num_configs = num_rates * num_common_lane_configs;
+
+	lc = &table->configs[0];
+	for (i = 0; i < num_rates; i++) {
+		for (j = 0; j < num_common_lane_configs; j++) {
+			lc->lane_count_exp = j;
+			lc->link_rate_idx = i;
+
+			lc++;
+		}
+	}
+
+	sort_r(table->configs, table->num_configs,
+	       sizeof(table->configs[0]),
+	       link_config_cmp_by_bw, NULL,
+	       table);
+
+	return true;
+}
+
 /**
  * intel_dp_link_caps_update - rebuild the supported link configuration state
  * @link_caps: link capabilities state
@@ -803,54 +850,18 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 {
 	struct intel_dp *intel_dp = link_caps->dp;
 	struct intel_display *display = to_intel_display(intel_dp);
-	struct intel_dp_link_caps_config_table *table =
-		&link_caps->config_table;
-	struct intel_dp_link_caps_config_table old_table;
+	struct intel_dp_link_caps_config_table new_table;
 	struct intel_dp_link_config old_max_limits =
 		link_caps->max_limits;
-	struct intel_dp_link_config_entry *lc;
 	bool link_params_changed = false;
-	int num_common_lane_configs;
-	int i;
-	int j;
 
-	if (drm_WARN_ON(display->drm, !is_power_of_2(max_lane_count)))
+	if (!build_config_table(display, rates, num_rates, max_lane_count, &new_table))
 		return false;
 
-	if (drm_WARN_ON(display->drm, num_rates > ARRAY_SIZE(table->rates)))
-		return false;
-
-	num_common_lane_configs = ilog2(max_lane_count) + 1;
-
-	if (drm_WARN_ON(display->drm, num_rates * num_common_lane_configs >
-				    ARRAY_SIZE(table->configs)))
-		return false;
-
-	old_table = *table;
-
-	memcpy(table->rates, rates, num_rates * sizeof(rates[0]));
-	table->num_rates = num_rates;
-	table->max_lane_count = max_lane_count;
-
-	table->num_configs = num_rates * num_common_lane_configs;
-
-	lc = &table->configs[0];
-	for (i = 0; i < num_rates; i++) {
-		for (j = 0; j < num_common_lane_configs; j++) {
-			lc->lane_count_exp = j;
-			lc->link_rate_idx = i;
-
-			lc++;
-		}
-	}
-
-	sort_r(table->configs, table->num_configs,
-	       sizeof(table->configs[0]),
-	       link_config_cmp_by_bw, NULL,
-	       table);
-
-	if (!config_tables_match(table, &old_table))
+	if (!config_tables_match(&new_table, &link_caps->config_table))
 		link_params_changed = true;
+
+	link_caps->config_table = new_table;
 
 	/*
 	 * A failure could be only due to a bug, the update function handles
