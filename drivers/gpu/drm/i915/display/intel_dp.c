@@ -790,6 +790,7 @@ int intel_dp_link_config_index(struct intel_dp *intel_dp, int link_rate, int lan
 static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
+	int len;
 
 	drm_WARN_ON(display->drm,
 		    !intel_dp->num_source_rates || !intel_dp->num_sink_rates);
@@ -807,6 +808,10 @@ static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
 	}
 
 	intel_dp_link_config_init(intel_dp);
+
+	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
+	if (len > 0)
+		intel_dp->link.max_rate = intel_dp_common_rate(intel_dp, len - 1);
 }
 
 bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
@@ -1677,14 +1682,10 @@ static int forced_link_rate(struct intel_dp *intel_dp)
 int
 intel_dp_max_link_rate(struct intel_dp *intel_dp)
 {
-	int len;
-
 	if (intel_dp->link.force_rate)
 		return forced_link_rate(intel_dp);
 
-	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
-
-	return intel_dp_common_rate(intel_dp, len - 1);
+	return intel_dp->link.max_rate;
 }
 
 static int
