@@ -139,6 +139,14 @@ struct intel_dp_link_caps {
 	struct intel_dp_link_config max_limits;
 };
 
+static int lookup_rate(const struct intel_dp_link_caps_config_table *table, int index)
+{
+	if (WARN_ON(index < 0 || index >= table->num_rates))
+		return 162000;
+
+	return table->rates[index];
+}
+
 /* Get length of common rates array potentially limited by max_rate. */
 static int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *link_caps,
 						    int max_rate)
@@ -162,14 +170,7 @@ static int intel_dp_link_caps_common_len_rate_limit(struct intel_dp_link_caps *l
  */
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index)
 {
-	struct intel_dp *intel_dp = link_caps->dp;
-	struct intel_display *display = to_intel_display(intel_dp);
-
-	if (drm_WARN_ON(display->drm,
-			index < 0 || index >= link_caps->config_table.num_rates))
-		return 162000;
-
-	return link_caps->config_table.rates[index];
+	return lookup_rate(&link_caps->config_table, index);
 }
 
 /**
