@@ -879,26 +879,6 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	return link_params_changed;
 }
 
-int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
-			       int link_rate, int lane_count)
-{
-	const struct intel_dp_link_caps_config_table *table = &link_caps->config_table;
-	int link_rate_idx = intel_dp_rate_index(table->rates, table->num_rates,
-						link_rate);
-	int lane_count_exp = ilog2(lane_count);
-	int i;
-
-	for (i = 0; i < table->num_configs; i++) {
-		const struct intel_dp_link_config_entry *lc = &table->configs[i];
-
-		if (lc->lane_count_exp == lane_count_exp &&
-		    lc->link_rate_idx == link_rate_idx)
-			return i;
-	}
-
-	return -1;
-}
-
 /**
  * intel_dp_link_caps_reset - reset link capability restrictions
  * @link_caps: link capabilities state

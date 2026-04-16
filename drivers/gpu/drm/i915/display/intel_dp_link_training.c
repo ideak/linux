@@ -1782,8 +1782,16 @@ static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
 	forced_rate = forced_params.rate;
 	forced_lane_count = forced_params.lane_count;
 
-	i = intel_dp_link_config_index(intel_dp->link.caps,
-				       crtc_state->port_clock, crtc_state->lane_count);
+	/*
+	 * The computed link rate could differ from the nominal rate
+	 * due to platform specific PLL restrictions, so use a fuzzy
+	 * matching.
+	 */
+	i = intel_dp_link_caps_find_allowed_config_pos(link_caps,
+						       bw_asc_order,
+						       INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE,
+						       &link_config);
+
 	for (i--; i >= 0; i--) {
 		bool config_found;
 
@@ -1792,13 +1800,6 @@ static bool reduce_link_params_in_bw_order(struct intel_dp *intel_dp,
 								    &link_config,
 								    &link_config_idx);
 		if (drm_WARN_ON(display->drm, !config_found))
-			return false;
-
-		/*
-		 * Atm, the index of the configuration must match its
-		 * iteration position.
-		 */
-		if (drm_WARN_ON(display->drm, link_config_idx != i))
 			return false;
 
 		link_rate = link_config.rate;
