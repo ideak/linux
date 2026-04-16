@@ -69,6 +69,26 @@ struct intel_dp_link_caps_config_order {
 	enum intel_dp_link_caps_config_order_direction dir;
 };
 
+/**
+ * enum intel_dp_link_caps_config_match_type - configuration match semantics
+ * @INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT:
+ *   Require an exact nominal link rate match and an
+ *   exact lane count match.
+ * @INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE:
+ *   Require an exact lane count match, but allow the
+ *   requested link rate to match approximately to a
+ *   supported nominal link rate.
+ *
+ * Selects how
+ * intel_dp_link_caps_find_allowed_config_pos() matches
+ * the requested &struct intel_dp_link_config against the currently
+ * allowed configurations.
+ */
+enum intel_dp_link_caps_config_match_type {
+	INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT,
+	INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE,
+};
+
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index);
 int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate);
 int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps);
@@ -89,6 +109,10 @@ intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 				     struct intel_dp_link_config *config, int *config_idx);
 void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 			      int idx, int *link_rate, int *lane_count);
+int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_caps,
+					       struct intel_dp_link_caps_config_order order,
+					       enum intel_dp_link_caps_config_match_type match_type,
+					       const struct intel_dp_link_config *config);
 
 void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
 				       struct intel_dp_link_config *max_link_limits);
