@@ -107,8 +107,6 @@ intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 				     struct intel_dp_link_caps_config_order config_order,
 				     int iter_pos,
 				     struct intel_dp_link_config *config, int *config_idx);
-void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
-			      int idx, int *link_rate, int *lane_count);
 int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_caps,
 					       struct intel_dp_link_caps_config_order order,
 					       enum intel_dp_link_caps_config_match_type match_type,
