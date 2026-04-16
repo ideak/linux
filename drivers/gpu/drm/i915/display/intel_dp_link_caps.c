@@ -285,13 +285,28 @@ static int intel_dp_link_config_lane_count(const struct intel_dp_link_config_ent
 	return 1 << lc->lane_count_exp;
 }
 
-static void
-to_intel_dp_link_config(struct intel_dp_link_caps *link_caps,
-			const struct intel_dp_link_config_entry *lc,
-			struct intel_dp_link_config *config)
+static int link_config_idx_to_rate(const struct intel_dp_link_caps_config_table *table,
+				   int config_idx)
 {
-	config->rate = intel_dp_link_config_rate(&link_caps->config_table, lc);
-	config->lane_count = intel_dp_link_config_lane_count(lc);
+	const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
+
+	return intel_dp_link_config_rate(table, lc);
+}
+
+static int link_config_idx_to_lane_count(const struct intel_dp_link_caps_config_table *table,
+					 int config_idx)
+{
+	const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
+
+	return intel_dp_link_config_lane_count(lc);
+}
+
+static void
+to_intel_dp_link_config(const struct intel_dp_link_caps_config_table *table,
+			int config_idx, struct intel_dp_link_config *config)
+{
+	config->rate = link_config_idx_to_rate(table, config_idx);
+	config->lane_count = link_config_idx_to_lane_count(table, config_idx);
 }
 
 static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
@@ -305,12 +320,10 @@ static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 	int config_idx;
 
 	for (config_idx = 0; config_idx < table->num_configs; config_idx++) {
-		const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
-
 		if (BIT(config_idx) & disabled_config_mask)
 			continue;
 
-		to_intel_dp_link_config(link_caps, lc, &config);
+		to_intel_dp_link_config(table, config_idx, &config);
 
 		if (forced_params->rate &&
 		    forced_params->rate != config.rate)
@@ -398,12 +411,10 @@ static void compute_max_link_limits(struct intel_dp_link_caps *link_caps,
 	int config_idx;
 
 	for (config_idx = 0; config_idx < table->num_configs; config_idx++) {
-		const struct intel_dp_link_config_entry *lc = &table->configs[config_idx];
-
 		if (!(BIT(config_idx) & allowed_mask))
 			continue;
 
-		to_intel_dp_link_config(link_caps, lc, &link_config);
+		to_intel_dp_link_config(table, config_idx, &link_config);
 
 		max_config.rate = max(max_config.rate,
 				      link_config.rate);
@@ -712,15 +723,15 @@ void intel_dp_link_config_get(struct intel_dp_link_caps *link_caps,
 	struct intel_display *display = to_intel_display(link_caps->dp);
 	const struct intel_dp_link_caps_config_table *table =
 		&link_caps->config_table;
-	const struct intel_dp_link_config_entry *lc;
+	struct intel_dp_link_config config;
 
 	if (drm_WARN_ON(display->drm, idx < 0 || idx >= table->num_configs))
 		idx = 0;
 
-	lc = &table->configs[idx];
+	to_intel_dp_link_config(table, idx, &config);
 
-	*link_rate = intel_dp_link_config_rate(&link_caps->config_table, lc);
-	*lane_count = intel_dp_link_config_lane_count(lc);
+	*link_rate = config.rate;
+	*lane_count = config.lane_count;
 }
 
 int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
