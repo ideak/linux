@@ -2222,6 +2222,14 @@ void intel_dp_link_training_debugfs_add(struct intel_connector *connector)
 			    connector, &i915_dp_link_retrain_disabled_fops);
 }
 
+void intel_dp_link_training_reset(struct intel_dp_link_training *link_training)
+{
+	struct intel_dp *intel_dp = link_training->dp;
+
+	intel_dp->link.retrain_disabled = false;
+	intel_dp->link.seq_train_failures = 0;
+}
+
 /**
  * intel_dp_link_training_init - allocate and initialize link training state
  * @intel_dp: DP encoder state
