@@ -58,10 +58,16 @@ static int kbytes_to_mbits(int kbytes)
 static int get_current_link_bw(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
-	int rate = intel_dp_link_caps_max_common_rate(link_caps);
-	int lane_count = intel_dp_link_caps_max_common_lane_count(link_caps);
+	struct intel_dp_link_config max_link_limits;
 
-	return intel_dp_max_link_data_rate(intel_dp, rate, lane_count);
+	/*
+	 * TODO: Compute BW from the maximum-BW configuration; max limits are
+	 * independent bounds over all configs and may not form a valid config.
+	 */
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+
+	return intel_dp_max_link_data_rate(intel_dp, max_link_limits.rate,
+						     max_link_limits.lane_count);
 }
 
 static int __update_tunnel_state(struct intel_dp *intel_dp, bool force_sink_update)
