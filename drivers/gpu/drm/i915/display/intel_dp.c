@@ -787,13 +787,36 @@ int intel_dp_link_config_index(struct intel_dp *intel_dp, int link_rate, int lan
 	return -1;
 }
 
-static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
+static bool current_common_caps_match(struct intel_dp *intel_dp,
+				      const int *rates, int num_rates)
+{
+	const int *current_rates = intel_dp->common_rates;
+	int num_current_rates = intel_dp->num_common_rates;
+
+	if (num_current_rates != num_rates)
+		return false;
+
+	if (memcmp(current_rates, rates, num_rates * sizeof(rates[0])))
+		return false;
+
+	return true;
+}
+
+/* Return %true if any supported or maximum link param changed. */
+static bool intel_dp_set_common_rates(struct intel_dp *intel_dp)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
+	int num_old_common_rates = intel_dp->num_common_rates;
+	int old_max_rate_limit = intel_dp->link.max_rate;
+	int old_common_rates[DP_MAX_SUPPORTED_RATES];
+	bool link_params_changed = false;
 	int len;
 
 	drm_WARN_ON(display->drm,
 		    !intel_dp->num_source_rates || !intel_dp->num_sink_rates);
+
+	static_assert(sizeof(old_common_rates) == sizeof(intel_dp->common_rates));
+	memcpy(old_common_rates, intel_dp->common_rates, sizeof(old_common_rates));
 
 	intel_dp->num_common_rates = intersect_rates(intel_dp->source_rates,
 						     intel_dp->num_source_rates,
@@ -807,11 +830,19 @@ static void intel_dp_set_common_rates(struct intel_dp *intel_dp)
 		intel_dp->num_common_rates = 1;
 	}
 
+	if (!current_common_caps_match(intel_dp, old_common_rates, num_old_common_rates))
+		link_params_changed = true;
+
 	intel_dp_link_config_init(intel_dp);
 
 	len = intel_dp_common_len_rate_limit(intel_dp, intel_dp->link.max_rate);
 	if (len > 0)
 		intel_dp->link.max_rate = intel_dp_common_rate(intel_dp, len - 1);
+
+	if (intel_dp->link.max_rate != old_max_rate_limit)
+		link_params_changed = true;
+
+	return link_params_changed;
 }
 
 bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
@@ -4856,15 +4887,30 @@ intel_dp_has_sink_count(struct intel_dp *intel_dp)
 
 void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 {
+	struct intel_connector *connector = intel_dp->attached_connector;
+	int old_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
+	int old_max_lane_count_limit = intel_dp->link.max_lane_count;
 	int current_max_common_lane_count;
+	bool link_params_changed = false;
 
 	intel_dp_set_sink_rates(intel_dp);
 	intel_dp_set_max_sink_lane_count(intel_dp);
-	intel_dp_set_common_rates(intel_dp);
+	if (intel_dp_set_common_rates(intel_dp))
+		link_params_changed = true;
+
+	current_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
+	if (current_max_common_lane_count != old_max_common_lane_count)
+		link_params_changed = true;
 
 	current_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
 	intel_dp->link.max_lane_count = min(intel_dp->link.max_lane_count,
 					    current_max_common_lane_count);
+
+	if (intel_dp->link.max_lane_count != old_max_lane_count_limit)
+		link_params_changed = true;
+
+	if (link_params_changed)
+		connector->base.epoch_counter++;
 }
 
 static bool
