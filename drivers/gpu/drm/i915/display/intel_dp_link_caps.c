@@ -171,7 +171,7 @@ void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
 	*num_rates = link_caps->num_rates;
 }
 
-int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
+static int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_caps)
 {
 	return link_caps->max_lane_count;
 }
