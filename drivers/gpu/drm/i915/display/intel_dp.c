@@ -6440,6 +6440,8 @@ intel_dp_detect(struct drm_connector *_connector,
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	struct intel_encoder *encoder = &dig_port->base;
 	enum drm_connector_status status;
+	int old_epoch_counter =
+		connector->base.epoch_counter;
 	int ret;
 
 	drm_dbg_kms(display->drm, "[CONNECTOR:%d:%s]\n",
@@ -6523,6 +6525,8 @@ intel_dp_detect(struct drm_connector *_connector,
 	if (intel_dp->reset_link_params) {
 		intel_dp_reset_link_params(intel_dp);
 		intel_dp->reset_link_params = false;
+	} else if (connector->base.epoch_counter != old_epoch_counter) {
+		intel_dp_link_training_reset(intel_dp->link.training);
 	}
 
 	intel_dp_mst_configure(intel_dp);
@@ -6543,9 +6547,16 @@ intel_dp_detect(struct drm_connector *_connector,
 	 * Some external monitors do not signal loss of link synchronization
 	 * with an IRQ_HPD, so force a link status check.
 	 *
-	 * TODO: this probably became redundant, so remove it: the link state
-	 * is rechecked/recovered now after modesets, where the loss of
-	 * synchronization tends to occur.
+	 * NOTE: Handling link synchronization loss here is probably not
+	 * needed, since such loss tends to occur right after modesets, and
+	 * modesets already schedule a work item to recheck the link state.
+	 *
+	 * However, if the link is in an active unretrainable state and the
+	 * supported link configurations changed, either after an HPD
+	 * pulse-triggered link reset (via intel_dp_reset_link_params()) or
+	 * after a sink capability update without such a reset (via
+	 * intel_dp_set_common_rates()), the link state should be rechecked in
+	 * case the link became retrainable.
 	 */
 	if (!intel_dp_is_edp(intel_dp))
 		intel_dp_check_link_state(intel_dp);
