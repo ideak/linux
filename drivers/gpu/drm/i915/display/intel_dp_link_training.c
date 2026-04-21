@@ -1278,6 +1278,33 @@ link_recovery_autoretrain_allowed(struct intel_dp_link_training *link_training)
 }
 
 /**
+ * link_recovery_mark_train_failure - record a link training failure
+ * @link_training: link training state
+ *
+ * Record a link training failure and advance the recovery state to
+ * indicate the next required recovery step.
+ *
+ * The caller must proceed with recovery as instructed by the return
+ * value, either via automatic retraining or, once automatic retraining
+ * is no longer possible, via userspace modesets after fallback
+ * selection.
+ *
+ * Return:
+ * - %true  if recovery should continue via automatic retraining.
+ * - %false if automatic retraining is no longer possible and recovery
+ *          must be delegated to userspace.
+ */
+static bool
+link_recovery_mark_train_failure(struct intel_dp_link_training *link_training)
+{
+	if (link_recovery_autoretrain_allowed(link_training))
+		/* Move to autoretrain pending or autoretrain disabled state. */
+		link_training->seq_train_failures++;
+
+	return link_recovery_autoretrain_allowed(link_training);
+}
+
+/**
  * intel_dp_stop_link_train - stop link training
  * @intel_dp: DP struct
  * @crtc_state: state for CRTC attached to the encoder
@@ -1813,6 +1840,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	struct intel_encoder *encoder = &dig_port->base;
 	struct intel_dp_link_training *link_training =
 		intel_dp->link.training;
+	bool can_autoretrain;
 	bool passed;
 	/*
 	 * Reinit the LTTPRs here to ensure that they are switched to
@@ -1844,8 +1872,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (link_recovery_autoretrain_allowed(link_training))
-		link_training->seq_train_failures++;
+	can_autoretrain = link_recovery_mark_train_failure(link_training);
 
 	/*
 	 * Ignore the link failure in CI
@@ -1864,7 +1891,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (link_recovery_autoretrain_allowed(link_training))
+	if (can_autoretrain)
 		return;
 
 	if (intel_dp_schedule_fallback_link_training(state, intel_dp, crtc_state))
