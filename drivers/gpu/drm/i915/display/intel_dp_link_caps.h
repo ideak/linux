@@ -21,6 +21,7 @@ int intel_dp_link_caps_max_common_lane_count(struct intel_dp_link_caps *link_cap
 
 void intel_dp_link_caps_get_forced_params(struct intel_dp_link_caps *link_caps,
 					  struct intel_dp_link_config *forced_params);
+u32 intel_dp_link_caps_get_allowed_config_mask(struct intel_dp_link_caps *link_caps);
 
 int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
 			       int link_rate, int lane_count);
