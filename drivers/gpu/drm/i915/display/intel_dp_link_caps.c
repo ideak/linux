@@ -762,8 +762,15 @@ static bool config_tables_match(const struct intel_dp_link_caps_config_table *ta
 	if (table_a->max_lane_count != table_b->max_lane_count)
 		return false;
 
+	if (table_a->num_configs != table_b->num_configs)
+		return false;
+
 	if (memcmp(table_a->rates, table_b->rates,
 		   table_a->num_rates * sizeof(table_a->rates[0])))
+		return false;
+
+	if (memcmp(table_a->configs, table_b->configs,
+		   table_a->num_configs * sizeof(table_a->configs[0])))
 		return false;
 
 	return true;
