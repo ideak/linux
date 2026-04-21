@@ -1250,6 +1250,20 @@ intel_dp_128b132b_intra_hop(struct intel_dp *intel_dp,
 }
 
 /**
+ * link_recovery_autoretrain_pending - check for a pending automatic retraining
+ * @link_training: link training state
+ *
+ * Return:
+ * - %true  if automatic retraining is pending.
+ * - %false otherwise.
+ */
+static bool
+link_recovery_autoretrain_pending(struct intel_dp_link_training *link_training)
+{
+	return link_training->seq_train_failures == 1;
+}
+
+/**
  * intel_dp_stop_link_train - stop link training
  * @intel_dp: DP struct
  * @crtc_state: state for CRTC attached to the encoder
@@ -1290,7 +1304,7 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 
 	if (!display->hotplug.ignore_long_hpd &&
 	    link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES) {
-		int delay_ms = link_training->seq_train_failures == 1 ? 0 : 2000;
+		int delay_ms = link_recovery_autoretrain_pending(link_training) ? 0 : 2000;
 
 		intel_encoder_link_check_queue_work(encoder, delay_ms);
 	}
@@ -1991,7 +2005,7 @@ intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
 	if (link_training->seq_train_failures >= MAX_SEQ_TRAIN_FAILURES)
 		return false;
 
-	if (link_training->seq_train_failures == 1)
+	if (link_recovery_autoretrain_pending(link_training))
 		return true;
 
 	/* Retrain if link not ok */
