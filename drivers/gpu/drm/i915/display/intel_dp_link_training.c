@@ -1264,6 +1264,20 @@ link_recovery_autoretrain_pending(struct intel_dp_link_training *link_training)
 }
 
 /**
+ * link_recovery_autoretrain_allowed - check for an allowed automatic retraining
+ * @link_training: link training state
+ *
+ * Return:
+ * - %true  if automatic retraining is allowed.
+ * - %false otherwise.
+ */
+static bool
+link_recovery_autoretrain_allowed(struct intel_dp_link_training *link_training)
+{
+	return link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES;
+}
+
+/**
  * intel_dp_stop_link_train - stop link training
  * @intel_dp: DP struct
  * @crtc_state: state for CRTC attached to the encoder
@@ -1303,7 +1317,7 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 	intel_hpd_unblock(encoder);
 
 	if (!display->hotplug.ignore_long_hpd &&
-	    link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES) {
+	    link_recovery_autoretrain_allowed(link_training)) {
 		int delay_ms = link_recovery_autoretrain_pending(link_training) ? 0 : 2000;
 
 		intel_encoder_link_check_queue_work(encoder, delay_ms);
@@ -1830,7 +1844,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES)
+	if (link_recovery_autoretrain_allowed(link_training))
 		link_training->seq_train_failures++;
 
 	/*
@@ -1850,7 +1864,7 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (link_training->seq_train_failures < MAX_SEQ_TRAIN_FAILURES)
+	if (link_recovery_autoretrain_allowed(link_training))
 		return;
 
 	if (intel_dp_schedule_fallback_link_training(state, intel_dp, crtc_state))
@@ -2002,7 +2016,7 @@ intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
 					intel_dp->lane_count))
 		return false;
 
-	if (link_training->seq_train_failures >= MAX_SEQ_TRAIN_FAILURES)
+	if (!link_recovery_autoretrain_allowed(link_training))
 		return false;
 
 	if (link_recovery_autoretrain_pending(link_training))
