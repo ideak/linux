@@ -141,6 +141,15 @@ Hotplug
 .. kernel-doc:: drivers/gpu/drm/i915/display/intel_hotplug.c
    :internal:
 
+DisplayPort Link Training
+-------------------------
+
+.. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_training.c
+   :doc: DisplayPort link training
+
+.. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_training.c
+   :internal:
+
 High Definition Audio
 ---------------------
 
