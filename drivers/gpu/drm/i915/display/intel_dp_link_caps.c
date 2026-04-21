@@ -753,21 +753,17 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 	       intel_dp_link_config_rate(table, lc_b);
 }
 
-static bool current_common_caps_match(struct intel_dp_link_caps_config_table *table,
-				      const int *rates, int num_rates,
-				      int old_max_lane_count)
+static bool config_tables_match(const struct intel_dp_link_caps_config_table *table_a,
+				const struct intel_dp_link_caps_config_table *table_b)
 {
-	int current_max_lane_count = table->max_lane_count;
-	const int *current_rates = table->rates;
-	int num_current_rates = table->num_rates;
-
-	if (num_current_rates != num_rates)
+	if (table_a->num_rates != table_b->num_rates)
 		return false;
 
-	if (current_max_lane_count != old_max_lane_count)
+	if (table_a->max_lane_count != table_b->max_lane_count)
 		return false;
 
-	if (memcmp(current_rates, rates, num_rates * sizeof(rates[0])))
+	if (memcmp(table_a->rates, table_b->rates,
+		   table_a->num_rates * sizeof(table_a->rates[0])))
 		return false;
 
 	return true;
@@ -808,14 +804,12 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_caps_config_table *table =
 		&link_caps->config_table;
+	struct intel_dp_link_caps_config_table old_table;
 	struct intel_dp_link_config old_max_limits =
 		link_caps->max_limits;
-	int old_rates[DP_MAX_SUPPORTED_RATES];
 	struct intel_dp_link_config_entry *lc;
 	bool link_params_changed = false;
 	int num_common_lane_configs;
-	int old_max_lane_count;
-	int num_old_rates;
 	int i;
 	int j;
 
@@ -831,9 +825,7 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 				    ARRAY_SIZE(table->configs)))
 		return false;
 
-	num_old_rates = table->num_rates;
-	memcpy(old_rates, table->rates, num_old_rates * sizeof(old_rates[0]));
-	old_max_lane_count = table->max_lane_count;
+	old_table = *table;
 
 	memcpy(table->rates, rates, num_rates * sizeof(rates[0]));
 	table->num_rates = num_rates;
@@ -856,8 +848,7 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	       link_config_cmp_by_bw, NULL,
 	       table);
 
-	if (!current_common_caps_match(table, old_rates, num_old_rates,
-				       old_max_lane_count))
+	if (!config_tables_match(table, &old_table))
 		link_params_changed = true;
 
 	/*
