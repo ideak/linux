@@ -263,6 +263,31 @@ static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 	return allowed_mask;
 }
 
+/**
+ * intel_dp_link_caps_get_allowed_config_mask - get the currently allowed config mask
+ * @link_caps: link capabilities state
+ *
+ * Return:
+ * Mask of link configuration indices allowed after applying the current
+ * maximum link limits, and further narrowing them by any forced link
+ * parameters. The caller may further filter the returned mask before passing
+ * it to the for_each_dp_link_config() iterators.
+ *
+ * See also:
+ * - intel_dp_link_caps_set_max_limits()
+ * - intel_dp_link_caps_get_forced_params()
+ */
+u32 intel_dp_link_caps_get_allowed_config_mask(struct intel_dp_link_caps *link_caps)
+{
+	struct intel_dp_link_config forced_params;
+	u32 disabled_mask = 0;	/* get the mask from link_caps. */
+
+	intel_dp_link_caps_get_forced_params(link_caps, &forced_params);
+
+	return calc_allowed_config_mask(link_caps, disabled_mask,
+					&link_caps->max_limits, &forced_params);
+}
+
 static void set_max_link_limits_no_update(struct intel_dp_link_caps *link_caps,
 					  const struct intel_dp_link_config *max_link_limits)
 {
@@ -277,6 +302,100 @@ static void reset_max_link_limits_no_update(struct intel_dp_link_caps *link_caps
 	};
 
 	set_max_link_limits_no_update(link_caps, &max_link_limits);
+}
+
+static void reset_all_restrictions_no_update(struct intel_dp_link_caps *link_caps)
+{
+	reset_max_link_limits_no_update(link_caps);
+	link_caps->forced_params = INTEL_DP_LINK_CONFIG_NULL;
+}
+
+/*
+ * Compute the maximum link limits from the allowed configurations.
+ *
+ * The result reflects the maximum rate and lane count among the
+ * configurations currently allowed by link_caps, i.e. constrained by
+ * the currently stored max_limits, forced parameters. Since the
+ * allowed set depends on max_limits, the result can only be less
+ * than or equal to the current max_limits.
+ */
+static void compute_max_link_limits(struct intel_dp_link_caps *link_caps,
+				    struct intel_dp_link_config *max_link_limits)
+{
+	u32 allowed_mask = intel_dp_link_caps_get_allowed_config_mask(link_caps);
+	struct intel_dp_link_config max_config = {};
+	struct intel_dp_link_config link_config;
+	int config_idx;
+
+	for (config_idx = 0; config_idx < link_caps->num_configs; config_idx++) {
+		const struct intel_dp_link_config_entry *lc = &link_caps->configs[config_idx];
+
+		if (!(BIT(config_idx) & allowed_mask))
+			continue;
+
+		to_intel_dp_link_config(link_caps, lc, &link_config);
+
+		max_config.rate = max(max_config.rate,
+				      link_config.rate);
+		max_config.lane_count = max(max_config.lane_count,
+					    link_config.lane_count);
+	}
+
+	*max_link_limits = max_config;
+}
+
+/**
+ * update_max_link_limits - update max_limits to match the allowed configs
+ * @link_caps: link capabilities state
+ *
+ * Adjust the stored max_limits to the actual parameter bounds of the
+ * currently allowed configurations.
+ *
+ * The allowed configurations are already constrained by the stored
+ * max_limits and forced parameters. The recomputed max_limits is
+ * derived from that same set, so it can only be less than or equal to
+ * the stored max_limits.
+ *
+ * A %false return indicates an internal error (either the stored
+ * max_limits was below all allowed configurations, or
+ * compute_max_link_limits() returned a larger value). The caller must
+ * recover by removing all restrictions.
+ *
+ * Return:
+ * - %true  if max_limits was updated successfully.
+ * - %false if an internal error was detected.
+ */
+static bool update_max_link_limits(struct intel_dp_link_caps *link_caps)
+{
+	struct intel_display *display = to_intel_display(link_caps->dp);
+	struct intel_dp_link_config new_limits;
+
+	compute_max_link_limits(link_caps, &new_limits);
+
+	/* These should never happen for the reasons explained above. */
+	if (drm_WARN_ON(display->drm,
+			new_limits.rate == 0 ||
+			new_limits.lane_count == 0 ||
+			new_limits.rate > link_caps->max_limits.rate ||
+			new_limits.lane_count > link_caps->max_limits.lane_count))
+		return false;
+
+	link_caps->max_limits = new_limits;
+
+	return true;
+}
+
+static bool update_max_link_info(struct intel_dp_link_caps *link_caps)
+{
+	struct intel_display *display = to_intel_display(link_caps->dp);
+	bool limit_update_ok;
+
+	limit_update_ok = update_max_link_limits(link_caps);
+
+	if (drm_WARN_ON(display->drm, !limit_update_ok))
+		reset_all_restrictions_no_update(link_caps);
+
+	return limit_update_ok;
 }
 
 /**
@@ -450,7 +569,6 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	int num_common_lane_configs;
 	int old_max_lane_count;
 	int num_old_rates;
-	int len;
 	int i;
 	int j;
 
@@ -495,16 +613,15 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 				       old_max_lane_count))
 		link_params_changed = true;
 
-	/* TODO: Update these as part of the rest of max param updates. */
-	len = intel_dp_link_caps_common_len_rate_limit(link_caps, link_caps->max_limits.rate);
-	if (len > 0)
-		link_caps->max_limits.rate = intel_dp_link_caps_common_rate(link_caps, len - 1);
+	/*
+	 * A failure could be only due to a bug, the update function handles
+	 * that case by removing all restriction and resetting the max limit
+	 * to the sink's maximum bounds.
+	 */
+	update_max_link_info(link_caps);
 
 	if (link_caps->max_limits.rate != old_max_limits.rate)
 		link_params_changed = true;
-
-	link_caps->max_limits.lane_count = min(link_caps->max_limits.lane_count,
-					       max_lane_count);
 
 	if (link_caps->max_limits.lane_count != old_max_limits.lane_count)
 		link_params_changed = true;
