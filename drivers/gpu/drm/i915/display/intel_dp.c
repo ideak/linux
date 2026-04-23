@@ -355,15 +355,17 @@ static int intel_dp_max_common_lane_count(struct intel_dp *intel_dp)
 int intel_dp_max_lane_count(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits;
 	struct intel_dp_link_config forced_params;
 	int lane_count;
 
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
 	intel_dp_link_caps_get_forced_params(link_caps, &forced_params);
 
 	if (forced_params.lane_count)
 		lane_count = forced_params.lane_count;
 	else
-		lane_count = intel_dp->link.max_lane_count;
+		lane_count = max_link_limits.lane_count;
 
 	switch (lane_count) {
 	case 1:
@@ -1547,6 +1549,7 @@ int
 intel_dp_max_link_rate(struct intel_dp *intel_dp)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config max_link_limits;
 	struct intel_dp_link_config forced_params;
 
 	intel_dp_link_caps_get_forced_params(link_caps, &forced_params);
@@ -1554,7 +1557,9 @@ intel_dp_max_link_rate(struct intel_dp *intel_dp)
 	if (forced_params.rate)
 		return forced_params.rate;
 
-	return intel_dp->link.max_rate;
+	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
+
+	return max_link_limits.rate;
 }
 
 static int
