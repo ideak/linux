@@ -150,6 +150,18 @@ DisplayPort Link Training
 .. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_training.c
    :internal:
 
+DisplayPort Link Capabilities
+-----------------------------
+
+.. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_caps.c
+   :doc: DisplayPort link capabilities
+
+.. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_caps.h
+   :internal:
+
+.. kernel-doc:: drivers/gpu/drm/i915/display/intel_dp_link_caps.c
+   :internal:
+
 High Definition Audio
 ---------------------
 
