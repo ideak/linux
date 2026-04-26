@@ -18,6 +18,66 @@
 #include "intel_dp.h"
 #include "intel_dp_link_caps.h"
 
+/**
+ * DOC: DisplayPort link capabilities
+ *
+ * The Intel DP link caps API tracks the supported and allowed DP link
+ * configurations for a DP encoder and its attached connectors, and
+ * provides helpers to iterate, filter, disable, and constrain them.
+ *
+ * Locking:
+ *   All accesses to this API must be serialized. The only exception
+ *   is intel_dp_link_caps_get_max_limits(), which allow lockless
+ *   lookup. Such lookups may observe an out-of-sync &struct
+ *   intel_dp_link_config tuple, i.e. a rate from one state and a lane
+ *   count from another.
+ *
+ *   The Intel i915/xe drivers ensure the above serialization by holding
+ *   &drm_mode_config.connection_mutex and, while holding the lock,
+ *   flushing pending asynchronous atomic commits. This also allows use
+ *   of the API from the tails of asynchronous atomic commits, which
+ *   cannot hold the lock.
+ *
+ * Configuration indexing and iteration position:
+ *   A configuration index or mask always refers to the same
+ *   configuration or set of configurations across all API calls.
+ *
+ *   In contrast, an iteration position depends on the selected
+ *   configuration ordering (key and direction). Any mapping between
+ *   iteration positions and configuration indices is
+ *   ordering-dependent and not part of the API, and must not be relied
+ *   upon.
+ *
+ *   Configuration indices are not stable across
+ *   intel_dp_link_caps_update() calls. API users must not cache
+ *   configuration indices or masks across such updates.
+ *
+ *   The API also supports iterating configurations in ascending and
+ *   descending BW order, and in ascending and descending rate/lane order.
+ *   The for_each_dp_link_config*() helpers iterate configurations in
+ *   these orders.
+ *
+ * Terminology:
+ *   "Common link capabilities" (or "common caps") refer to the link
+ *   rates and maximum lane count supported by both the source and the
+ *   sink, i.e. the intersection of their respective capabilities.
+ *
+ *   "Supported configurations" are all configurations defined by the
+ *   common link capabilities' link rates and maximum lane count.
+ *
+ *   "Disabled configurations" are supported configurations disabled via
+ *   this API.
+ *
+ *   "Enabled configurations" are supported configurations that are not
+ *   disabled.
+ *
+ *   "Forced configurations" are enabled configurations forced via
+ *   debugfs.
+ *
+ *   "Allowed configurations" are the enabled configurations, or if
+ *   forcing is in effect the forced configurations, constrained by a
+ *   maximum rate and lane count set via the API.
+ */
 struct intel_dp_link_caps {
 	struct intel_dp *dp;
 
