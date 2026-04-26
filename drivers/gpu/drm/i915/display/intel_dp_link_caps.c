@@ -193,12 +193,17 @@ static int link_config_cmp_by_bw(const void *a, const void *b, const void *p)
 }
 
 static bool current_common_caps_match(struct intel_dp_link_caps *link_caps,
-				      const int *rates, int num_rates)
+				      const int *rates, int num_rates,
+				      int old_max_lane_count)
 {
+	int current_max_lane_count = link_caps->max_lane_count;
 	const int *current_rates = link_caps->rates;
 	int num_current_rates = link_caps->num_rates;
 
 	if (num_current_rates != num_rates)
+		return false;
+
+	if (current_max_lane_count != old_max_lane_count)
 		return false;
 
 	if (memcmp(current_rates, rates, num_rates * sizeof(rates[0])))
@@ -217,6 +222,7 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 	struct intel_dp_link_config_entry *lc;
 	bool link_params_changed = false;
 	int num_common_lane_configs;
+	int old_max_lane_count;
 	int num_old_rates;
 	int i;
 	int j;
@@ -235,6 +241,7 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 
 	num_old_rates = link_caps->num_rates;
 	memcpy(old_rates, link_caps->rates, num_old_rates * sizeof(old_rates[0]));
+	old_max_lane_count = link_caps->max_lane_count;
 
 	memcpy(link_caps->rates, rates, num_rates * sizeof(rates[0]));
 	link_caps->num_rates = num_rates;
@@ -257,10 +264,11 @@ bool intel_dp_link_caps_update(struct intel_dp *intel_dp,
 	       link_config_cmp_by_bw, NULL,
 	       intel_dp);
 
-	if (!current_common_caps_match(link_caps, old_rates, num_old_rates))
+	if (!current_common_caps_match(link_caps, old_rates, num_old_rates,
+				       old_max_lane_count))
 		link_params_changed = true;
 
-	/* TODO: Also detect a change in the max lane count and max link limits. */
+	/* TODO: Also detect a change in the max link limits. */
 	return link_params_changed;
 }
 
