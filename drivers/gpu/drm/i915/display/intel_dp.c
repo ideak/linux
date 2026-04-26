@@ -4758,7 +4758,6 @@ intel_dp_has_sink_count(struct intel_dp *intel_dp)
 void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 {
 	struct intel_connector *connector = intel_dp->attached_connector;
-	int old_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
 	int old_max_lane_count_limit = intel_dp->link.max_lane_count;
 	int current_max_common_lane_count;
 	bool link_params_changed = false;
@@ -4769,9 +4768,6 @@ void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 		link_params_changed = true;
 
 	current_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
-	if (current_max_common_lane_count != old_max_common_lane_count)
-		link_params_changed = true;
-
 	intel_dp->link.max_lane_count = min(intel_dp->link.max_lane_count,
 					    current_max_common_lane_count);
 
