@@ -734,6 +734,50 @@ int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_c
 					   link_config);
 }
 
+static int get_max_config(struct intel_dp_link_caps *link_caps,
+			  enum intel_dp_link_caps_config_order_key order_key,
+			  u32 config_mask,
+			  struct intel_dp_link_config *config)
+{
+	struct intel_display *display = to_intel_display(link_caps->dp);
+	struct intel_dp_link_caps_config_order order = {
+		.key = order_key,
+		.dir = INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_DESC
+	};
+	int config_idx;
+
+	for_each_dp_link_config_idx(link_caps, order, config_mask, config, &config_idx)
+		break;
+
+	drm_WARN_ON(display->drm, config_idx < 0);
+
+	return config_idx;
+}
+
+/**
+ * intel_dp_link_caps_get_max_config_idx - get the index of the maximum config
+ * @link_caps: link capabilities state
+ * @order_key: ordering key used to choose the maximum config
+ * @config_mask: mask of candidate configurations
+ *
+ * Find the maximum configuration from @config_mask according to @order_key.
+ *
+ * See also:
+ * - &enum intel_dp_link_caps_config_order_key
+ *
+ * Return:
+ * - Configuration index of the maximum matching configuration.
+ * - %-1 if no configuration is selected by @config_mask.
+ */
+int intel_dp_link_caps_get_max_config_idx(struct intel_dp_link_caps *link_caps,
+					  enum intel_dp_link_caps_config_order_key order_key,
+					  u32 config_mask)
+{
+	struct intel_dp_link_config config;
+
+	return get_max_config(link_caps, order_key, config_mask, &config);
+}
+
 static void set_max_link_limits_no_update(struct intel_dp_link_caps *link_caps,
 					  const struct intel_dp_link_config *max_link_limits)
 {

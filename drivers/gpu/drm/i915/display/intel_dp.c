@@ -2207,6 +2207,40 @@ static int align_max_compressed_bpp_x16(const struct intel_connector *connector,
 	}
 }
 
+static int
+intel_dp_get_connector_max_link_config_idx(struct intel_connector *connector,
+					   const struct link_config_limits *limits)
+{
+	struct intel_display *display = to_intel_display(connector);
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_caps_config_order order =
+		intel_dp_link_caps_config_order_for_connector(connector);
+	int config_idx;
+
+	config_idx = intel_dp_link_caps_get_max_config_idx(link_caps, order.key,
+							   limits->link_config_mask);
+	drm_WARN_ON(display->drm, config_idx < 0);
+
+	return config_idx;
+}
+
+bool
+intel_dp_get_connector_max_link_config(struct intel_connector *connector,
+				       const struct link_config_limits *limits,
+				       struct intel_dp_link_config *max_link_config)
+{
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	int config_idx;
+
+	config_idx = intel_dp_get_connector_max_link_config_idx(connector, limits);
+	if (config_idx < 0)
+		return false;
+
+	return intel_dp_link_caps_get_config_by_idx(link_caps, config_idx, max_link_config);
+}
+
 /*
  * Find the max compressed BPP we can find a link configuration for. The BPPs to
  * try depend on the source (platform) and sink.
@@ -2560,6 +2594,7 @@ intel_dp_compute_config_link_bpp_limits(struct intel_connector *connector,
 		&crtc_state->hw.adjusted_mode;
 	const struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	struct intel_dp_link_config max_link_config;
 	int max_link_bpp_x16;
 
 	max_link_bpp_x16 = min(crtc_state->max_link_bpp_x16,
@@ -2589,14 +2624,17 @@ intel_dp_compute_config_link_bpp_limits(struct intel_connector *connector,
 
 	limits->link.max_bpp_x16 = max_link_bpp_x16;
 
+	if (!intel_dp_get_connector_max_link_config(connector, limits, &max_link_config))
+		return false;
+
 	drm_dbg_kms(display->drm,
-		    "[ENCODER:%d:%s][CRTC:%d:%s] DP link limits: pixel clock %d kHz DSC %s max lanes %d max rate %d max pipe_bpp %d min link_bpp " FXP_Q4_FMT " max link_bpp " FXP_Q4_FMT "\n",
+		    "[ENCODER:%d:%s][CRTC:%d:%s] DP link limits: pixel clock %d kHz DSC %s max link %dx%d max pipe_bpp %d min link_bpp " FXP_Q4_FMT " max link_bpp " FXP_Q4_FMT "\n",
 		    encoder->base.base.id, encoder->base.name,
 		    crtc->base.base.id, crtc->base.name,
 		    adjusted_mode->crtc_clock,
 		    str_on_off(dsc),
-		    limits->max_lane_count,
-		    limits->max_rate,
+		    max_link_config.lane_count,
+		    max_link_config.rate,
 		    limits->pipe.max_bpp,
 		    FXP_Q4_ARGS(limits->link.min_bpp_x16),
 		    FXP_Q4_ARGS(limits->link.max_bpp_x16));
@@ -2647,10 +2685,15 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 			       struct link_config_limits *limits)
 {
 	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	bool is_mst = intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DP_MST);
 	struct intel_connector *connector =
 		to_intel_connector(conn_state->connector);
 
+	/*
+	 * Remove the following min/max rate and lane count setup, once
+	 * all users are converted to use link_config_mask instead.
+	 */
 	limits->min_rate = intel_dp_min_link_rate(intel_dp);
 	limits->max_rate = intel_dp_max_link_rate(intel_dp);
 
@@ -2658,6 +2701,8 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 
 	limits->min_lane_count = intel_dp_min_lane_count(intel_dp);
 	limits->max_lane_count = intel_dp_max_lane_count(intel_dp);
+
+	limits->link_config_mask = intel_dp_link_caps_get_allowed_config_mask(link_caps);
 
 	limits->pipe.min_bpp = intel_dp_min_bpp(crtc_state->output_format);
 	if (is_mst) {
@@ -2733,8 +2778,17 @@ intel_dp_compute_config_limits(struct intel_dp *intel_dp,
 		 * configuration, and typically on older panels these
 		 * values correspond to the native resolution of the panel.
 		 */
+		int max_config_idx;
+
 		limits->min_lane_count = limits->max_lane_count;
 		limits->min_rate = limits->max_rate;
+
+		max_config_idx = intel_dp_get_connector_max_link_config_idx(connector,
+									    limits);
+		if (max_config_idx < 0)
+			return false;
+
+		limits->link_config_mask = BIT(max_config_idx);
 	}
 
 	intel_dp_test_compute_config(intel_dp, crtc_state, limits);
