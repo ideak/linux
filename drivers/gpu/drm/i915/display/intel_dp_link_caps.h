@@ -173,7 +173,6 @@ intel_dp_link_caps_config_order_for_connector(struct intel_connector *connector)
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index);
 int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate);
 int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps);
-int intel_dp_link_caps_num_common_rates(struct intel_dp_link_caps *link_caps);
 void intel_dp_link_caps_all_common_rates(struct intel_dp_link_caps *link_caps,
 					 const int **rates, int *num_rates);
 
