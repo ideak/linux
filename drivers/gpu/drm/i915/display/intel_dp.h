@@ -22,11 +22,18 @@ struct intel_crtc_state;
 struct intel_digital_port;
 struct intel_display;
 struct intel_dp;
+struct intel_dp_link_config;
 struct intel_encoder;
 
 struct link_config_limits {
+	/*
+	 * Remove the following min/max rate and lane count limits
+	 * once all users are converted to use link_config_mask
+	 * instead.
+	 */
 	int min_rate, max_rate;
 	int min_lane_count, max_lane_count;
+	u32 link_config_mask;
 	struct {
 		/* Uncompressed DSC input or link output bpp in 1 bpp units */
 		int min_bpp, max_bpp;
@@ -138,6 +145,9 @@ int intel_dp_dsc_compute_max_bpp(const struct intel_connector *connector,
 				 u8 dsc_max_bpc);
 int intel_dp_compute_min_compressed_bpp_x16(struct intel_connector *connector,
 					    enum intel_output_format output_format);
+bool intel_dp_get_connector_max_link_config(struct intel_connector *connector,
+					    const struct link_config_limits *limits,
+					    struct intel_dp_link_config *max_link_config);
 bool intel_dp_mode_valid_with_dsc(struct intel_connector *connector,
 				  int link_clock, int lane_count,
 				  int mode_clock, int mode_hdisplay,
