@@ -170,6 +170,52 @@ struct intel_dp_link_caps {
 	struct intel_dp_link_config max_limits;
 };
 
+static enum intel_dp_link_caps_config_order_key
+order_key_for_connector(struct intel_connector *connector)
+{
+	if (connector->mst.dp)
+		return INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW;
+	else
+		return INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE;
+}
+
+static enum intel_dp_link_caps_config_order_direction
+order_dir_for_connector(struct intel_connector *connector)
+{
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+
+	if (connector->mst.dp || intel_dp->use_max_params)
+		return INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_DESC;
+	else
+		return INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC;
+}
+
+/**
+ * intel_dp_link_caps_config_order_for_connector - get config iteration order
+ * @connector: connector to get the iteration order for
+ *
+ * Return the configuration ordering to use for @connector.
+ *
+ * The returned order is suitable for the configuration iterators.
+ *
+ * See also:
+ *  - @for_each_dp_link_config()
+ *  - @for_each_dp_link_config_idx()
+ *
+ * Return:
+ * Configuration ordering for @connector.
+ */
+struct intel_dp_link_caps_config_order
+intel_dp_link_caps_config_order_for_connector(struct intel_connector *connector)
+{
+	struct intel_dp_link_caps_config_order order = {
+		.key = order_key_for_connector(connector),
+		.dir = order_dir_for_connector(connector)
+	};
+
+	return order;
+}
+
 static int lookup_rate(const struct intel_dp_link_caps_config_table *table, int index)
 {
 	if (WARN_ON(index < 0 || index >= table->num_rates))
@@ -373,6 +419,9 @@ get_table_config_by_pos(const struct intel_dp_link_caps_config_table *config_tab
 	switch (config_order.dir) {
 	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC:
 		break;
+	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_DESC:
+		iter_pos = config_table->num_configs - 1 - iter_pos;
+		break;
 	default:
 		MISSING_CASE(config_order.dir);
 
@@ -384,11 +433,19 @@ get_table_config_by_pos(const struct intel_dp_link_caps_config_table *config_tab
 		*config_idx = config_table->bw_order_map[iter_pos];
 
 		break;
+	case INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE:
+		*config_idx =
+			rate_lane_iter_pos_to_config_idx(iter_pos,
+							 config_table->max_lane_count);
+		break;
 	default:
 		MISSING_CASE(config_order.key);
 
 		goto out_fail;
 	}
+
+	if (*config_idx < 0)
+		goto out_fail;
 
 	to_intel_dp_link_config(config_table, *config_idx, config);
 

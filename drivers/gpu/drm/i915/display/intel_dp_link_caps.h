@@ -15,6 +15,8 @@ struct intel_dp_link_config;
  * enum intel_dp_link_caps_config_order_key - key used to order configurations
  * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW:
  *   Order configurations by bandwidth, then by link rate.
+ * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE:
+ *   Order configurations by link rate, then by lane count.
  * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_NUM:
  *   Number of ordering keys.
  *
@@ -27,6 +29,7 @@ struct intel_dp_link_config;
  */
 enum intel_dp_link_caps_config_order_key {
 	INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_BW,
+	INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE,
 
 	INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_NUM
 };
@@ -35,6 +38,8 @@ enum intel_dp_link_caps_config_order_key {
  * enum intel_dp_link_caps_config_order_direction - iteration direction
  * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC:
  *   Iterate in ascending order according to the selected ordering key.
+ * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_DESC:
+ *   Iterate in descending order according to the selected ordering key.
  * @INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_NUM:
  *   Number of ordering directions.
  *
@@ -46,6 +51,7 @@ enum intel_dp_link_caps_config_order_key {
  */
 enum intel_dp_link_caps_config_order_direction {
 	INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC,
+	INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_DESC,
 
 	INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_NUM
 };
@@ -62,6 +68,7 @@ enum intel_dp_link_caps_config_order_direction {
  * Describes an iteration order for link configurations.
  *
  * See also:
+ *  - intel_dp_link_caps_config_order_for_connector()
  *  - intel_dp_link_caps_get_config_by_pos()
  */
 struct intel_dp_link_caps_config_order {
@@ -88,6 +95,9 @@ enum intel_dp_link_caps_config_match_type {
 	INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT,
 	INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE,
 };
+
+struct intel_dp_link_caps_config_order
+intel_dp_link_caps_config_order_for_connector(struct intel_connector *connector);
 
 int intel_dp_link_caps_common_rate(struct intel_dp_link_caps *link_caps, int index);
 int intel_dp_link_caps_common_rate_idx(struct intel_dp_link_caps *link_caps, int rate);
