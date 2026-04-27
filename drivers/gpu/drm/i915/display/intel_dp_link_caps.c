@@ -205,6 +205,16 @@ struct intel_dp_link_caps {
 static_assert(BITS_PER_TYPE(u32) >=
 	      ARRAY_SIZE(((struct intel_dp_link_caps *)NULL)->config_table.bw_order_map));
 
+static struct intel_dp_link_caps_config_order rate_lane_asc_config_order(void)
+{
+	struct intel_dp_link_caps_config_order order = {
+		.key = INTEL_DP_LINK_CAPS_CONFIG_ORDER_KEY_RATE_LANE,
+		.dir = INTEL_DP_LINK_CAPS_CONFIG_ORDER_DIR_ASC
+	};
+
+	return order;
+}
+
 static enum intel_dp_link_caps_config_order_key
 order_key_for_connector(struct intel_connector *connector)
 {
@@ -498,17 +508,12 @@ static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 				    const struct intel_dp_link_config *max_limits,
 				    const struct intel_dp_link_config *forced_params)
 {
-	struct intel_dp_link_caps_config_table *table = &link_caps->config_table;
 	struct intel_dp_link_config config;
 	u32 allowed_mask = 0;
 	int config_idx;
 
-	for (config_idx = 0; config_idx < table->num_configs; config_idx++) {
-		if (BIT(config_idx) & disabled_config_mask)
-			continue;
-
-		to_intel_dp_link_config(table, config_idx, &config);
-
+	for_each_dp_link_config_idx(link_caps, rate_lane_asc_config_order(),
+				    ~disabled_config_mask, &config, &config_idx) {
 		if (forced_params->rate &&
 		    forced_params->rate != config.rate)
 			continue;
@@ -708,18 +713,12 @@ static void reset_all_restrictions_no_update(struct intel_dp_link_caps *link_cap
 static void compute_max_link_limits(struct intel_dp_link_caps *link_caps,
 				    struct intel_dp_link_config *max_link_limits)
 {
-	struct intel_dp_link_caps_config_table *table = &link_caps->config_table;
-	u32 allowed_mask = intel_dp_link_caps_get_allowed_config_mask(link_caps);
 	struct intel_dp_link_config max_config = {};
 	struct intel_dp_link_config link_config;
-	int config_idx;
 
-	for (config_idx = 0; config_idx < table->num_configs; config_idx++) {
-		if (!(BIT(config_idx) & allowed_mask))
-			continue;
-
-		to_intel_dp_link_config(table, config_idx, &link_config);
-
+	for_each_dp_link_config(link_caps, rate_lane_asc_config_order(),
+				intel_dp_link_caps_get_allowed_config_mask(link_caps),
+				&link_config) {
 		max_config.rate = max(max_config.rate,
 				      link_config.rate);
 		max_config.lane_count = max(max_config.lane_count,
