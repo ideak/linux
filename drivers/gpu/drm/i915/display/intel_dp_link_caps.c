@@ -501,6 +501,11 @@ out_fail:
 	return false;
 }
 
+static u32 config_table_all_mask(void)
+{
+	return GENMASK_U32(31, 0);
+}
+
 static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 				    u32 disabled_config_mask,
 				    const struct intel_dp_link_config *max_limits,
@@ -648,6 +653,22 @@ find_config_table_entry_pos(const struct intel_dp_link_caps_config_table *config
 	}
 
 	return -1;
+}
+
+static int
+find_config_table_entry_idx(const struct intel_dp_link_caps_config_table *config_table,
+			    u32 config_mask,
+			    enum intel_dp_link_caps_config_match_type match_type,
+			    const struct intel_dp_link_config *link_config)
+{
+	int iter_pos;
+
+	iter_pos = find_config_table_entry_pos(config_table, rate_lane_asc_config_order(),
+					       config_mask, match_type, link_config);
+	if (iter_pos < 0)
+		return iter_pos;
+
+	return rate_lane_iter_pos_to_config_idx(iter_pos, config_table->max_lane_count);
 }
 
 /**
@@ -977,6 +998,41 @@ static bool build_config_table(struct intel_display *display,
 	return true;
 }
 
+/*
+ * For each entry selected by @config_mask in @link_caps->config_table,
+ * look up the config with the same rate and lane count parameters in
+ * @new_table and return a mask of the matching entries there.
+ *
+ * Each bit in the returned mask indexes an entry in @new_table, so
+ * this effectively remaps @config_mask from @link_caps->config_table
+ * to @new_table.
+ */
+static u32
+remap_config_mask_to_table(struct intel_dp_link_caps *link_caps,
+			   u32 config_mask,
+			   const struct intel_dp_link_caps_config_table *new_table)
+{
+	struct intel_dp_link_config config;
+	u32 new_config_mask = 0;
+	int config_idx;
+
+	for_each_dp_link_config_idx(link_caps, rate_lane_asc_config_order(), config_mask,
+				    &config, &config_idx) {
+		int to_idx;
+
+		to_idx = find_config_table_entry_idx(new_table,
+						     config_table_all_mask(),
+						     INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT,
+						     &config);
+		if (to_idx < 0)
+			continue;
+
+		new_config_mask |= BIT(to_idx);
+	}
+
+	return new_config_mask;
+}
+
 /**
  * intel_dp_link_caps_update - rebuild the supported link configuration state
  * @link_caps: link capabilities state
@@ -1024,14 +1080,27 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	struct intel_dp_link_config old_max_limits =
 		link_caps->max_limits;
 	bool link_params_changed = false;
+	u32 new_disabled_mask = 0;
 
 	if (!build_config_table(display, rates, num_rates, max_lane_count, &new_table))
 		return false;
+
+	if (update_mode == INTEL_DP_LINK_CAPS_UPDATE_MERGE) {
+		/*
+		 * Get the currently disabled configs remapped to the new table,
+		 * before setting the new table.
+		 */
+		new_disabled_mask =
+			remap_config_mask_to_table(link_caps,
+						   link_caps->config_table.disabled_config_mask,
+						   &new_table);
+	}
 
 	if (!config_tables_match(&new_table, &link_caps->config_table))
 		link_params_changed = true;
 
 	link_caps->config_table = new_table;
+	link_caps->config_table.disabled_config_mask = new_disabled_mask;
 
 	if (update_mode == INTEL_DP_LINK_CAPS_UPDATE_RESET)
 		reset_max_link_limits_no_update(link_caps);
