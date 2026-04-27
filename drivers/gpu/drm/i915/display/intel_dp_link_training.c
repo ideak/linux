@@ -1834,6 +1834,7 @@ static int reduce_link_rate(struct intel_dp *intel_dp, int current_rate)
 	if (forced_params.rate)
 		return -1;
 
+	/* FIXME: Account for a non-nominal current_rate */
 	rate_index = intel_dp_link_caps_common_rate_idx(link_caps,
 							current_rate);
 
@@ -1863,28 +1864,76 @@ static int reduce_lane_count(struct intel_dp *intel_dp, int current_lane_count)
 	return current_lane_count >> 1;
 }
 
-static bool reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
-						  const struct intel_crtc_state *crtc_state,
-						  int *new_link_rate, int *new_lane_count)
+static bool __reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
+						    const struct intel_dp_link_config *old_config,
+						    struct intel_dp_link_config *new_config)
 {
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	int link_rate;
 	int lane_count;
 
-	lane_count = crtc_state->lane_count;
-	link_rate = reduce_link_rate(intel_dp, crtc_state->port_clock);
+	lane_count = old_config->lane_count;
+	link_rate = reduce_link_rate(intel_dp, old_config->rate);
 	if (link_rate < 0) {
-		lane_count = reduce_lane_count(intel_dp, crtc_state->lane_count);
+		lane_count = reduce_lane_count(intel_dp, old_config->lane_count);
 		link_rate = intel_dp_link_caps_max_common_rate(link_caps);
 	}
 
 	if (lane_count < 0)
 		return false;
 
-	*new_link_rate = link_rate;
-	*new_lane_count = lane_count;
+	new_config->rate = link_rate;
+	new_config->lane_count = lane_count;
 
 	return true;
+}
+
+static bool reduce_link_params_in_rate_lane_order(struct intel_dp *intel_dp,
+						  const struct intel_crtc_state *crtc_state,
+						  int *new_link_rate, int *new_lane_count)
+{
+	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config old_config = {
+		.rate = crtc_state->port_clock,
+		.lane_count = crtc_state->lane_count,
+	};
+
+	/*
+	 * Guaranteed to terminate: either the rate decreases, or the rate wraps
+	 * to maximum and the lane decreases, guaranteeing that the minimum
+	 * (rate, lane) combination is reached.
+	 */
+	for (;;) {
+		struct intel_dp_link_config target_config;
+
+		if (!__reduce_link_params_in_rate_lane_order(intel_dp,
+							     &old_config, &target_config))
+			return false;
+
+		if (drm_WARN_ON(display->drm,
+				target_config.rate >= old_config.rate &&
+				target_config.lane_count >= old_config.lane_count))
+			return false;
+
+		/*
+		 * Rate and lane count were reduced independently, so the
+		 * resulting tuple may not be enabled at all, and either
+		 * parameter may even lie outside the range of enabled
+		 * configs. The target returned above has already a nominal
+		 * rate, so require hare an exact match.
+		 */
+		if (intel_dp_link_caps_find_allowed_config_idx(link_caps,
+							       INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT,
+							       &target_config) >= 0) {
+			*new_link_rate = target_config.rate;
+			*new_lane_count = target_config.lane_count;
+
+			return true;
+		}
+
+		old_config = target_config;
+	}
 }
 
 static bool reduce_link_params(struct intel_dp *intel_dp, const struct intel_crtc_state *crtc_state,
