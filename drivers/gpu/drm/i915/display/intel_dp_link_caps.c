@@ -949,9 +949,18 @@ static bool build_config_table(struct intel_display *display,
  * @rates: supported common link rates
  * @num_rates: number of entries in @rates
  * @max_lane_count: supported maximum lane count
+ * @update_mode: update mode controlling reset vs. merge behavior
  *
  * Rebuild the supported link configuration state from @rates and
  * @max_lane_count.
+ *
+ * If @update_mode is %INTEL_DP_LINK_CAPS_UPDATE_RESET, reset the
+ * maximum link limits to the maximum supported rate and lane count, and
+ * re-enable all configurations.
+ *
+ * If @update_mode is %INTEL_DP_LINK_CAPS_UPDATE_MERGE, preserve the
+ * disabled state of configurations that were disabled before the update
+ * and are still present after it.
  *
  * Configuration indices are not stable across calls to this function, so
  * callers should not cache such indices and masks built from them across
@@ -972,7 +981,8 @@ static bool build_config_table(struct intel_display *display,
  * - %true if the supported link parameters have changed, %false otherwise.
  */
 bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
-			       const int *rates, int num_rates, int max_lane_count)
+			       const int *rates, int num_rates, int max_lane_count,
+			       enum intel_dp_link_caps_update_mode update_mode)
 {
 	struct intel_dp *intel_dp = link_caps->dp;
 	struct intel_display *display = to_intel_display(intel_dp);
@@ -988,6 +998,9 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 		link_params_changed = true;
 
 	link_caps->config_table = new_table;
+
+	if (update_mode == INTEL_DP_LINK_CAPS_UPDATE_RESET)
+		reset_max_link_limits_no_update(link_caps);
 
 	/*
 	 * A failure could be only due to a bug, the update function handles

@@ -96,6 +96,22 @@ enum intel_dp_link_caps_config_match_type {
 	INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE,
 };
 
+/**
+ * enum intel_dp_link_caps_update_mode - intel_dp_link_caps_update() mode
+ * @INTEL_DP_LINK_CAPS_UPDATE_RESET:
+ *	Reset max link limits and re-enable all configurations.
+ * @INTEL_DP_LINK_CAPS_UPDATE_MERGE:
+ *	Preserve the disabled state of configurations that remain present
+ *	after the update.
+ *
+ * Controls how intel_dp_link_caps_update() applies newly read sink
+ * capabilities to the existing link capability state.
+ */
+enum intel_dp_link_caps_update_mode {
+	INTEL_DP_LINK_CAPS_UPDATE_RESET,
+	INTEL_DP_LINK_CAPS_UPDATE_MERGE,
+};
+
 struct intel_dp_link_caps_config_order
 intel_dp_link_caps_config_order_for_connector(struct intel_connector *connector);
 
@@ -127,7 +143,8 @@ bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
 void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps);
 
 bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
-			       const int *rates, int num_rates, int max_lane_count);
+			       const int *rates, int num_rates, int max_lane_count,
+			       enum intel_dp_link_caps_update_mode update_mode);
 void intel_dp_link_caps_reset(struct intel_dp_link_caps *link_caps);
 
 void intel_dp_link_caps_debugfs_add(struct intel_connector *connector);
