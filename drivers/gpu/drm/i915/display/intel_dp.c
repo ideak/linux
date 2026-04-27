@@ -686,14 +686,21 @@ static void intel_dp_get_common_rates(struct intel_dp *intel_dp,
 /* Return %true if any supported or maximum link param changed. */
 static bool intel_dp_set_common_link_params(struct intel_dp *intel_dp)
 {
+	enum intel_dp_link_caps_update_mode update_mode =
+		INTEL_DP_LINK_CAPS_UPDATE_MERGE;
 	int num_common_rates;
 	int common_rates[DP_MAX_SUPPORTED_RATES];
 	bool link_params_changed = false;
 
 	intel_dp_get_common_rates(intel_dp, common_rates, &num_common_rates);
+
+	if (intel_dp->reset_link_params)
+		update_mode = INTEL_DP_LINK_CAPS_UPDATE_RESET;
+
 	if (intel_dp_link_caps_update(intel_dp->link.caps,
 				      common_rates, num_common_rates,
-				      intel_dp_max_common_lane_count(intel_dp)))
+				      intel_dp_max_common_lane_count(intel_dp),
+				      update_mode))
 		link_params_changed = true;
 
 	return link_params_changed;
