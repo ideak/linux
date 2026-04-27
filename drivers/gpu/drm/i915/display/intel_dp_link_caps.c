@@ -752,6 +752,27 @@ static int get_max_config(struct intel_dp_link_caps *link_caps,
 }
 
 /**
+ * intel_dp_link_caps_get_max_config - get the maximum config in a given order
+ * @link_caps: link capabilities state
+ * @order_key: ordering key used to rank candidate configurations
+ * @config_mask: mask of candidate configurations
+ * @max_config: returned maximum link configuration
+ *
+ * Find the last configuration from @config_mask in the iteration order
+ * selected by @order_key, and store it in @max_config.
+ *
+ * See also:
+ * - &enum intel_dp_link_caps_config_order_key
+ */
+void intel_dp_link_caps_get_max_config(struct intel_dp_link_caps *link_caps,
+				       enum intel_dp_link_caps_config_order_key order_key,
+				       u32 config_mask,
+				       struct intel_dp_link_config *max_config)
+{
+	get_max_config(link_caps, order_key, config_mask, max_config);
+}
+
+/**
  * intel_dp_link_caps_get_max_config_idx - get the index of the maximum config
  * @link_caps: link capabilities state
  * @order_key: ordering key used to choose the maximum config

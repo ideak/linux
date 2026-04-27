@@ -27,6 +27,7 @@ struct intel_dp_link_config;
  *
  * See also:
  *  - &struct intel_dp_link_caps_config_order
+ *  - intel_dp_link_caps_get_max_config()
  *  - intel_dp_link_caps_get_max_config_idx()
  */
 enum intel_dp_link_caps_config_order_key {
@@ -193,6 +194,9 @@ int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_c
 					       enum intel_dp_link_caps_config_match_type match_type,
 					       const struct intel_dp_link_config *config);
 
+void intel_dp_link_caps_get_max_config(struct intel_dp_link_caps *link_caps,
+				       enum intel_dp_link_caps_config_order_key order_key,
+				       u32 config_mask, struct intel_dp_link_config *config);
 int intel_dp_link_caps_get_max_config_idx(struct intel_dp_link_caps *link_caps,
 					  enum intel_dp_link_caps_config_order_key order_key,
 					  u32 config_mask);
