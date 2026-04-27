@@ -180,6 +180,9 @@ void intel_dp_link_caps_get_forced_params(struct intel_dp_link_caps *link_caps,
 					  struct intel_dp_link_config *forced_params);
 u32 intel_dp_link_caps_get_allowed_config_mask(struct intel_dp_link_caps *link_caps);
 
+bool intel_dp_link_caps_get_config_by_idx(struct intel_dp_link_caps *link_caps,
+					  int config_idx,
+					  struct intel_dp_link_config *config);
 bool
 intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 				     struct intel_dp_link_caps_config_order config_order,

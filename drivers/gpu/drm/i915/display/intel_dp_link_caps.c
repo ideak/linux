@@ -595,6 +595,42 @@ bool intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 				       config, config_idx);
 }
 
+static bool config_idx_is_valid(struct intel_dp_link_caps *link_caps, int config_idx)
+{
+	if (link_config_idx_to_rate_idx(config_idx) >=
+	    link_caps->config_table.num_rates)
+		return false;
+
+	if (link_config_idx_to_lane_count(config_idx) >
+	    link_caps->config_table.max_lane_count)
+		return false;
+
+	return true;
+}
+
+/**
+ * intel_dp_link_caps_get_config_by_idx - get config for a given config index
+ * @link_caps: link capabilities state
+ * @config_idx: configuration index to look up
+ * @config: returned link configuration
+ *
+ * Look up the link configuration identified by @config_idx.
+ *
+ * Return:
+ * - %true  if @config_idx is valid, storing the configuration in @config.
+ * - %false if @config_idx is invalid.
+ */
+bool intel_dp_link_caps_get_config_by_idx(struct intel_dp_link_caps *link_caps, int config_idx,
+					  struct intel_dp_link_config *config)
+{
+	if (!config_idx_is_valid(link_caps, config_idx))
+		return false;
+
+	to_intel_dp_link_config(&link_caps->config_table, config_idx, config);
+
+	return true;
+}
+
 static bool is_within_percent(int actual, int nominal, int percent)
 {
 	int diff = abs(actual - nominal);
@@ -714,9 +750,15 @@ static void reset_max_link_limits_no_update(struct intel_dp_link_caps *link_caps
 	set_max_link_limits_no_update(link_caps, &max_link_limits);
 }
 
+static void reset_max_link_limits_reenable_all_no_update(struct intel_dp_link_caps *link_caps)
+{
+	link_caps->config_table.disabled_config_mask = 0;
+	reset_max_link_limits_no_update(link_caps);
+}
+
 static void reset_all_restrictions_no_update(struct intel_dp_link_caps *link_caps)
 {
-	reset_max_link_limits_no_update(link_caps);
+	reset_max_link_limits_reenable_all_no_update(link_caps);
 	link_caps->forced_params = INTEL_DP_LINK_CONFIG_NULL;
 }
 
@@ -759,19 +801,40 @@ static void compute_max_link_limits(struct intel_dp_link_caps *link_caps,
  * derived from that same set, so it can only be less than or equal to
  * the stored max_limits.
  *
+ * In addition, configurations may be disabled, further constraining the
+ * allowed set.
+ *
+ * Although the allowed mask itself depends on max_limits, this update
+ * must not change the effective allowed set. The recomputed limits still
+ * cover every configuration that is currently allowed.
+ *
  * A %false return indicates an internal error (either the stored
  * max_limits was below all allowed configurations, or
  * compute_max_link_limits() returned a larger value). The caller must
  * recover by removing all restrictions.
  *
+ * A %false return may also indicate an invalid state, e.g. after a sink
+ * capability update removes rates or lane counts and leaves no allowed
+ * configuration. The caller must restore a state where at least one
+ * configuration is enabled (see sanitize_disallowed_config()).
+ *
  * Return:
  * - %true  if max_limits was updated successfully.
- * - %false if an internal error was detected.
+ * - %false if an internal error was detected or the state is invalid.
  */
 static bool update_max_link_limits(struct intel_dp_link_caps *link_caps)
 {
 	struct intel_display *display = to_intel_display(link_caps->dp);
+	u32 old_allowed_mask = intel_dp_link_caps_get_allowed_config_mask(link_caps);
 	struct intel_dp_link_config new_limits;
+
+	/*
+	 * If the stored max_limits is below all enabled and forced
+	 * configurations, the allowed mask is empty. Fail and let the caller
+	 * recover (see function documentation).
+	 */
+	if (!old_allowed_mask)
+		return false;
 
 	compute_max_link_limits(link_caps, &new_limits);
 
@@ -782,7 +845,24 @@ static bool update_max_link_limits(struct intel_dp_link_caps *link_caps)
 			new_limits.lane_count > link_caps->max_limits.lane_count))
 		return false;
 
+	/*
+	 * The allowed mask shouldn't have changed, since the bounds could
+	 * only get updated due to configs that were already disabled in the
+	 * old mask. So the new limit values will not disable any configs.
+	 */
 	link_caps->max_limits = new_limits;
+
+	/*
+	 * Updating max_limits above must not change the allowed mask.
+	 *
+	 * The old allowed mask is already constrained by the old stored max_limits.
+	 * Since the recomputed max_limits is derived from that same allowed set, it
+	 * cannot exclude any configuration that was previously allowed.
+	 */
+	if (drm_WARN_ON(display->drm,
+			old_allowed_mask !=
+			intel_dp_link_caps_get_allowed_config_mask(link_caps)))
+		return false;
 
 	return true;
 }
@@ -891,6 +971,34 @@ void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 	reset_max_link_limits_no_update(link_caps);
 	/* On failure the following removes all restrictions. */
 	update_max_link_info(link_caps);
+}
+
+static void enable_link_config_no_update(struct intel_dp_link_caps *link_caps, int config_idx)
+{
+	struct intel_display *display = to_intel_display(link_caps->dp);
+
+	if (drm_WARN_ON(display->drm, !config_idx_is_valid(link_caps, config_idx)))
+		return;
+
+	link_caps->config_table.disabled_config_mask &= ~BIT(config_idx);
+}
+
+static void sanitize_disallowed_config(struct intel_dp_link_caps *link_caps)
+{
+	struct intel_display *display = to_intel_display(link_caps->dp);
+	struct intel_dp_link_config min_link_config;
+
+	if (intel_dp_link_caps_get_allowed_config_mask(link_caps))
+		return;
+
+	drm_dbg_kms(display->drm,
+		    "No allowed link config left, force enable the minimum config\n");
+
+	if (!intel_dp_link_caps_get_config_by_idx(link_caps, 0, &min_link_config))
+		return;
+
+	enable_link_config_no_update(link_caps, 0);
+	reset_max_link_limits_no_update(link_caps);
 }
 
 static int intel_dp_link_config_bw(const struct intel_dp_link_config *link_config)
@@ -1105,6 +1213,8 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
 	if (update_mode == INTEL_DP_LINK_CAPS_UPDATE_RESET)
 		reset_max_link_limits_no_update(link_caps);
 
+	sanitize_disallowed_config(link_caps);
+
 	/*
 	 * A failure could be only due to a bug, the update function handles
 	 * that case by removing all restriction and resetting the max limit
@@ -1135,7 +1245,7 @@ bool intel_dp_link_caps_update(struct intel_dp_link_caps *link_caps,
  */
 void intel_dp_link_caps_reset(struct intel_dp_link_caps *link_caps)
 {
-	reset_max_link_limits_no_update(link_caps);
+	reset_max_link_limits_reenable_all_no_update(link_caps);
 	/* On failure the following removes all restrictions. */
 	update_max_link_info(link_caps);
 }
