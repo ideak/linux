@@ -4,6 +4,7 @@
 #ifndef __INTEL_DP_LINK_CAPS_H__
 #define __INTEL_DP_LINK_CAPS_H__
 
+#include <linux/bitops.h>
 #include <linux/types.h>
 
 struct intel_connector;
@@ -70,6 +71,8 @@ enum intel_dp_link_caps_config_order_direction {
  * See also:
  *  - intel_dp_link_caps_config_order_for_connector()
  *  - intel_dp_link_caps_get_config_by_pos()
+ *  - for_each_dp_link_config_idx()
+ *  - for_each_dp_link_config()
  */
 struct intel_dp_link_caps_config_order {
 	enum intel_dp_link_caps_config_order_key key;
@@ -111,6 +114,57 @@ enum intel_dp_link_caps_update_mode {
 	INTEL_DP_LINK_CAPS_UPDATE_RESET,
 	INTEL_DP_LINK_CAPS_UPDATE_MERGE,
 };
+
+/* Avoid "address is never NULL" warning in macro */
+static inline int *intel_dp_link_caps_first_non_null(int *p1, int *p2)
+{
+	return p1 ? p1 : p2;
+}
+
+/**
+ * for_each_dp_link_config_idx_iter - iterate selected configurations and indices
+ * @__link_caps:
+ *   &struct intel_dp_link_caps being queried
+ * @__iter_fn:
+ *   Iterator function called to get the config and config idx at a given
+ *   position
+ * @__config_order:
+ *   &struct intel_dp_link_caps_config_order describing the
+ *   iteration order
+ * @__config_mask:
+ *   mask of configuration indices to visit
+ * @__config:
+ *   pointer to &struct intel_dp_link_config filled for each match
+ * @__config_idx:
+ *   optional pointer to the configuration index
+ *
+ * Iterate the configurations selected by @__config_mask in the order described
+ * by @__config_order.
+ *
+ * The configuration mask uses the canonical configuration indexing shared by
+ * the whole API.
+ *
+ * This iterator calls intel_dp_link_caps_get_config_by_pos() internally, so the
+ * same locking rules apply: the caller must serialize iteration against
+ * concurrent updates and concurrent queries.
+ */
+#define for_each_dp_link_config_idx_iter(__link_caps, __iter_fn, __config_order, __config_mask, \
+					 __config, __config_idx) \
+	for (int __iter_pos = 0, \
+	     __iter_config_idx, \
+	     *__config_idx_p = intel_dp_link_caps_first_non_null((__config_idx), &(__iter_config_idx)); \
+	     (__iter_fn)((__link_caps), (__config_order), (__iter_pos), (__config), (__config_idx_p)); \
+	     (__iter_pos)++) \
+	     for_each_if((__config_mask) & BIT(*(__config_idx_p)))
+
+#define for_each_dp_link_config_idx(__link_caps, __config_order, __config_mask, \
+				    __config, __config_idx) \
+	for_each_dp_link_config_idx_iter(__link_caps, intel_dp_link_caps_get_config_by_pos, \
+					 __config_order, __config_mask, __config, __config_idx)
+
+#define for_each_dp_link_config(__link_caps, __config_order, __config_mask, __config) \
+	for_each_dp_link_config_idx((__link_caps), (__config_order), (__config_mask), \
+				    (__config), NULL)
 
 struct intel_dp_link_caps_config_order
 intel_dp_link_caps_config_order_for_connector(struct intel_connector *connector);
