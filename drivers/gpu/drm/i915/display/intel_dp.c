@@ -4876,9 +4876,15 @@ intel_dp_has_sink_count(struct intel_dp *intel_dp)
 
 void intel_dp_update_sink_caps(struct intel_dp *intel_dp)
 {
+	int current_max_common_lane_count;
+
 	intel_dp_set_sink_rates(intel_dp);
 	intel_dp_set_max_sink_lane_count(intel_dp);
 	intel_dp_set_common_rates(intel_dp);
+
+	current_max_common_lane_count = intel_dp_max_common_lane_count(intel_dp);
+	intel_dp->link.max_lane_count = min(intel_dp->link.max_lane_count,
+					    current_max_common_lane_count);
 }
 
 static bool
