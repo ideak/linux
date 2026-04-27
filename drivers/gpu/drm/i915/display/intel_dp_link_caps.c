@@ -1510,6 +1510,47 @@ static int i915_dp_max_lane_count_show(void *data, u64 *val)
 }
 DEFINE_DEBUGFS_ATTRIBUTE(i915_dp_max_lane_count_fops, i915_dp_max_lane_count_show, NULL, "%llu\n");
 
+static int intel_dp_allowed_link_configs_show(struct seq_file *m, void *data)
+{
+	struct intel_connector *connector = to_intel_connector(m->private);
+	struct intel_display *display = to_intel_display(connector);
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_dp_link_config link_config;
+	int err;
+	int i;
+
+	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
+	if (err)
+		return err;
+
+	intel_dp_flush_connector_commits(connector);
+
+	i = 0;
+	for_each_dp_link_config(link_caps,
+				intel_dp_link_caps_config_order_for_connector(connector),
+				intel_dp_link_caps_get_allowed_config_mask(link_caps),
+				&link_config) {
+		seq_printf(m, "%s%dx%d",
+			   i ? " " : "",
+			   link_config.lane_count, link_config.rate);
+		i++;
+	}
+
+	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
+
+	seq_putc(m, '\n');
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(intel_dp_allowed_link_configs);
+
+/**
+ * intel_dp_link_caps_debugfs_add - add link caps debugfs files for a connector
+ * @connector: connector to add the debugfs files for
+ *
+ * Add the link-capability debugfs files for a DP @connector.
+ */
 void intel_dp_link_caps_debugfs_add(struct intel_connector *connector)
 {
 	struct dentry *root = connector->base.debugfs_entry;
@@ -1529,6 +1570,9 @@ void intel_dp_link_caps_debugfs_add(struct intel_connector *connector)
 
 	debugfs_create_file("i915_dp_max_lane_count", 0444, root,
 			    connector, &i915_dp_max_lane_count_fops);
+
+	debugfs_create_file("intel_dp_allowed_link_configs", 0444, root,
+			    connector, &intel_dp_allowed_link_configs_fops);
 }
 
 /**
