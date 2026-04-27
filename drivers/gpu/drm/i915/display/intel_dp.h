@@ -26,13 +26,6 @@ struct intel_dp_link_config;
 struct intel_encoder;
 
 struct link_config_limits {
-	/*
-	 * Remove the following min/max rate and lane count limits
-	 * once all users are converted to use link_config_mask
-	 * instead.
-	 */
-	int min_rate, max_rate;
-	int min_lane_count, max_lane_count;
 	u32 link_config_mask;
 	struct {
 		/* Uncompressed DSC input or link output bpp in 1 bpp units */
