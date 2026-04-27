@@ -333,11 +333,6 @@ int intel_dp_link_caps_max_common_rate(struct intel_dp_link_caps *link_caps)
 	return intel_dp_link_caps_common_rate(link_caps, table->num_rates - 1);
 }
 
-int intel_dp_link_caps_num_common_rates(struct intel_dp_link_caps *link_caps)
-{
-	return link_caps->config_table.num_rates;
-}
-
 /**
  * intel_dp_link_caps_all_common_rates - get all common link rates
  * @link_caps: link capabilities state
