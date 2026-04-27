@@ -205,6 +205,8 @@ int intel_dp_link_caps_get_max_config_idx(struct intel_dp_link_caps *link_caps,
 					  enum intel_dp_link_caps_config_order_key order_key,
 					  u32 config_mask);
 
+bool intel_dp_link_caps_disable_config(struct intel_dp_link_caps *link_caps, int idx);
+
 void intel_dp_link_caps_get_max_limits(struct intel_dp_link_caps *link_caps,
 				       struct intel_dp_link_config *max_link_limits);
 bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
