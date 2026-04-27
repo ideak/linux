@@ -131,7 +131,39 @@ struct intel_dp_link_caps {
 		 * described above.
 		 */
 		u8 bw_order_map[INTEL_DP_MAX_LINK_CONFIGS];
+
+		/*
+		 * Mask of configurations disabled for the current sink
+		 * connection.
+		 *
+		 * Each bit corresponds to a configuration index in the
+		 * virtual configuration space. The same index space is used
+		 * by bw_order_map[] and all configuration masks, including
+		 * the allowed-configuration mask.
+		 *
+		 * Users disable configurations by setting bits in this mask.
+		 * Bits are cleared only internally in the following cases:
+		 * - sink disconnect
+		 * - forcing a link rate or lane count
+		 * - recovery from invalid/error cases that would otherwise
+		 *   leave no allowed configuration
+		 * - after intel_dp_link_caps_update(UPDATE_RESET) or
+		 *   intel_dp_link_caps_reset() is called
+		 *
+		 * In all these cases, all configurations are re-enabled.
+		 */
+		u32 disabled_config_mask;
 	} config_table;
+
+	/*
+	 * Allowed configurations are the supported configurations defined by
+	 * config_table.rates and config_table.max_lane_count, constrained by
+	 * config_table.disabled_config_mask and the forced_params and
+	 * max_limits values below.
+	 *
+	 * See intel_dp_link_caps_allowed_config_mask() for the mask of these
+	 * configurations.
+	 */
 
 	/*
 	 * Forced parameters requested via debugfs. Remains set across sink
@@ -169,6 +201,9 @@ struct intel_dp_link_caps {
 	 */
 	struct intel_dp_link_config max_limits;
 };
+/* Assert that config masks have enough bits. */
+static_assert(BITS_PER_TYPE(u32) >=
+	      ARRAY_SIZE(((struct intel_dp_link_caps *)NULL)->config_table.bw_order_map));
 
 static enum intel_dp_link_caps_config_order_key
 order_key_for_connector(struct intel_connector *connector)
@@ -511,7 +546,8 @@ static u32 calc_allowed_config_mask(struct intel_dp_link_caps *link_caps,
 u32 intel_dp_link_caps_get_allowed_config_mask(struct intel_dp_link_caps *link_caps)
 {
 	struct intel_dp_link_config forced_params;
-	u32 disabled_mask = 0;	/* get the mask from link_caps. */
+	u32 disabled_mask =
+		link_caps->config_table.disabled_config_mask;
 
 	intel_dp_link_caps_get_forced_params(link_caps, &forced_params);
 
@@ -778,7 +814,8 @@ static bool max_link_limits_valid(struct intel_dp_link_caps *link_caps,
 				  const struct intel_dp_link_config *max_link_limits)
 {
 	struct intel_dp_link_config forced_params;
-	u32 disabled_mask = 0;	/* get the mask from link_caps. */
+	u32 disabled_mask =
+		link_caps->config_table.disabled_config_mask;
 	u32 allowed_mask;
 
 	intel_dp_link_caps_get_forced_params(link_caps, &forced_params);
