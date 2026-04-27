@@ -445,7 +445,9 @@ static bool max_link_limits_valid(struct intel_dp_link_caps *link_caps,
  * @max_link_limits: new maximum link limits
  *
  * Set the current maximum rate and lane count limits to @max_link_limits,
- * constraining the set of allowed configurations.
+ * constraining the set of allowed configurations. Also update the derived
+ * max link information, including the stored max limits corresponding to
+ * @max_link_limits and the maximum bandwidth configuration.
  *
  * The new limits must not be below the currently active forced parameters
  * and must not exceed the previously set maximum limits.
@@ -456,8 +458,10 @@ static bool max_link_limits_valid(struct intel_dp_link_caps *link_caps,
  *
  * Return:
  * - %true  if the @link_caps cached max limits value got updated with
- *          @max_link_limits.
- * - %false if @max_link_limits is invalid.
+ *          @max_link_limits along with all the max link information.
+ * - %false if @max_link_limits is invalid, or if max link info update
+ *          fails due to an internal consistency issue, resetting all
+ *          limits and restrictions.
  */
 bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
 				       const struct intel_dp_link_config *max_link_limits)
@@ -470,7 +474,7 @@ bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
 
 	set_max_link_limits_no_update(link_caps, max_link_limits);
 
-	return true;
+	return update_max_link_info(link_caps);
 }
 
 /**
@@ -478,11 +482,13 @@ bool intel_dp_link_caps_set_max_limits(struct intel_dp_link_caps *link_caps,
  * @link_caps: link capabilities state
  *
  * Reset the current maximum link limits to the maximum supported common link
- * rate and lane count.
+ * rate and lane count, then update the derived maximum-link information
+ * accordingly.
  */
 void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 {
 	reset_max_link_limits_no_update(link_caps);
+	update_max_link_info(link_caps);
 }
 
 static int intel_dp_link_config_bw(struct intel_dp_link_caps *link_caps,
@@ -677,8 +683,12 @@ int intel_dp_link_config_index(struct intel_dp_link_caps *link_caps,
  */
 void intel_dp_link_caps_reset(struct intel_dp_link_caps *link_caps)
 {
-	/* TODO: Update the limits to account for forced params. */
 	reset_max_link_limits_no_update(link_caps);
+	/*
+	 * On failure the following removes any remaining restrictions
+	 * including forced link params.
+	 */
+	update_max_link_info(link_caps);
 }
 
 static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
