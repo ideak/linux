@@ -28,13 +28,66 @@ void intel_dp_test_reset(struct intel_dp *intel_dp)
 	memset(&intel_dp->compliance, 0, sizeof(intel_dp->compliance));
 }
 
+static u32 find_link_configs_for_lane_count(struct intel_connector *connector,
+					    struct intel_dp_link_caps *link_caps,
+					    const struct link_config_limits *limits,
+					    int lane_count)
+{
+	struct intel_dp_link_config link_config;
+	struct intel_dp_link_caps_config_order order =
+		intel_dp_link_caps_config_order_for_connector(connector);
+	int link_config_idx;
+	u32 mask = 0;
+
+	for_each_dp_link_config_idx(link_caps, order, limits->link_config_mask,
+				    &link_config, &link_config_idx) {
+		if (link_config.lane_count == lane_count)
+			mask |= BIT(link_config_idx);
+	}
+
+	return mask;
+}
+
+static u32 find_test_link_configs(struct intel_connector *connector,
+				  struct intel_dp_link_caps *link_caps,
+				  const struct link_config_limits *limits,
+				  const struct intel_dp_link_config *link_params)
+{
+	u32 mask = 0;
+	int idx;
+
+	idx = intel_dp_link_caps_find_allowed_config_idx(link_caps,
+							 INTEL_DP_LINK_CAPS_CONFIG_MATCH_EXACT,
+							 link_params);
+
+	/* Preserve the legacy behavior: if the requested (rate, lane_count)
+	 * combination is not an allowed config, fall back to all configs
+	 * matching the requested lane count.
+	 *
+	 * TODO: Recheck whether this behavior is actually correct.
+	 */
+	if (idx >= 0 && (limits->link_config_mask & BIT(idx)))
+		mask = BIT(idx);
+	else
+		mask = find_link_configs_for_lane_count(connector, link_caps,
+							limits,
+							link_params->lane_count);
+
+	return mask;
+
+}
+
 /* Adjust link config limits based on compliance test requests. */
-void intel_dp_test_compute_config(struct intel_dp *intel_dp,
+bool intel_dp_test_compute_config(struct intel_connector *connector,
 				  struct intel_crtc_state *pipe_config,
 				  struct link_config_limits *limits)
 {
+	struct intel_dp *intel_dp = intel_attached_dp(connector);
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
 	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_dp_link_config requested_config;
+	u32 requested_config_mask;
 
 	/* For DP Compliance we override the computed bpp for the pipe */
 	if (intel_dp->compliance.test_data.bpc != 0) {
@@ -48,24 +101,29 @@ void intel_dp_test_compute_config(struct intel_dp *intel_dp,
 	}
 
 	/* Use values requested by Compliance Test Request */
-	if (intel_dp->compliance.test_type == DP_TEST_LINK_TRAINING) {
-		int index;
+	if (intel_dp->compliance.test_type != DP_TEST_LINK_TRAINING)
+		return true;
 
-		/* Validate the compliance test data since max values
-		 * might have changed due to link train fallback.
-		 */
-		if (intel_dp_link_params_valid(intel_dp, intel_dp->compliance.test_link_rate,
-					       intel_dp->compliance.test_lane_count)) {
-			index = intel_dp_link_caps_common_rate_idx(link_caps,
-								   intel_dp->compliance.test_link_rate);
-			if (index >= 0) {
-				limits->min_rate = intel_dp->compliance.test_link_rate;
-				limits->max_rate = intel_dp->compliance.test_link_rate;
-			}
-			limits->min_lane_count = intel_dp->compliance.test_lane_count;
-			limits->max_lane_count = intel_dp->compliance.test_lane_count;
-		}
+	requested_config.rate = intel_dp->compliance.test_link_rate;
+	requested_config.lane_count = intel_dp->compliance.test_lane_count;
+
+	requested_config_mask = find_test_link_configs(connector, link_caps,
+						       limits,
+						       &requested_config);
+
+	if (requested_config_mask == 0) {
+		drm_dbg_kms(display->drm,
+			    "[ENCODER:%d:%s] Invalid autotest link config parameters: %dx%d\n",
+			    encoder->base.base.id, encoder->base.name,
+			    requested_config.lane_count,
+			    requested_config.rate);
+
+		return false;
 	}
+
+	limits->link_config_mask = requested_config_mask;
+
+	return true;
 }
 
 /* Compliance test status bits  */

@@ -703,6 +703,29 @@ find_config_table_entry_idx(const struct intel_dp_link_caps_config_table *config
 }
 
 /**
+ * intel_dp_link_caps_find_allowed_config_idx - find index of matching allowed config
+ * @link_caps: link capabilities state
+ * @match_type: requested match type
+ * @link_config: link configuration to match
+ *
+ * Search the currently allowed link configurations for a match to
+ * @link_config.
+ *
+ * Return:
+ * * Index of the first matching allowed configuration.
+ * * %-1 if no allowed configuration matches.
+ */
+int intel_dp_link_caps_find_allowed_config_idx(struct intel_dp_link_caps *link_caps,
+					       enum intel_dp_link_caps_config_match_type match_type,
+					       const struct intel_dp_link_config *link_config)
+{
+	return find_config_table_entry_idx(&link_caps->config_table,
+					   intel_dp_link_caps_get_allowed_config_mask(link_caps),
+					   match_type,
+					   link_config);
+}
+
+/**
  * intel_dp_link_caps_find_allowed_config_pos - find matching allowed config position
  * @link_caps: link capabilities state
  * @config_order: iteration order

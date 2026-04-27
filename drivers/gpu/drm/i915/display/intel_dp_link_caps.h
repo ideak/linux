@@ -92,7 +92,8 @@ struct intel_dp_link_caps_config_order {
  *   supported nominal link rate.
  *
  * Selects how
- * intel_dp_link_caps_find_allowed_config_pos() matches
+ * intel_dp_link_caps_find_allowed_config_pos() and
+ * intel_dp_link_caps_find_allowed_config_idx() match
  * the requested &struct intel_dp_link_config against the currently
  * allowed configurations.
  */
@@ -189,6 +190,9 @@ intel_dp_link_caps_get_config_by_pos(struct intel_dp_link_caps *link_caps,
 				     struct intel_dp_link_caps_config_order config_order,
 				     int iter_pos,
 				     struct intel_dp_link_config *config, int *config_idx);
+int intel_dp_link_caps_find_allowed_config_idx(struct intel_dp_link_caps *link_caps,
+					       enum intel_dp_link_caps_config_match_type match_type,
+					       const struct intel_dp_link_config *config);
 int intel_dp_link_caps_find_allowed_config_pos(struct intel_dp_link_caps *link_caps,
 					       struct intel_dp_link_caps_config_order order,
 					       enum intel_dp_link_caps_config_match_type match_type,
