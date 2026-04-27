@@ -17,6 +17,8 @@
 #include "intel_connector.h"
 #include "intel_display_core.h"
 #include "intel_display_types.h"
+#include "intel_dp_link_caps.h"
+#include "intel_dp_link_training.h"
 
 struct test_ctx {
 	struct {
@@ -29,6 +31,9 @@ struct test_ctx {
 
 		struct intel_crtc_state crtc_state;
 	} dev;
+
+	const struct intel_dp_link_caps_test_ops *link_caps_ops;
+	const struct intel_dp_link_training_test_ops *link_training_ops;
 
 	struct rnd_state rnd;
 };
@@ -61,6 +66,8 @@ static int intel_dp_link_test_init(struct kunit *test)
 	test_ctx.dev.connector.encoder = encoder;
 	test_ctx.dev.dp.attached_connector = &test_ctx.dev.connector;
 
+	test_ctx.dev.dp.link.caps = test_ctx.link_caps_ops->init(&test_ctx.dev.dp);
+
 	test->priv = &test_ctx;
 
 	return 0;
@@ -68,10 +75,20 @@ static int intel_dp_link_test_init(struct kunit *test)
 
 static void intel_dp_link_test_exit(struct kunit *test)
 {
+	struct test_ctx *ctx = test->priv;
+
+	ctx->link_caps_ops->cleanup(ctx->dev.dp.link.caps);
 }
 
 static int intel_dp_link_test_suite_init(struct kunit_suite *test_suite)
 {
+#ifdef I915
+	test_ctx.link_caps_ops = &i915_display_dp_link_caps_test_ops;
+	test_ctx.link_training_ops = &i915_display_dp_link_training_test_ops;
+#else
+	test_ctx.link_caps_ops = &intel_display_dp_link_caps_test_ops;
+	test_ctx.link_training_ops = &intel_display_dp_link_training_test_ops;
+#endif
 	prandom_seed_state(&test_ctx.rnd, 0);
 
 	return 0;
