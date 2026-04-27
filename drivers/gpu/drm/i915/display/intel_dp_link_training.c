@@ -1950,8 +1950,14 @@ static bool reduce_link_params(struct intel_dp *intel_dp, const struct intel_crt
 static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 						   const struct intel_crtc_state *crtc_state)
 {
+	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_dp_link_caps *link_caps = intel_dp->link.caps;
 	struct intel_dp_link_config max_link_limits;
+	struct intel_dp_link_config current_config = {
+		.rate = crtc_state->port_clock,
+		.lane_count = crtc_state->lane_count,
+	};
+	int current_config_idx;
 	int new_link_rate;
 	int new_lane_count;
 	int err = -1;
@@ -1962,6 +1968,13 @@ static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 		intel_dp->use_max_params = true;
 		return 0;
 	}
+
+	current_config_idx =
+		intel_dp_link_caps_find_allowed_config_idx(link_caps,
+							   INTEL_DP_LINK_CAPS_CONFIG_MATCH_FUZZY_RATE,
+							   &current_config);
+	if (drm_WARN_ON(display->drm, current_config_idx < 0))
+		return -1;
 
 	/*
 	 * Temporarily reset the max link limit before selecting the fallback
@@ -1980,6 +1993,13 @@ static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 	intel_dp_link_caps_get_max_limits(link_caps, &max_link_limits);
 	intel_dp_link_caps_reset_max_limits(link_caps);
 
+	/*
+	 * TODO: Make fallback depend only on disabling the current config,
+	 * once max_limit no longer constrains the allowed config set. Then
+	 * disabling the current config will define the allowed configs for
+	 * the subsequent modeset, so there will be no need to select a
+	 * reduced config separately here.
+	 */
 	if (!reduce_link_params(intel_dp, crtc_state, &new_link_rate, &new_lane_count))
 		goto out_restore_max_limits;
 
@@ -1992,6 +2012,15 @@ static int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 
 		goto out_restore_max_limits;
 	}
+
+	/*
+	 * Shouldn't fail: the current config was enabled, and reducing the
+	 * link parameters should still leave the fallback config allowed.
+	 *
+	 * On failure the helper resets all limits and re-enables all configs.
+	 */
+	if (!intel_dp_link_caps_disable_config(link_caps, current_config_idx))
+		return -1;
 
 	lt_dbg(intel_dp, DP_PHY_DPRX,
 	       "Reducing link parameters from %dx%d to %dx%d\n",

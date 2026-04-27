@@ -1060,6 +1060,35 @@ void intel_dp_link_caps_reset_max_limits(struct intel_dp_link_caps *link_caps)
 	update_max_link_info(link_caps);
 }
 
+/**
+ * intel_dp_link_caps_disable_config - disable a configuration
+ * @link_caps: link capabilities state
+ * @config_idx: configuration index to disable
+ *
+ * Disable the configuration identified by @config_idx and update the derived
+ * maximum-link information accordingly. This removes the configuration from
+ * the set of allowed configurations.
+ *
+ * The configuration remains disallowed until intel_dp_link_caps_reset() is
+ * called, which normally happens after a connector disconnect, or until some
+ * error condition triggers recovery because the set of allowed
+ * configurations would otherwise become empty.
+ *
+ * Return:
+ * - %true  if @config_idx was valid and the derived state was updated.
+ * - %false if @config_idx was invalid or the derived state could not be
+ *   updated.
+ */
+bool intel_dp_link_caps_disable_config(struct intel_dp_link_caps *link_caps, int config_idx)
+{
+	if (!config_idx_is_valid(link_caps, config_idx))
+		return false;
+
+	link_caps->config_table.disabled_config_mask |= BIT(config_idx);
+
+	return update_max_link_info(link_caps);
+}
+
 static void enable_link_config_no_update(struct intel_dp_link_caps *link_caps, int config_idx)
 {
 	struct intel_display *display = to_intel_display(link_caps->dp);
