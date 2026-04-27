@@ -1,0 +1,36 @@
+drm drm-fixes 254f49634ee16a731174d2ae34bc50bd5f45e731
+	Linux 7.1-rc1
+drm-misc drm-misc-fixes 5dfd429591f8d7185bf63a08b5c30863fb605611
+	drm/imagination: Fix segfault when updating ftrace mask
+drm-rust drm-rust-fixes 15e8bae5d930c91b8739a87d75db0a6efca3cb32
+	MAINTAINERS: nova: update mailing list
+drm-intel drm-intel-fixes 254f49634ee16a731174d2ae34bc50bd5f45e731
+	Linux 7.1-rc1
+drm-xe drm-xe-fixes 028ef9c96e96197026887c0f092424679298aae8
+	Linux 7.0
+drm drm-next 254f49634ee16a731174d2ae34bc50bd5f45e731
+	Linux 7.1-rc1
+drm-misc drm-misc-next-fixes f6c73e7156b54d8b9ddf1a27f4e93d3a1e49a73e
+	drm: rcar-du: Fix crash when no CMM is available
+drm-intel drm-intel-next-fixes 314f6179e370988ac00dadf373a4f6166eb3db15
+	drm/i915/psr: Init variable to avoid early exit from et alignment loop
+drm-xe drm-xe-next-fixes 6de23f81a5e08be8fbf5e8d7e9febc72a5b5f27f
+	Linux 7.0-rc1
+drm-misc drm-misc-next e22bb770b01dc65c29553013e6278a84fc3c3d73
+	accel/amdxdna: Add configuring low and medium power mode
+drm-rust drm-rust-next d9a6809478f9815b6455a327aa001737ac7b2c09
+	drm/tyr: Add DOORBELL_BLOCK registers
+drm-intel drm-intel-next 28ecf45468514483131f1ba411c0fb6c94580f1a
+	drm/i915/dp: Change drm_err to drm_dbg_kms
+drm-intel drm-intel-gt-next f6d4afc9ec6a0bc326151b35a7a3369369180079
+	drm/i915/gem: Drop check for changed VM in EXECBUF
+drm-xe drm-xe-next 8954033df47864e255aa0c5a3fc10a60f73325af
+	drm/xe: Mark BCS engines as belonging to the GT forcewake domain
+drm-intel topic/core-for-CI 3d15d7e81d498d56ca6ba3af63f2fa1106da87ad
+	ACPI: PM: s2idle: Add module parameter for LPS0 constraints checking
+drm-xe topic/xe-for-CI bd9ef8d19f9e9ff47518ce48fb2002d58bfeeaaa
+	drm/xe/nvlp: Define GuC firmware for NVL-P
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
+drm-intel topic/pipe-reorder 2c683e9b419328da3433a49f7c467da71aaf0469
+	drm/i915/display: change pipe allocation order for discrete platforms
