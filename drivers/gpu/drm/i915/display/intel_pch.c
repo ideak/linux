@@ -178,10 +178,13 @@ intel_pch_type(const struct intel_display *display, unsigned short id)
 		/* CMP-V is based on KBP, which is SPT compatible */
 		return PCH_SPT;
 	case INTEL_PCH_ICP_DEVICE_ID_TYPE:
-	case INTEL_PCH_ICP2_DEVICE_ID_TYPE:
 		drm_dbg_kms(display->drm, "Found Ice Lake PCH\n");
 		drm_WARN_ON(display->drm, !display->platform.icelake);
 		return PCH_ICP;
+	case INTEL_PCH_ICP2_DEVICE_ID_TYPE:
+		drm_dbg_kms(display->drm, "Found Ice Lake-N PCH (ICP-N)\n");
+		drm_WARN_ON(display->drm, !display->platform.icelake);
+		return PCH_ICP_N;
 	case INTEL_PCH_MCC_DEVICE_ID_TYPE:
 		drm_dbg_kms(display->drm, "Found Mule Creek Canyon PCH\n");
 		drm_WARN_ON(display->drm, !(display->platform.jasperlake ||

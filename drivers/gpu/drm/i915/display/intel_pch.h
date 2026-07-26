@@ -24,6 +24,7 @@ enum intel_pch {
 	PCH_SPT,        /* Sunrisepoint/Kaby Lake PCH */
 	PCH_CNP,        /* Cannon/Comet Lake PCH */
 	PCH_ICP,	/* Ice Lake/Jasper Lake PCH */
+	PCH_ICP_N,
 	PCH_TGP,	/* Tiger Lake/Mule Creek Canyon PCH */
 	PCH_ADP,	/* Alder Lake PCH */
 
@@ -40,6 +41,7 @@ enum intel_pch {
 #define HAS_PCH_DG1(display)			(INTEL_PCH_TYPE(display) == PCH_DG1)
 #define HAS_PCH_TGP(display)			(INTEL_PCH_TYPE(display) == PCH_TGP)
 #define HAS_PCH_ICP(display)			(INTEL_PCH_TYPE(display) == PCH_ICP)
+#define HAS_PCH_ICP_N(display)			(INTEL_PCH_TYPE(display) == PCH_ICP_N)
 #define HAS_PCH_CNP(display)			(INTEL_PCH_TYPE(display) == PCH_CNP)
 #define HAS_PCH_SPT(display)			(INTEL_PCH_TYPE(display) == PCH_SPT)
 #define HAS_PCH_LPT_H(display)			(INTEL_PCH_TYPE(display) == PCH_LPT_H)
