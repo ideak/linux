@@ -5038,8 +5038,19 @@ static enum hpd_pin rkl_hpd_pin(struct intel_display *display, enum port port)
 		return HPD_PORT_A + port - PORT_A;
 }
 
+static enum hpd_pin icp_n_hpd_pin(struct intel_display *display, enum port port)
+{
+	if (port >= PORT_C)
+		return HPD_PORT_B + port - PORT_C;
+	else
+		return HPD_PORT_A + port - PORT_A;
+}
+
 static enum hpd_pin icl_hpd_pin(struct intel_display *display, enum port port)
 {
+	if (HAS_PCH_ICP_N(display))
+		return icp_n_hpd_pin(display, port);
+
 	if (port >= PORT_C)
 		return HPD_PORT_TC1 + port - PORT_C;
 	else
