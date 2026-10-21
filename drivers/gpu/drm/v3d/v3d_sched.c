@@ -312,6 +312,12 @@ v3d_tfu_job_run(struct drm_sched_job *sched_job)
 	if (v3d->ver >= V3D_GEN_71) {
 		V3D_WRITE(V3D_V7_TFU_IOC, job->args.v71.ioc);
 
+		if (V3D_GET_FIELD(job->args.icfg, V3D_V7_TFU_ICFG_IFORMAT) ==
+		    V3D_V7_TFU_ICFG_IFORMAT_CONSTANT_COLOUR) {
+			for (int i = 0; i < 4; i++)
+				V3D_WRITE(V3D_TFU_CCOLX(i), job->args.v71.ccol[i]);
+		}
+
 		if (V3D_GET_FIELD(job->args.icfg, V3D_V7_TFU_ICFG_YVCS_RGBP) ==
 		    V3D_V7_TFU_ICFG_YVCS_RGBP_USER_INPUT) {
 			for (int i = 0; i < 4; i++)
