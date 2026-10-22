@@ -501,19 +501,19 @@ static void i9xx_pipe_crc_irq_handler(struct intel_display *display,
 	u32 res1, res2;
 
 	if (DISPLAY_VER(display) >= 3)
-		res1 = intel_de_read(display, PIPE_CRC_RES_RES1_I915(display, pipe));
+		res1 = intel_de_read_fw(display, PIPE_CRC_RES_RES1_I915(display, pipe));
 	else
 		res1 = 0;
 
 	if (DISPLAY_VER(display) >= 5 || display->platform.g4x)
-		res2 = intel_de_read(display, PIPE_CRC_RES_RES2_G4X(display, pipe));
+		res2 = intel_de_read_fw(display, PIPE_CRC_RES_RES2_G4X(display, pipe));
 	else
 		res2 = 0;
 
 	display_pipe_crc_irq_handler(display, pipe,
-				     intel_de_read(display, PIPE_CRC_RES_RED(display, pipe)),
-				     intel_de_read(display, PIPE_CRC_RES_GREEN(display, pipe)),
-				     intel_de_read(display, PIPE_CRC_RES_BLUE(display, pipe)),
+				     intel_de_read_fw(display, PIPE_CRC_RES_RED(display, pipe)),
+				     intel_de_read_fw(display, PIPE_CRC_RES_GREEN(display, pipe)),
+				     intel_de_read_fw(display, PIPE_CRC_RES_BLUE(display, pipe)),
 				     res1, res2);
 }
 
@@ -577,7 +577,7 @@ static void i9xx_pipestat_irq_ack(struct intel_display *display,
 			continue;
 
 		reg = PIPESTAT(display, pipe);
-		pipe_stats[pipe] = intel_de_read(display, reg) & status_mask;
+		pipe_stats[pipe] = intel_de_read_fw(display, reg) & status_mask;
 		enable_mask = i915_pipestat_enable_mask(display, pipe);
 
 		/*
@@ -590,8 +590,8 @@ static void i9xx_pipestat_irq_ack(struct intel_display *display,
 		 * an interrupt is still pending.
 		 */
 		if (pipe_stats[pipe]) {
-			intel_de_write(display, reg, pipe_stats[pipe]);
-			intel_de_write(display, reg, enable_mask);
+			intel_de_write_fw(display, reg, pipe_stats[pipe]);
+			intel_de_write_fw(display, reg, enable_mask);
 		}
 	}
 	spin_unlock(&display->irq.lock);
@@ -1893,7 +1893,7 @@ static void vlv_page_table_error_irq_ack(struct intel_display *display, u32 *dpi
 {
 	u32 status, enable, tmp;
 
-	tmp = intel_de_read(display, DPINVGTT);
+	tmp = intel_de_read_fw(display, DPINVGTT);
 
 	enable = tmp >> 16;
 	status = tmp & 0xffff;
@@ -1909,8 +1909,8 @@ static void vlv_page_table_error_irq_ack(struct intel_display *display, u32 *dpi
 	enable &= ~status;
 
 	/* customary ack+disable then re-enable to guarantee an edge */
-	intel_de_write(display, DPINVGTT, status);
-	intel_de_write(display, DPINVGTT, enable << 16);
+	intel_de_write_fw(display, DPINVGTT, status);
+	intel_de_write_fw(display, DPINVGTT, enable << 16);
 }
 
 static void vlv_page_table_error_irq_handler(struct intel_display *display, u32 dpinvgtt)
@@ -1932,21 +1932,21 @@ static void vlv_display_error_irq_ack(struct intel_display *display,
 {
 	u32 emr;
 
-	*eir = intel_de_read(display, VLV_EIR);
+	*eir = intel_de_read_fw(display, VLV_EIR);
 
 	if (*eir & VLV_ERROR_PAGE_TABLE)
 		vlv_page_table_error_irq_ack(display, dpinvgtt);
 
-	intel_de_write(display, VLV_EIR, *eir);
+	intel_de_write_fw(display, VLV_EIR, *eir);
 
 	/*
 	 * Toggle all EMR bits to make sure we get an edge
 	 * in the ISR master error bit if we don't clear
 	 * all the EIR bits.
 	 */
-	emr = intel_de_read(display, VLV_EMR);
-	intel_de_write(display, VLV_EMR, 0xffffffff);
-	intel_de_write(display, VLV_EMR, emr);
+	emr = intel_de_read_fw(display, VLV_EMR);
+	intel_de_write_fw(display, VLV_EMR, 0xffffffff);
+	intel_de_write_fw(display, VLV_EMR, emr);
 }
 
 static void vlv_display_error_irq_handler(struct intel_display *display,

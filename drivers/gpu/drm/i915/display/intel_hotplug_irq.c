@@ -439,15 +439,15 @@ u32 i9xx_hpd_irq_ack(struct intel_display *display)
 	 * bits can itself generate a new hotplug interrupt :(
 	 */
 	for (i = 0; i < 10; i++) {
-		u32 tmp = intel_de_read(display,
-					PORT_HOTPLUG_STAT(display)) & hotplug_status_mask;
+		u32 tmp = intel_de_read_fw(display,
+					   PORT_HOTPLUG_STAT(display)) & hotplug_status_mask;
 
 		if (tmp == 0)
 			return hotplug_status;
 
 		hotplug_status |= tmp;
-		intel_de_write(display, PORT_HOTPLUG_STAT(display),
-			       hotplug_status);
+		intel_de_write_fw(display, PORT_HOTPLUG_STAT(display),
+				  hotplug_status);
 	}
 
 	drm_WARN_ONCE(display->drm, 1,
