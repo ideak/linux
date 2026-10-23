@@ -2661,9 +2661,11 @@ void intel_psr2_program_trans_man_trk_ctl(struct intel_dsb *dsb,
 		break;
 	}
 
-	intel_de_write_dsb(display, dsb,
-			   PSR2_MAN_TRK_CTL(display, cpu_transcoder),
-			   crtc_state->psr2_man_track_ctl);
+	/* The joined pipes drive one transcoder, so program it once. */
+	if (!intel_crtc_is_joiner_secondary(crtc_state))
+		intel_de_write_dsb(display, dsb,
+				   PSR2_MAN_TRK_CTL(display, cpu_transcoder),
+				   crtc_state->psr2_man_track_ctl);
 
 	if (!crtc_state->enable_psr2_su_region_et)
 		return;
@@ -2880,6 +2882,11 @@ intel_psr_apply_su_area_workarounds(struct intel_crtc_state *crtc_state)
 {
 	struct intel_display *display = to_intel_display(crtc_state);
 
+	/*
+	 * Called on the merged area, with the joiner primary crtc_state. The
+	 * secondary has no encoders of its own and the WAs below have to see
+	 * the whole SU region that goes into PSR2_MAN_TRK_CTL.
+	 */
 	/* Wa_14014971492 */
 	if (!crtc_state->has_panel_replay &&
 	    ((IS_DISPLAY_VERx100_STEP(display, 1400, STEP_A0, STEP_B0) ||
@@ -2993,15 +3000,91 @@ static void psr2_sel_fetch_compute_su_area(struct intel_atomic_state *state,
 
 		clip_area_update(&crtc_state->psr2_su_area, &damaged_area, &display_area);
 	}
+}
 
-	/*
-	 * TODO: For now we are just using full update in case
-	 * selective fetch area calculation fails. To optimize this we
-	 * should identify cases where this happens and fix the area
-	 * calculation for those.
-	 */
-	if (crtc_state->psr2_su_area.y1 == -1)
-		*full_update = true;
+static void psr2_sel_fetch_set_su_area(struct intel_atomic_state *state,
+				       u8 joined_pipes, int y1, int y2)
+{
+	struct intel_display *display = to_intel_display(state);
+	struct intel_crtc *crtc;
+
+	for_each_intel_crtc_in_pipe_mask(display, crtc, joined_pipes) {
+		struct intel_crtc_state *crtc_state =
+			intel_atomic_get_new_crtc_state(state, crtc);
+
+		crtc_state->psr2_su_area.y1 = y1;
+		crtc_state->psr2_su_area.y2 = y2;
+	}
+}
+
+/*
+ * One transcoder means one SU region. Joining splits the image horizontally, so
+ * the pipes share the Y range. Returns false if no joined pipe has any damage.
+ */
+static bool psr2_sel_fetch_merge_su_area(struct intel_atomic_state *state,
+					 u8 joined_pipes)
+{
+	struct intel_display *display = to_intel_display(state);
+	struct intel_crtc_state *crtc_state;
+	struct intel_crtc *crtc;
+	int y1 = INT_MAX, y2 = INT_MIN;
+
+	for_each_intel_crtc_in_pipe_mask(display, crtc, joined_pipes) {
+		crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
+
+		/* An empty area must not drag the merged one down. */
+		if (crtc_state->psr2_su_area.y1 == -1)
+			continue;
+
+		y1 = min(y1, crtc_state->psr2_su_area.y1);
+		y2 = max(y2, crtc_state->psr2_su_area.y2);
+	}
+
+	if (y1 == INT_MAX)
+		return false;
+
+	psr2_sel_fetch_set_su_area(state, joined_pipes, y1, y2);
+
+	return true;
+}
+
+/*
+ * Merging only grows the area, so a cursor that missed its own pipe's area can
+ * end up partially covered. Realign on the merged area until it stops growing.
+ */
+static void psr2_sel_fetch_align_su_area(struct intel_atomic_state *state,
+					 u8 joined_pipes)
+{
+	struct intel_display *display = to_intel_display(state);
+	struct intel_crtc *crtc;
+	bool su_area_changed;
+
+	do {
+		su_area_changed = false;
+
+		for_each_intel_crtc_in_pipe_mask(display, crtc, joined_pipes) {
+			struct intel_crtc_state *crtc_state =
+				intel_atomic_get_new_crtc_state(state, crtc);
+			struct drm_rect display_area = {
+				.x1 = 0,
+				.y1 = 0,
+				.x2 = drm_rect_width(&crtc_state->pipe_src),
+				.y2 = drm_rect_height(&crtc_state->pipe_src),
+			};
+			struct drm_rect old_su_area = crtc_state->psr2_su_area;
+
+			/* Needs the planes already pulled into the state. */
+			intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area);
+
+			intel_psr2_sel_fetch_pipe_alignment(crtc_state);
+
+			su_area_changed |= !drm_rect_equals(&crtc_state->psr2_su_area,
+							    &old_su_area);
+		}
+
+		if (su_area_changed)
+			psr2_sel_fetch_merge_su_area(state, joined_pipes);
+	} while (su_area_changed);
 }
 
 static int psr2_sel_fetch_apply_su_area(struct intel_atomic_state *state,
@@ -3019,9 +3102,14 @@ static int psr2_sel_fetch_apply_su_area(struct intel_atomic_state *state,
 	};
 	int i;
 
+	/*
+	 * On full update the whole pipe is fetched, the plane loop below then
+	 * gives every visible plane its full area. Plane states come out of
+	 * the duplicate with a zero sized area, so this has to run on full
+	 * update as well.
+	 */
 	if (full_update)
-		clip_area_update(&crtc_state->psr2_su_area, &display_area,
-				 &display_area);
+		crtc_state->psr2_su_area = display_area;
 
 	/*
 	 * Now that we have the pipe damaged area check if it intersect with
@@ -3075,22 +3163,21 @@ static int psr2_sel_fetch_apply_su_area(struct intel_atomic_state *state,
 	psr2_man_trk_ctl_calc(crtc_state, full_update);
 	crtc_state->pipe_srcsz_early_tpt =
 		psr2_pipe_srcsz_early_tpt_calc(crtc_state, full_update);
+
 	return 0;
 }
 
 int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 				struct intel_crtc *crtc)
 {
+	struct intel_display *display = to_intel_display(state);
 	const struct intel_crtc_state *old_crtc_state =
 		intel_atomic_get_old_crtc_state(state, crtc);
 	struct intel_crtc_state *crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
-	struct drm_rect display_area = {
-		.x1 = 0,
-		.y1 = 0,
-		.x2 = drm_rect_width(&crtc_state->pipe_src),
-		.y2 = drm_rect_height(&crtc_state->pipe_src),
-	};
-	bool full_update, su_area_changed;
+	struct intel_crtc *joined_crtc;
+	bool full_update = false;
+	u8 joined_pipes;
+	int ret;
 
 	/*
 	 * Selective fetch is not always usable, for instance it is dropped
@@ -3108,31 +3195,51 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 	if (!crtc_state->enable_psr2_sel_fetch)
 		return 0;
 
-	psr2_sel_fetch_compute_su_area(state, crtc, &full_update);
+	/* The joined pipes are handled in one go from the primary. */
+	if (intel_crtc_is_joiner_secondary(crtc_state))
+		return 0;
 
-	if (!full_update) {
-		intel_psr_apply_su_area_workarounds(crtc_state);
+	joined_pipes = intel_crtc_joined_pipe_mask(crtc_state);
 
-		do {
-			struct drm_rect old_su_area = crtc_state->psr2_su_area;
+	for_each_intel_crtc_in_pipe_mask(display, joined_crtc, joined_pipes) {
+		psr2_sel_fetch_compute_su_area(state, joined_crtc, &full_update);
 
-			/*
-			 * Adjust su area to cover cursor fully as necessary
-			 * (early transport). A visible cursor is in the state
-			 * even when it is not updated by itself as all planes
-			 * of the pipe are added into the state before the plane
-			 * checks when selective fetch is enabled.
-			 */
-			intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area);
-
-			intel_psr2_sel_fetch_pipe_alignment(crtc_state);
-
-			su_area_changed = !drm_rect_equals(&crtc_state->psr2_su_area,
-							   &old_su_area);
-		} while (su_area_changed);
+		/* One pipe falling back takes all of them with it. */
+		if (full_update)
+			break;
 	}
 
-	return psr2_sel_fetch_apply_su_area(state, crtc, full_update);
+	/*
+	 * TODO: For now we are just using full update in case selective fetch
+	 * area calculation fails. To optimize this we should identify cases
+	 * where this happens and fix the area calculation for those.
+	 */
+	if (!full_update && !psr2_sel_fetch_merge_su_area(state, joined_pipes))
+		full_update = true;
+
+	if (!full_update) {
+		/*
+		 * The WAs clamp the SU region that ends up in the per
+		 * transcoder PSR2_MAN_TRK_CTL, so they have to run on the
+		 * merged area rather than on the per pipe ones. crtc_state is
+		 * the joiner primary, the only one carrying the encoders the
+		 * WAs look at, and the merge guarantees a non empty area.
+		 */
+		intel_psr_apply_su_area_workarounds(crtc_state);
+		psr2_sel_fetch_set_su_area(state, joined_pipes,
+					   crtc_state->psr2_su_area.y1,
+					   crtc_state->psr2_su_area.y2);
+
+		psr2_sel_fetch_align_su_area(state, joined_pipes);
+	}
+
+	for_each_intel_crtc_in_pipe_mask(display, joined_crtc, joined_pipes) {
+		ret = psr2_sel_fetch_apply_su_area(state, joined_crtc, full_update);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 void intel_psr2_panic_force_full_update(const struct intel_crtc_state *crtc_state)
