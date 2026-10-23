@@ -111,6 +111,8 @@ bool __intel_display_wa(struct intel_display *display, enum intel_display_wa wa,
 	case INTEL_DISPLAY_WA_14021768792:
 		return display->platform.battlemage &&
 			IS_DISPLAY_STEP(display, STEP_C0, STEP_FOREVER);
+	case INTEL_DISPLAY_WA_14022081154:
+		return DISPLAY_VER(display) == 30;
 	case INTEL_DISPLAY_WA_14025769978:
 		return DISPLAY_VER(display) == 35;
 	case INTEL_DISPLAY_WA_14026643300:
