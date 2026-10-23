@@ -247,6 +247,6 @@ int intel_dp_link_init(struct intel_dp *intel_dp);
 void intel_dp_link_cleanup(struct intel_dp *intel_dp);
 
 void intel_dp_check_m_n_ratio(const struct intel_crtc_state *crtc_state,
-			      const struct intel_link_m_n *m_n);
+			      struct intel_link_m_n *m_n);
 
 #endif /* __INTEL_DP_H__ */
