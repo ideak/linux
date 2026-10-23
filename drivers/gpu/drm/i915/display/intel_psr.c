@@ -2906,11 +2906,10 @@ intel_psr_apply_su_area_workarounds(struct intel_crtc_state *crtc_state)
 		intel_psr_apply_pr_link_on_su_wa(crtc_state);
 }
 
-int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
-				struct intel_crtc *crtc)
+static void psr2_sel_fetch_compute_su_area(struct intel_atomic_state *state,
+					   struct intel_crtc *crtc,
+					   bool *full_update)
 {
-	const struct intel_crtc_state *old_crtc_state =
-		intel_atomic_get_old_crtc_state(state, crtc);
 	struct intel_crtc_state *crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
 	struct intel_plane_state *new_plane_state, *old_plane_state;
 	struct intel_plane *plane;
@@ -2920,24 +2919,9 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 		.x2 = drm_rect_width(&crtc_state->pipe_src),
 		.y2 = drm_rect_height(&crtc_state->pipe_src),
 	};
-	bool full_update = false, su_area_changed;
 	int i;
 
-	/*
-	 * Selective fetch is not always usable, for instance it is dropped
-	 * while pipe CRC is active. The planes keep their selective fetch
-	 * enable bit set in hardware over that, and a plane disabled while
-	 * selective fetch is off never gets the bit cleared. Once selective
-	 * fetch comes back the hardware would resume fetching for a plane that
-	 * is no longer enabled and keep its DDB range reserved, so have the
-	 * plane update drop the bit for every plane of the pipe as selective
-	 * fetch is turned off.
-	 */
-	crtc_state->clear_psr2_sel_fetch = old_crtc_state->enable_psr2_sel_fetch &&
-		!crtc_state->enable_psr2_sel_fetch;
-
-	if (!crtc_state->enable_psr2_sel_fetch)
-		return 0;
+	*full_update = false;
 
 	crtc_state->psr2_su_area.x1 = 0;
 	crtc_state->psr2_su_area.y1 = -1;
@@ -2945,8 +2929,8 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 	crtc_state->psr2_su_area.y2 = -1;
 
 	if (!psr2_sel_fetch_pipe_state_supported(crtc_state)) {
-		full_update = true;
-		goto skip_su_area_calc;
+		*full_update = true;
+		return;
 	}
 
 	/*
@@ -2969,7 +2953,7 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 
 		if (new_plane_state->uapi.visible &&
 		    !psr2_sel_fetch_plane_state_supported(new_plane_state)) {
-			full_update = true;
+			*full_update = true;
 			break;
 		}
 
@@ -3026,42 +3010,24 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 	 * calculation for those.
 	 */
 	if (crtc_state->psr2_su_area.y1 == -1)
-		full_update = true;
+		*full_update = true;
+}
 
-	if (full_update)
-		goto skip_su_area_calc;
+static int psr2_sel_fetch_apply_su_area(struct intel_atomic_state *state,
+					struct intel_crtc *crtc,
+					bool full_update)
+{
+	struct intel_crtc_state *crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
+	struct intel_plane_state *new_plane_state, *old_plane_state;
+	struct intel_plane *plane;
+	struct drm_rect display_area = {
+		.x1 = 0,
+		.y1 = 0,
+		.x2 = drm_rect_width(&crtc_state->pipe_src),
+		.y2 = drm_rect_height(&crtc_state->pipe_src),
+	};
+	int i;
 
-	intel_psr_apply_su_area_workarounds(crtc_state);
-
-	do {
-		bool cursor_in_su_area = false;
-
-		/*
-		 * Adjust su area to cover cursor fully as necessary
-		 * (early transport). A visible cursor is in the state
-		 * even when it is not updated by itself as all planes
-		 * of the pipe are added into the state before the plane
-		 * checks when selective fetch is enabled.
-		 */
-		intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area,
-						  &cursor_in_su_area);
-
-		su_area_changed = intel_psr2_sel_fetch_pipe_alignment(crtc_state);
-
-		/*
-		 * If the cursor was outside the SU area before
-		 * alignment, the alignment step (which only expands
-		 * SU) may pull the cursor partially inside, so we
-		 * must run ET alignment again to fully cover it. But
-		 * if the cursor was already fully inside before
-		 * alignment, expanding the SU area won't change that,
-		 * so no further work is needed.
-		 */
-		if (cursor_in_su_area)
-			break;
-	} while (su_area_changed);
-
-skip_su_area_calc:
 	if (full_update)
 		clip_area_update(&crtc_state->psr2_su_area, &display_area,
 				 &display_area);
@@ -3119,6 +3085,73 @@ skip_su_area_calc:
 	crtc_state->pipe_srcsz_early_tpt =
 		psr2_pipe_srcsz_early_tpt_calc(crtc_state, full_update);
 	return 0;
+}
+
+int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
+				struct intel_crtc *crtc)
+{
+	const struct intel_crtc_state *old_crtc_state =
+		intel_atomic_get_old_crtc_state(state, crtc);
+	struct intel_crtc_state *crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
+	struct drm_rect display_area = {
+		.x1 = 0,
+		.y1 = 0,
+		.x2 = drm_rect_width(&crtc_state->pipe_src),
+		.y2 = drm_rect_height(&crtc_state->pipe_src),
+	};
+	bool full_update, su_area_changed;
+
+	/*
+	 * Selective fetch is not always usable, for instance it is dropped
+	 * while pipe CRC is active. The planes keep their selective fetch
+	 * enable bit set in hardware over that, and a plane disabled while
+	 * selective fetch is off never gets the bit cleared. Once selective
+	 * fetch comes back the hardware would resume fetching for a plane that
+	 * is no longer enabled and keep its DDB range reserved, so have the
+	 * plane update drop the bit for every plane of the pipe as selective
+	 * fetch is turned off.
+	 */
+	crtc_state->clear_psr2_sel_fetch = old_crtc_state->enable_psr2_sel_fetch &&
+		!crtc_state->enable_psr2_sel_fetch;
+
+	if (!crtc_state->enable_psr2_sel_fetch)
+		return 0;
+
+	psr2_sel_fetch_compute_su_area(state, crtc, &full_update);
+
+	if (!full_update) {
+		intel_psr_apply_su_area_workarounds(crtc_state);
+
+		do {
+			bool cursor_in_su_area = false;
+
+			/*
+			 * Adjust su area to cover cursor fully as necessary
+			 * (early transport). A visible cursor is in the state
+			 * even when it is not updated by itself as all planes
+			 * of the pipe are added into the state before the plane
+			 * checks when selective fetch is enabled.
+			 */
+			intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area,
+							  &cursor_in_su_area);
+
+			su_area_changed = intel_psr2_sel_fetch_pipe_alignment(crtc_state);
+
+			/*
+			 * If the cursor was outside the SU area before
+			 * alignment, the alignment step (which only expands
+			 * SU) may pull the cursor partially inside, so we
+			 * must run ET alignment again to fully cover it. But
+			 * if the cursor was already fully inside before
+			 * alignment, expanding the SU area won't change that,
+			 * so no further work is needed.
+			 */
+			if (cursor_in_su_area)
+				break;
+		} while (su_area_changed);
+	}
+
+	return psr2_sel_fetch_apply_su_area(state, crtc, full_update);
 }
 
 void intel_psr2_panic_force_full_update(const struct intel_crtc_state *crtc_state)
