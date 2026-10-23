@@ -2638,6 +2638,24 @@ static void intel_psr_force_update(struct intel_dp *intel_dp)
 	intel_de_write(display, CURSURFLIVE(display, intel_dp->psr.pipe), 0);
 }
 
+/*
+ * The joiner secondary has no encoders of its own, its uapi.encoder_mask is
+ * zero. PSR is a transcoder level feature driven by the primary, so take the
+ * encoders from there. Only valid once the state has been swapped in, i.e.
+ * from the commit phase.
+ */
+static u32 psr_encoder_mask(const struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *primary_crtc;
+
+	if (!intel_crtc_is_joiner_secondary(crtc_state))
+		return crtc_state->uapi.encoder_mask;
+
+	primary_crtc = intel_primary_crtc(crtc_state);
+
+	return to_intel_crtc_state(primary_crtc->base.state)->uapi.encoder_mask;
+}
+
 void intel_psr2_program_trans_man_trk_ctl(struct intel_dsb *dsb,
 					  const struct intel_crtc_state *crtc_state)
 {
@@ -2650,7 +2668,7 @@ void intel_psr2_program_trans_man_trk_ctl(struct intel_dsb *dsb,
 		return;
 
 	for_each_intel_encoder_mask_with_psr(display->drm, encoder,
-					     crtc_state->uapi.encoder_mask) {
+					     psr_encoder_mask(crtc_state)) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 
 		if (!dsb)
@@ -3464,7 +3482,7 @@ void intel_psr_wait_for_idle_locked(const struct intel_crtc_state *new_crtc_stat
 		return;
 
 	for_each_intel_encoder_mask_with_psr(display->drm, encoder,
-					     new_crtc_state->uapi.encoder_mask) {
+					     psr_encoder_mask(new_crtc_state)) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 		int ret;
 
@@ -4109,7 +4127,7 @@ void intel_psr_lock(const struct intel_crtc_state *crtc_state)
 		return;
 
 	for_each_intel_encoder_mask_with_psr(display->drm, encoder,
-					     crtc_state->uapi.encoder_mask) {
+					     psr_encoder_mask(crtc_state)) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 
 		mutex_lock(&intel_dp->psr.lock);
@@ -4132,7 +4150,7 @@ void intel_psr_unlock(const struct intel_crtc_state *crtc_state)
 		return;
 
 	for_each_intel_encoder_mask_with_psr(display->drm, encoder,
-					     crtc_state->uapi.encoder_mask) {
+					     psr_encoder_mask(crtc_state)) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 
 		mutex_unlock(&intel_dp->psr.lock);
