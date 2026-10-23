@@ -2748,12 +2748,11 @@ static void clip_area_update(struct drm_rect *overlap_damage_area,
 		overlap_damage_area->y2 = inter.y2;
 }
 
-static bool intel_psr2_sel_fetch_pipe_alignment(struct intel_crtc_state *crtc_state)
+static void intel_psr2_sel_fetch_pipe_alignment(struct intel_crtc_state *crtc_state)
 {
 	struct intel_display *display = to_intel_display(crtc_state);
 	const struct drm_dsc_config *vdsc_cfg = &crtc_state->dsc.config;
 	u16 y_alignment;
-	bool su_area_changed = false;
 
 	/* ADLP aligns the SU region to vdsc slice height in case dsc is enabled */
 	if (crtc_state->dsc.compression_enable &&
@@ -2762,18 +2761,12 @@ static bool intel_psr2_sel_fetch_pipe_alignment(struct intel_crtc_state *crtc_st
 	else
 		y_alignment = crtc_state->su_y_granularity;
 
-	if (crtc_state->psr2_su_area.y1 % y_alignment) {
+	if (crtc_state->psr2_su_area.y1 % y_alignment)
 		crtc_state->psr2_su_area.y1 -= crtc_state->psr2_su_area.y1 % y_alignment;
-		su_area_changed = true;
-	}
 
-	if (crtc_state->psr2_su_area.y2 % y_alignment) {
+	if (crtc_state->psr2_su_area.y2 % y_alignment)
 		crtc_state->psr2_su_area.y2 = ((crtc_state->psr2_su_area.y2 /
 						y_alignment) + 1) * y_alignment;
-		su_area_changed = true;
-	}
-
-	return su_area_changed;
 }
 
 /*
@@ -2783,8 +2776,7 @@ static bool intel_psr2_sel_fetch_pipe_alignment(struct intel_crtc_state *crtc_st
 static void
 intel_psr2_sel_fetch_et_alignment(struct intel_atomic_state *state,
 				  struct intel_crtc *crtc,
-				  struct drm_rect *display_area,
-				  bool *cursor_in_su_area)
+				  struct drm_rect *display_area)
 {
 	struct intel_crtc_state *crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
 	struct intel_plane_state *new_plane_state;
@@ -2812,7 +2804,6 @@ intel_psr2_sel_fetch_et_alignment(struct intel_atomic_state *state,
 
 		clip_area_update(&crtc_state->psr2_su_area, &new_plane_state->uapi.dst,
 				 display_area);
-		*cursor_in_su_area = true;
 	}
 }
 
@@ -3123,7 +3114,7 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 		intel_psr_apply_su_area_workarounds(crtc_state);
 
 		do {
-			bool cursor_in_su_area = false;
+			struct drm_rect old_su_area = crtc_state->psr2_su_area;
 
 			/*
 			 * Adjust su area to cover cursor fully as necessary
@@ -3132,22 +3123,12 @@ int intel_psr2_sel_fetch_update(struct intel_atomic_state *state,
 			 * of the pipe are added into the state before the plane
 			 * checks when selective fetch is enabled.
 			 */
-			intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area,
-							  &cursor_in_su_area);
+			intel_psr2_sel_fetch_et_alignment(state, crtc, &display_area);
 
-			su_area_changed = intel_psr2_sel_fetch_pipe_alignment(crtc_state);
+			intel_psr2_sel_fetch_pipe_alignment(crtc_state);
 
-			/*
-			 * If the cursor was outside the SU area before
-			 * alignment, the alignment step (which only expands
-			 * SU) may pull the cursor partially inside, so we
-			 * must run ET alignment again to fully cover it. But
-			 * if the cursor was already fully inside before
-			 * alignment, expanding the SU area won't change that,
-			 * so no further work is needed.
-			 */
-			if (cursor_in_su_area)
-				break;
+			su_area_changed = !drm_rect_equals(&crtc_state->psr2_su_area,
+							   &old_su_area);
 		} while (su_area_changed);
 	}
 
