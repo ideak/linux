@@ -1286,9 +1286,8 @@ static int intel_dp_link_m_n_ratio(u32 link_m, u32 link_n)
 	return DIV_ROUND_UP(link_m, link_n);
 }
 
-static bool
-intel_dp_can_support_m_n(struct intel_display *display,
-			 int pixel_clock, int link_rate)
+bool intel_dp_can_support_m_n(struct intel_display *display,
+			      int pixel_clock, int link_rate)
 {
 	int max_m_n_ratio = intel_dp_get_max_m_n_ratio(display);
 	u32 link_m, link_n;
