@@ -1286,10 +1286,20 @@ static int intel_dp_link_m_n_ratio(u32 link_m, u32 link_n)
 	return DIV_ROUND_UP(link_m, link_n);
 }
 
+static bool
+intel_dp_can_bypass_m_n_limit(struct intel_display *display, int link_rate,
+			      int m_n_ratio, enum transcoder cpu_transcoder)
+{
+	return drm_dp_is_uhbr_rate(link_rate) &&
+		intel_display_can_bypass_m_n_limit(display, m_n_ratio, cpu_transcoder);
+}
+
 bool intel_dp_can_support_m_n(struct intel_display *display,
+			      const struct intel_crtc_state *crtc_state,
 			      int pixel_clock, int link_rate)
 {
 	int max_m_n_ratio = intel_dp_get_max_m_n_ratio(display);
+	enum transcoder cpu_transcoder = TRANSCODER_A;
 	u32 link_m, link_n;
 	int m_n_ratio;
 
@@ -1298,7 +1308,13 @@ bool intel_dp_can_support_m_n(struct intel_display *display,
 
 	m_n_ratio = intel_dp_link_m_n_ratio(link_m, link_n);
 
-	return m_n_ratio <= max_m_n_ratio;
+	if (m_n_ratio <= max_m_n_ratio)
+		return true;
+
+	if (crtc_state)
+		cpu_transcoder = crtc_state->cpu_transcoder;
+
+	return intel_dp_can_bypass_m_n_limit(display, link_rate, m_n_ratio, cpu_transcoder);
 }
 
 void intel_dp_check_m_n_ratio(const struct intel_crtc_state *crtc_state,
@@ -1315,9 +1331,8 @@ void intel_dp_check_m_n_ratio(const struct intel_crtc_state *crtc_state,
 	if (m_n_ratio <= max_m_n_ratio)
 		return;
 
-	if (intel_dp_is_uhbr(crtc_state) &&
-	    intel_display_can_bypass_m_n_limit(display, m_n_ratio,
-					       crtc_state->cpu_transcoder)) {
+	if (intel_dp_can_bypass_m_n_limit(display, crtc_state->port_clock, m_n_ratio,
+					  crtc_state->cpu_transcoder)) {
 		m_n->bypass_m_n_ratio_limit = true;
 		drm_dbg_kms(display->drm,
 			    "Bypassing Link_m/Link_n ratio limit (ratio %d)\n",
@@ -1388,7 +1403,7 @@ static bool intel_dp_mode_valid_m_n(struct intel_dp *intel_dp, int pixel_clock)
 	intel_dp_link_caps_iter_start(&iter, intel_dp->link.caps, order,
 				      INTEL_DP_LINK_CAPS_FILTER_ALL);
 	for_each_dp_link_config(&iter, &link_config) {
-		if (intel_dp_can_support_m_n(display, m_n_pixel_clock,
+		if (intel_dp_can_support_m_n(display, NULL, m_n_pixel_clock,
 					     link_config.rate)) {
 			found = true;
 
@@ -2777,7 +2792,8 @@ intel_dp_compute_m_n_ratio_limits(struct intel_dp *intel_dp,
 
 	intel_dp_link_caps_iter_start(&iter, link_caps, order, limits->link_config_filter);
 	for_each_dp_link_config(&iter, &link_config) {
-		if (!intel_dp_can_support_m_n(display, pixel_clock, link_config.rate))
+		if (!intel_dp_can_support_m_n(display, crtc_state, pixel_clock,
+					      link_config.rate))
 			continue;
 
 		intel_dp_link_caps_filter_add(link_caps, &new_filter, &link_config);

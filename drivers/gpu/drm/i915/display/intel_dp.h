@@ -241,6 +241,7 @@ bool intel_dp_joiner_candidate_valid(struct intel_connector *connector,
 u8 intel_dp_as_sdp_transmission_time(void);
 
 bool intel_dp_can_support_m_n(struct intel_display *display,
+			      const struct intel_crtc_state *crtc_state,
 			      int pixel_clock, int link_rate);
 
 int intel_dp_link_init(struct intel_dp *intel_dp);
