@@ -1301,6 +1301,21 @@ bool intel_dp_can_support_m_n(struct intel_display *display,
 	return m_n_ratio <= max_m_n_ratio;
 }
 
+void intel_dp_check_m_n_ratio(const struct intel_crtc_state *crtc_state,
+			      const struct intel_link_m_n *m_n)
+{
+	struct intel_display *display = to_intel_display(crtc_state);
+	int max_m_n_ratio = intel_dp_get_max_m_n_ratio(display);
+	int m_n_ratio;
+
+	m_n_ratio = intel_dp_link_m_n_ratio(m_n->link_m, m_n->link_n);
+
+	if (m_n_ratio > max_m_n_ratio)
+		drm_dbg_kms(display->drm,
+			    "Link M/N ratio (%d) exceeds max allowed (%d)\n",
+			    m_n_ratio, max_m_n_ratio);
+}
+
 static int intel_dp_mso_pixel_clock(struct intel_dp *intel_dp, int pixel_clock)
 {
 	if (!intel_dp->mso_link_count)
@@ -3757,6 +3772,8 @@ intel_dp_compute_config(struct intel_atomic_state *state,
 				       pipe_config->port_clock,
 				       intel_dp_bw_fec_overhead(pipe_config->fec_enable),
 				       &pipe_config->dp_m_n);
+
+		intel_dp_check_m_n_ratio(pipe_config, &pipe_config->dp_m_n);
 	}
 
 	ret = intel_dp_compute_min_hblank(pipe_config, conn_state);
