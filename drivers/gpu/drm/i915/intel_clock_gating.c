@@ -114,17 +114,6 @@ static void gen6_init_clock_gating(struct drm_i915_private *i915)
 			   GEN6_RCPBUNIT_CLOCK_GATE_DISABLE |
 			   GEN6_RCCUNIT_CLOCK_GATE_DISABLE);
 
-	/*
-	 * According to the spec the following bits should be
-	 * set in order to enable memory self-refresh and fbc:
-	 * The bit21 and bit22 of 0x42000
-	 * The bit21 and bit22 of 0x42004
-	 * The bit5 and bit7 of 0x42020
-	 * The bit14 of 0x70180
-	 * The bit14 of 0x71180
-	 *
-	 * WaFbcAsynchFlipDisableFbcQueue:snb
-	 */
 	intel_pch_init_clock_gating(i915->display);
 
 	gen6_check_mch_setup(i915);

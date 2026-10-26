@@ -237,6 +237,17 @@ static void intel_display_gen6_init_clock_gating(struct intel_display *display)
 	intel_de_write(display, ILK_DSPCLK_GATE_D, dspclk_gate);
 	intel_de_rmw(display, ILK_DISPLAY_CHICKEN2, 0, ILK_ELPIN_409_SELECT);
 
+	/*
+	 * According to the spec the following bits should be
+	 * set in order to enable memory self-refresh and fbc:
+	 * The bit21 and bit22 of 0x42000
+	 * The bit21 and bit22 of 0x42004
+	 * The bit5 and bit7 of 0x42020
+	 * The bit14 of 0x70180
+	 * The bit14 of 0x71180
+	 *
+	 * WaFbcAsynchFlipDisableFbcQueue:snb
+	 */
 	intel_de_write(display, ILK_DISPLAY_CHICKEN1,
 		       intel_de_read(display, ILK_DISPLAY_CHICKEN1) |
 		       ILK_FBCQ_DIS | ILK_PABSTRETCH_DIS);
