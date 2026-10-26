@@ -11,6 +11,7 @@
 #include "intel_display_clock_gating.h"
 #include "intel_display_core.h"
 #include "intel_display_regs.h"
+#include "intel_pch.h"
 
 static void intel_display_gen9_init_clock_gating(struct intel_display *display)
 {
@@ -69,6 +70,8 @@ static void intel_display_kbl_init_clock_gating(struct intel_display *display)
 
 static void intel_display_cfl_init_clock_gating(struct intel_display *display)
 {
+	intel_pch_init_clock_gating(display);
+
 	/*
 	 * WaCompressedResourceDisplayNewHashMode:skl,kbl (and cfl, cml)
 	 * Display WA #0390: skl,kbl (and cfl, cml)
@@ -166,6 +169,8 @@ static void intel_display_bdw_init_clock_gating(struct intel_display *display)
 	intel_display_bdw_clock_gating_disable_fbcq(display);
 	intel_display_bdw_clock_gating_vblank_in_srd(display);
 	intel_display_bdw_clock_gating_kvm_notif(display);
+
+	intel_pch_init_clock_gating(display);
 }
 
 static void intel_display_hsw_init_clock_gating(struct intel_display *display)
@@ -183,6 +188,8 @@ static void intel_display_hsw_init_clock_gating(struct intel_display *display)
 		intel_de_rmw(display, CHICKEN_PIPESL_1(pipe), 0,
 			     HSW_UNMASK_VBL_TO_REGS_IN_SRD);
 	}
+
+	intel_pch_init_clock_gating(display);
 }
 
 static void intel_display_disable_trickle_feed(struct intel_display *display)
@@ -228,6 +235,8 @@ static void intel_display_ilk_init_clock_gating(struct intel_display *display)
 	intel_de_rmw(display, ILK_DISPLAY_CHICKEN2, 0, ILK_ELPIN_409_SELECT);
 
 	intel_display_disable_trickle_feed(display);
+
+	intel_pch_init_clock_gating(display);
 }
 
 static void intel_display_gen6_init_clock_gating(struct intel_display *display)
@@ -260,6 +269,8 @@ static void intel_display_gen6_init_clock_gating(struct intel_display *display)
 		       ILK_DPFDUNIT_CLOCK_GATE_ENABLE);
 
 	intel_display_disable_trickle_feed(display);
+
+	intel_pch_init_clock_gating(display);
 }
 
 static void intel_display_ivb_init_clock_gating(struct intel_display *display)
@@ -268,6 +279,8 @@ static void intel_display_ivb_init_clock_gating(struct intel_display *display)
 	intel_de_rmw(display, ILK_DISPLAY_CHICKEN1, 0, ILK_FBCQ_DIS);
 
 	intel_display_disable_trickle_feed(display);
+
+	intel_pch_init_clock_gating(display);
 }
 
 static void intel_display_g4x_init_clock_gating(struct intel_display *display)
