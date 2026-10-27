@@ -1669,7 +1669,7 @@ void intel_tc_port_sanitize_mode(struct intel_digital_port *dig_port,
 
 	mutex_lock(&tc->lock);
 
-	drm_WARN_ON(display->drm, tc->link_refcount != 1);
+	drm_WARN_ON(display->drm, tc->link_refcount < 1);
 	if (!tc_port_has_active_streams(tc, crtc_state)) {
 		/*
 		 * TBT-alt is the default mode in any case the PHY ownership is not
