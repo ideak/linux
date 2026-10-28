@@ -1,0 +1,44 @@
+drm drm-fixes c03c1a14507dfaf8b856c2608f9ac216021fc222
+	Linux 7.3
+drm-misc drm-misc-fixes 6ce0c151d52f6741b6c04569e1886bc7837faa5d
+	dma-buf: validate the attachment before asserting its reservation lock
+drm-rust drm-rust-fixes cee9395acd8043be0644b25c34bfa86623f2b935
+	Linux 7.3-rc1
+drm-intel drm-intel-fixes c03c1a14507dfaf8b856c2608f9ac216021fc222
+	Linux 7.3
+drm-xe drm-xe-fixes d2ce8fcd778ee6d92748c92d23a56d4416c29d86
+	drm/xe: Bump LRU for external objects on exec and rebind
+drm-amdgpu drm-amdgpu-fixes 752480ad62964edf0254e151110d3e53a7cb37de
+	drm/amdgpu/sdma3: Work around POLL_REGMEM / FENCE hang
+drm drm-next fad06cfaf385787b9ffa2f73f049d42dbe1de57f
+	Merge tag 'drm-misc-next-2026-10-16' of https://gitlab.freedesktop.org/drm/misc/kernel into drm-next
+drm-misc drm-misc-next-fixes 9a96e169c9267af918d28fb291df948d83112807
+	drm/panthor: Move cache-flush after UPDATE(UNMAPPED)
+drm-rust drm-rust-next-fixes d511064b2e732b7152a542d589d07a4814c1b674
+	rust: drm: Remove unused flags argument from Registration::new()
+drm-intel drm-intel-next-fixes 1b15fa434b4b49cdf276fc0bc88264605661fdf6
+	Merge tag 'drm-misc-next-2026-10-02' of https://gitlab.freedesktop.org/drm/misc/kernel into drm-next
+drm-xe drm-xe-next-fixes cee9395acd8043be0644b25c34bfa86623f2b935
+	Linux 7.3-rc1
+drm-amdgpu drm-amdgpu-next-fixes 9131cc85d0dedd8ba4cae60dbe5985d081551f30
+	drm/amdkfd: correct vram_available calculation
+drm-misc drm-misc-next 21803a577cc692d01307102799f795a606871212
+	drm/panel-edp: Add BOE NV116WH2-M32 V8.0, PNB601LS1-3 HW:1.2
+drm-rust drm-rust-next 3497a403264b094ebd61b8b755165d56e7d9dc37
+	rust: DmaFence: Remove static lifetime
+drm-intel drm-intel-next f1367f0cead6f08a435a6317f082b30c8f7b0d1b
+	drm/i915/scaler: return -EINVAL instead of -1
+drm-intel drm-intel-gt-next 4b8a3bdee9245548b3040ddbd0829713ed1e7044
+	drm/i915/gem: Reset err for each fence entry
+drm-xe drm-xe-next d9b01b2d88eb92dc79acc3777189f8f7d0508bac
+	drm/xe/cri: Add new PCI ID
+drm-amdgpu drm-amdgpu-next 22763a52e0894f7e31b8acc7047e0cb3f70d9eba
+	drm/amdgpu: keep PRT mappings off the VM state lists again
+drm-intel topic/core-for-CI 3cf6ff1708aeb3154fa0117b430031abfe7f7ff0
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI b275cb3f07a7ab3ef3bd419db86bd42fa95dcedb
+	topic/xe-for-CI: Define GuC firmware for NVL-P
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
+drm topic/pci-vgaarb-rework 93d41424caf7569ab50092a922477e2a881232b4
+	PCI/VGA: pass a data pointer to be used in the decode callback (v2)
